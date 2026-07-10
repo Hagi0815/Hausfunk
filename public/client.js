@@ -15,6 +15,8 @@ const sidebar = document.getElementById('sidebar');
 const sidebarToggle = document.getElementById('sidebar-toggle');
 const onlineCountEl = document.getElementById('online-count');
 const onlineCountMobileEl = document.getElementById('online-count-mobile');
+const loginUserListEl = document.getElementById('login-user-list');
+const loginOnlineEmptyEl = document.getElementById('login-online-empty');
 const replyPreview = document.getElementById('reply-preview');
 const replyPreviewSender = document.getElementById('reply-preview-sender');
 const replyPreviewText = document.getElementById('reply-preview-text');
@@ -271,8 +273,8 @@ socket.on('reactionUpdate', ({ messageId, reactions }) => {
   if (reactionsEl) renderReactions(reactionsEl, reactions || {});
 });
 
-socket.on('users', (list) => {
-  userListEl.innerHTML = '';
+function renderUserList(container, list) {
+  container.innerHTML = '';
   list.forEach((u) => {
     const li = document.createElement('li');
     const dot = document.createElement('span');
@@ -282,10 +284,23 @@ socket.on('users', (list) => {
     label.textContent = u.name;
     li.appendChild(dot);
     li.appendChild(label);
-    userListEl.appendChild(li);
+    container.appendChild(li);
   });
+}
+
+socket.on('users', (list) => {
+  renderUserList(userListEl, list);
   onlineCountEl.textContent = list.length;
   onlineCountMobileEl.textContent = list.length;
+
+  renderUserList(loginUserListEl, list);
+  if (list.length) {
+    loginUserListEl.classList.remove('hidden');
+    loginOnlineEmptyEl.classList.add('hidden');
+  } else {
+    loginUserListEl.classList.add('hidden');
+    loginOnlineEmptyEl.classList.remove('hidden');
+  }
 });
 
 socket.on('typing', ({ name, isTyping }) => {

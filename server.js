@@ -162,6 +162,10 @@ async function main() {
   }
 
   io.on('connection', (socket) => {
+    // Sofort die aktuelle Online-Liste schicken, auch wenn noch nicht beigetreten
+    // (damit die Startseite bereits zeigen kann, wer gerade aktiv ist).
+    socket.emit('users', [...onlineUsers.values()]);
+
     socket.on('join', (rawName) => {
       const name = (rawName || 'Gast').toString().trim().slice(0, 24) || 'Gast';
       socket.data.name = name;

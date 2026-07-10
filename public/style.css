@@ -93,6 +93,44 @@ html, body {
   margin: 4px 0 26px;
 }
 
+.login-online {
+  text-align: left;
+  margin-bottom: 20px;
+}
+.login-online .online-label { margin-bottom: 8px; }
+.login-user-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.login-user-list.hidden { display: none; }
+.login-user-list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 4px 10px;
+}
+.login-user-list .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+.login-online-empty {
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.05em;
+}
+.login-online-empty.hidden { display: none; }
+
 #name-input {
   width: 100%;
   padding: 12px 14px;
