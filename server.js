@@ -150,6 +150,17 @@ async function main() {
     return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   }
 
+  const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+
+  function sanitizeReplyTo(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const id = (raw.id || '').toString().slice(0, 60);
+    const sender = (raw.sender || '').toString().slice(0, 24);
+    const preview = (raw.preview || '').toString().slice(0, 120);
+    if (!id || !sender) return null;
+    return { id, sender, preview };
+  }
+
   io.on('connection', (socket) => {
     socket.on('join', (rawName) => {
       const name = (rawName || 'Gast').toString().trim().slice(0, 24) || 'Gast';
@@ -166,21 +177,44 @@ async function main() {
       if (!payload || !socket.data.name) return;
       const name = socket.data.name;
       const color = socket.data.color;
+      const replyTo = sanitizeReplyTo(payload.replyTo);
 
       if (payload.type === 'text') {
         const clean = (payload.text || '').toString().slice(0, 2000).trim();
         if (!clean) return;
-        const msg = { id: makeId(), type: 'text', sender: name, color, text: clean, ts: Date.now() };
+        const msg = {
+          id: makeId(), type: 'text', sender: name, color, text: clean, ts: Date.now(),
+          reactions: {}, replyTo,
+        };
         messages.push(msg);
         messages = saveMessages(messages);
         io.emit('message', msg);
       } else if (payload.type === 'image') {
         if (!payload.url) return;
-        const msg = { id: makeId(), type: 'image', sender: name, color, url: payload.url, ts: Date.now() };
+        const msg = {
+          id: makeId(), type: 'image', sender: name, color, url: payload.url, ts: Date.now(),
+          reactions: {}, replyTo,
+        };
         messages.push(msg);
         messages = saveMessages(messages);
         io.emit('message', msg);
       }
+    });
+
+    socket.on('reaction', (payload) => {
+      if (!socket.data.name || !payload) return;
+      const { messageId, emoji } = payload;
+      if (!REACTION_EMOJIS.includes(emoji)) return;
+      const msg = messages.find((m) => m.id === messageId);
+      if (!msg) return;
+      if (!msg.reactions) msg.reactions = {};
+      const name = socket.data.name;
+      const list = msg.reactions[emoji] || [];
+      const idx = list.indexOf(name);
+      if (idx >= 0) list.splice(idx, 1); else list.push(name);
+      if (list.length) msg.reactions[emoji] = list; else delete msg.reactions[emoji];
+      messages = saveMessages(messages);
+      io.emit('reactionUpdate', { messageId, reactions: msg.reactions });
     });
 
     socket.on('typing', (isTyping) => {

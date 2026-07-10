@@ -15,10 +15,26 @@ const sidebar = document.getElementById('sidebar');
 const sidebarToggle = document.getElementById('sidebar-toggle');
 const onlineCountEl = document.getElementById('online-count');
 const onlineCountMobileEl = document.getElementById('online-count-mobile');
+const replyPreview = document.getElementById('reply-preview');
+const replyPreviewSender = document.getElementById('reply-preview-sender');
+const replyPreviewText = document.getElementById('reply-preview-text');
+const replyCancelBtn = document.getElementById('reply-cancel');
+const emojiBtn = document.getElementById('emoji-btn');
+const emojiPicker = document.getElementById('emoji-picker');
 
 let myName = '';
 let typingTimeout = null;
 const typingUsers = new Set();
+let replyingTo = null; // { id, sender, preview }
+
+const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+const EMOJI_LIST = [
+  '😀','😃','😄','😁','😆','😅','😂','🤣','😊','😇','🙂','🙃','😉','😌','😍','🥰',
+  '😘','😜','🤪','😎','🤩','🥳','😏','😴','🤗','🤔','🤨','😐','😶','🙄','😬','😢',
+  '😭','😤','😡','🤯','🥶','🥵','😱','🤢','🤮','🤒','🤕','🤠','🥺','😳','👍','👎',
+  '👏','🙌','🙏','👋','🤝','💪','❤️','🧡','💛','💚','💙','💜','🖤','💔','💯','🔥',
+  '✨','🎉','🎂','🍕','🍺','☕','⚽','🎮','🚗','🏠','🌞','🌧️','⭐',
+];
 
 // --- Browser-Benachrichtigungen ---
 const notifStatusEl = document.getElementById('notif-status');
@@ -97,10 +113,45 @@ function renderSystem(text) {
   scrollToBottom();
 }
 
+// --- Antworten (Reply) -------------------------------------------------------
+function startReply(msg) {
+  const preview = msg.type === 'image' ? '📷 Bild' : msg.text;
+  replyingTo = { id: msg.id, sender: msg.sender, preview: preview.slice(0, 80) };
+  replyPreviewSender.textContent = msg.sender;
+  replyPreviewText.textContent = preview.slice(0, 80);
+  replyPreview.classList.remove('hidden');
+  textInput.focus();
+}
+
+function cancelReply() {
+  replyingTo = null;
+  replyPreview.classList.add('hidden');
+}
+
+replyCancelBtn.addEventListener('click', cancelReply);
+
+// --- Reaktionen ---------------------------------------------------------------
+function renderReactions(container, reactions) {
+  container.innerHTML = '';
+  Object.entries(reactions || {}).forEach(([emoji, names]) => {
+    if (!names || !names.length) return;
+    const pill = document.createElement('button');
+    pill.className = `reaction-pill${names.includes(myName) ? ' mine' : ''}`;
+    pill.textContent = `${emoji} ${names.length}`;
+    pill.title = names.join(', ');
+    pill.addEventListener('click', () => {
+      const msgId = container.closest('.msg').dataset.id;
+      socket.emit('reaction', { messageId: msgId, emoji });
+    });
+    container.appendChild(pill);
+  });
+}
+
 function renderMessage(msg) {
   const own = msg.sender === myName;
   const wrap = document.createElement('div');
   wrap.className = `msg ${own ? 'own' : ''}`;
+  wrap.dataset.id = msg.id;
 
   const meta = document.createElement('div');
   meta.className = 'msg-meta';
@@ -121,6 +172,21 @@ function renderMessage(msg) {
 
   wrap.appendChild(meta);
 
+  if (msg.replyTo) {
+    const ref = document.createElement('div');
+    ref.className = 'reply-ref';
+    ref.textContent = `↩ ${msg.replyTo.sender}: ${msg.replyTo.preview}`;
+    ref.addEventListener('click', () => {
+      const target = messagesEl.querySelector(`[data-id="${CSS.escape(msg.replyTo.id)}"]`);
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        target.classList.add('highlight');
+        setTimeout(() => target.classList.remove('highlight'), 1200);
+      }
+    });
+    wrap.appendChild(ref);
+  }
+
   const bubble = document.createElement('div');
   bubble.className = 'bubble';
 
@@ -137,6 +203,46 @@ function renderMessage(msg) {
   }
 
   wrap.appendChild(bubble);
+
+  // Aktionen: Reagieren + Antworten
+  const actions = document.createElement('div');
+  actions.className = 'msg-actions';
+
+  const reactBtn = document.createElement('button');
+  reactBtn.className = 'action-btn';
+  reactBtn.textContent = '🙂+';
+  reactBtn.title = 'Reagieren';
+  actions.appendChild(reactBtn);
+
+  const replyBtn = document.createElement('button');
+  replyBtn.className = 'action-btn';
+  replyBtn.textContent = '↩ Antworten';
+  replyBtn.title = 'Auf diese Nachricht antworten';
+  replyBtn.addEventListener('click', () => startReply(msg));
+  actions.appendChild(replyBtn);
+
+  wrap.appendChild(actions);
+
+  const quickRow = document.createElement('div');
+  quickRow.className = 'quick-react-row hidden';
+  REACTION_EMOJIS.forEach((emoji) => {
+    const btn = document.createElement('button');
+    btn.textContent = emoji;
+    btn.addEventListener('click', () => {
+      socket.emit('reaction', { messageId: msg.id, emoji });
+      quickRow.classList.add('hidden');
+    });
+    quickRow.appendChild(btn);
+  });
+  wrap.appendChild(quickRow);
+
+  reactBtn.addEventListener('click', () => quickRow.classList.toggle('hidden'));
+
+  const reactionsEl = document.createElement('div');
+  reactionsEl.className = 'reactions';
+  wrap.appendChild(reactionsEl);
+  renderReactions(reactionsEl, msg.reactions || {});
+
   messagesEl.appendChild(wrap);
   scrollToBottom();
 }
@@ -157,6 +263,13 @@ socket.on('message', (msg) => {
   }
 });
 socket.on('system', renderSystem);
+
+socket.on('reactionUpdate', ({ messageId, reactions }) => {
+  const target = messagesEl.querySelector(`[data-id="${CSS.escape(messageId)}"]`);
+  if (!target) return;
+  const reactionsEl = target.querySelector('.reactions');
+  if (reactionsEl) renderReactions(reactionsEl, reactions || {});
+});
 
 socket.on('users', (list) => {
   userListEl.innerHTML = '';
@@ -184,10 +297,11 @@ socket.on('typing', ({ name, isTyping }) => {
 function sendText() {
   const text = textInput.value.trim();
   if (!text) return;
-  socket.emit('message', { type: 'text', text });
+  socket.emit('message', { type: 'text', text, replyTo: replyingTo });
   textInput.value = '';
   textInput.style.height = 'auto';
   socket.emit('typing', false);
+  cancelReply();
 }
 
 sendBtn.addEventListener('click', sendText);
@@ -213,7 +327,8 @@ async function uploadFile(file) {
     const res = await fetch('/upload', { method: 'POST', body: formData });
     const data = await res.json();
     if (data.url) {
-      socket.emit('message', { type: 'image', url: data.url });
+      socket.emit('message', { type: 'image', url: data.url, replyTo: replyingTo });
+      cancelReply();
     } else if (data.error) {
       renderSystem(`Fehler beim Senden: ${data.error}`);
     }
@@ -237,4 +352,35 @@ chatScreen.addEventListener('drop', (e) => {
   chatScreen.classList.remove('dragging');
   const file = e.dataTransfer.files && e.dataTransfer.files[0];
   if (file) uploadFile(file);
+});
+
+// --- Emoji-Picker zum Einfügen beim Schreiben ---------------------------------
+function insertAtCursor(el, text) {
+  const start = el.selectionStart ?? el.value.length;
+  const end = el.selectionEnd ?? el.value.length;
+  el.value = el.value.slice(0, start) + text + el.value.slice(end);
+  const pos = start + text.length;
+  el.selectionStart = el.selectionEnd = pos;
+  el.dispatchEvent(new Event('input'));
+}
+
+EMOJI_LIST.forEach((emoji) => {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.textContent = emoji;
+  btn.addEventListener('click', () => {
+    insertAtCursor(textInput, emoji);
+    textInput.focus();
+  });
+  emojiPicker.appendChild(btn);
+});
+
+emojiBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  emojiPicker.classList.toggle('hidden');
+});
+document.addEventListener('click', (e) => {
+  if (!emojiPicker.classList.contains('hidden') && !emojiPicker.contains(e.target) && e.target !== emojiBtn) {
+    emojiPicker.classList.add('hidden');
+  }
 });
