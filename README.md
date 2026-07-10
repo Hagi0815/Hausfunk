@@ -29,6 +29,28 @@ Dann `http://localhost:3210` öffnen. Port lässt sich per `PORT`-Umgebungsvaria
 PORT=4000 npm start
 ```
 
+## HTTPS (selbstsigniertes Zertifikat)
+
+Hausfunk läuft über **HTTPS** auf Port 3210 (nicht mehr HTTP). Beim allerersten Start
+erzeugt der Server automatisch ein selbstsigniertes Zertifikat unter `certs/`
+(liegt in `.gitignore`, wird nie versioniert – jede Installation bekommt ihr eigenes).
+Das Zertifikat enthält die zu diesem Zeitpunkt aktiven lokalen IPv4-Adressen des
+Servers als Subject Alternative Names, ist 10 Jahre gültig und wird bei jedem
+weiteren Start wiederverwendet.
+
+- Aufruf jetzt über `https://<server-ip>:3210` (nicht `http://`)
+- Der Browser zeigt beim ersten Besuch pro Gerät eine Warnung
+  („Verbindung ist nicht privat“ / „Nicht sicher“), weil das Zertifikat
+  selbstsigniert und nicht von einer bekannten Stelle beglaubigt ist. Auf
+  „Erweitert“ → „Trotzdem fortfahren“ klicken – danach funktioniert die Seite
+  normal, inklusive Browser-Benachrichtigungen (die brauchen einen sicheren
+  Kontext, also HTTPS).
+- Ändert sich die IP des Servers dauerhaft (z. B. nach Wechsel von DHCP auf eine
+  andere Adresse), passt das alte Zertifikat evtl. nicht mehr zur neuen IP.
+  Einfach den `certs/`-Ordner löschen und `pm2 restart hausfunk` ausführen –
+  es wird automatisch ein neues, passendes Zertifikat erzeugt (Browser-Warnung
+  erscheint dann erneut einmalig).
+
 ## Deployment auf deinem Proxmox-Setup (LXC + pm2)
 
 Passend zu deinem bestehenden Muster (wie beim network-dashboard auf CT 112):
