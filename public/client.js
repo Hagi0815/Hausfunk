@@ -20,6 +20,51 @@ let myName = '';
 let typingTimeout = null;
 const typingUsers = new Set();
 
+// --- Browser-Benachrichtigungen ---
+const notifStatusEl = document.getElementById('notif-status');
+const baseTitle = document.title;
+let unreadCount = 0;
+
+function updateNotifStatus() {
+  if (!('Notification' in window)) {
+    notifStatusEl.textContent = '';
+    return;
+  }
+  if (Notification.permission === 'granted') {
+    notifStatusEl.textContent = '🔔 Benachrichtigungen aktiv';
+  } else if (Notification.permission === 'denied') {
+    notifStatusEl.textContent = '🔕 Benachrichtigungen blockiert (Browser-Einstellungen)';
+  } else {
+    notifStatusEl.textContent = '🔔 Benachrichtigungen noch nicht erlaubt';
+  }
+}
+
+function requestNotificationPermission() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') {
+    Notification.requestPermission().then(updateNotifStatus);
+  }
+  updateNotifStatus();
+}
+
+function notifyNewMessage(msg) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  if (document.visibilityState === 'visible') return;
+  const body = msg.type === 'image' ? '📷 Bild gesendet' : msg.text;
+  const notif = new Notification(`${msg.sender} · Hausfunk`, { body });
+  notif.onclick = () => {
+    window.focus();
+    notif.close();
+  };
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    unreadCount = 0;
+    document.title = baseTitle;
+  }
+});
+
 function join() {
   const name = nameInput.value.trim();
   if (!name) { nameInput.focus(); return; }
@@ -28,6 +73,7 @@ function join() {
   loginScreen.classList.add('hidden');
   chatScreen.classList.remove('hidden');
   textInput.focus();
+  requestNotificationPermission(); // Klick auf "Kanal betreten" zählt als Nutzer-Geste
 }
 
 joinBtn.addEventListener('click', join);
@@ -100,7 +146,16 @@ socket.on('history', (msgs) => {
   msgs.forEach(renderMessage);
 });
 
-socket.on('message', renderMessage);
+socket.on('message', (msg) => {
+  renderMessage(msg);
+  if (msg.sender !== myName) {
+    if (document.hidden) {
+      unreadCount += 1;
+      document.title = `(${unreadCount}) ${baseTitle}`;
+    }
+    notifyNewMessage(msg);
+  }
+});
 socket.on('system', renderSystem);
 
 socket.on('users', (list) => {
