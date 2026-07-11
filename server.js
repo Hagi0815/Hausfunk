@@ -9,22 +9,87 @@ const { Server } = require('socket.io');
 
 const PORT = process.env.PORT || 3210;
 const DATA_DIR = path.join(__dirname, 'data');
+const ROOMS_DIR = path.join(DATA_DIR, 'rooms');
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
 const CERT_DIR = path.join(__dirname, 'certs');
 const KEY_FILE = path.join(CERT_DIR, 'key.pem');
 const CERT_FILE = path.join(CERT_DIR, 'cert.pem');
-const MESSAGES_FILE = path.join(DATA_DIR, 'messages.json');
-const PINNED_FILE = path.join(DATA_DIR, 'pinned.json');
-const MAX_HISTORY = 500;   // wie viele Nachrichten dauerhaft behalten werden
-const MAX_SEND = 200;      // wie viele beim Beitritt an den Client geschickt werden
+const LEGACY_MESSAGES_FILE = path.join(DATA_DIR, 'messages.json');
+const LEGACY_PINNED_FILE = path.join(DATA_DIR, 'pinned.json');
+const MAX_HISTORY = 500;   // wie viele Nachrichten pro Kanal dauerhaft behalten werden
+const MAX_SEND = 200;      // wie viele beim Beitritt/Wechsel an den Client geschickt werden
 const DELETE_WINDOW_MS = 5 * 60 * 1000; // Zeitfenster, in dem eigene Nachrichten loeschbar sind
 
-// --- Ordner & Datendatei sicherstellen -------------------------------------
-[DATA_DIR, UPLOAD_DIR, CERT_DIR].forEach((dir) => {
+// --- Kanaele -----------------------------------------------------------------
+// Um weitere Kanaele hinzuzufuegen, hier einfach ein Objekt ergaenzen.
+// "id" wird als Ordnername verwendet: klein geschrieben, keine Leer-/Sonderzeichen.
+const ROOMS = [
+  { id: 'familie', label: 'Familie' },
+  { id: 'technik', label: 'Technik' },
+  { id: 'einkaufsliste', label: 'Einkaufsliste' },
+];
+const DEFAULT_ROOM = ROOMS[0].id;
+
+// --- Ordner sicherstellen ----------------------------------------------------
+[DATA_DIR, ROOMS_DIR, UPLOAD_DIR, CERT_DIR].forEach((dir) => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
-if (!fs.existsSync(MESSAGES_FILE)) fs.writeFileSync(MESSAGES_FILE, '[]');
-if (!fs.existsSync(PINNED_FILE)) fs.writeFileSync(PINNED_FILE, 'null');
+
+function roomDir(roomId) {
+  return path.join(ROOMS_DIR, roomId);
+}
+function roomMessagesFile(roomId) {
+  return path.join(roomDir(roomId), 'messages.json');
+}
+function roomPinnedFile(roomId) {
+  return path.join(roomDir(roomId), 'pinned.json');
+}
+
+// --- Alten (vor Kanaelen bestehenden) Verlauf einmalig in den Standard-Kanal
+//     uebernehmen, damit kein bestehender Chat verloren geht. ------------------
+function migrateLegacyData() {
+  const dir = roomDir(DEFAULT_ROOM);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const newMessagesFile = roomMessagesFile(DEFAULT_ROOM);
+  const newPinnedFile = roomPinnedFile(DEFAULT_ROOM);
+  if (fs.existsSync(LEGACY_MESSAGES_FILE) && !fs.existsSync(newMessagesFile)) {
+    fs.copyFileSync(LEGACY_MESSAGES_FILE, newMessagesFile);
+    console.log(`Bestehender Verlauf wurde in den Kanal "${DEFAULT_ROOM}" uebernommen.`);
+  }
+  if (fs.existsSync(LEGACY_PINNED_FILE) && !fs.existsSync(newPinnedFile)) {
+    fs.copyFileSync(LEGACY_PINNED_FILE, newPinnedFile);
+  }
+}
+migrateLegacyData();
+
+// --- Zustand pro Kanal laden/speichern ---------------------------------------
+const roomState = new Map(); // roomId -> { messages: [...], pinned: {...}|null }
+
+function loadRoom(roomId) {
+  const dir = roomDir(roomId);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const mFile = roomMessagesFile(roomId);
+  const pFile = roomPinnedFile(roomId);
+  if (!fs.existsSync(mFile)) fs.writeFileSync(mFile, '[]');
+  if (!fs.existsSync(pFile)) fs.writeFileSync(pFile, 'null');
+  let messages = [];
+  let pinned = null;
+  try { messages = JSON.parse(fs.readFileSync(mFile, 'utf-8')); } catch (err) { messages = []; }
+  try { pinned = JSON.parse(fs.readFileSync(pFile, 'utf-8')); } catch (err) { pinned = null; }
+  return { messages, pinned };
+}
+
+function saveRoomMessages(roomId) {
+  const state = roomState.get(roomId);
+  state.messages = state.messages.slice(-MAX_HISTORY);
+  fs.writeFileSync(roomMessagesFile(roomId), JSON.stringify(state.messages, null, 2));
+}
+function saveRoomPinned(roomId) {
+  const state = roomState.get(roomId);
+  fs.writeFileSync(roomPinnedFile(roomId), JSON.stringify(state.pinned));
+}
+
+ROOMS.forEach((r) => roomState.set(r.id, loadRoom(r.id)));
 
 // --- Selbstsigniertes Zertifikat sicherstellen -----------------------------
 // Wird beim allerersten Start einmalig erzeugt und danach wiederverwendet.
@@ -79,34 +144,6 @@ async function ensureCertificate() {
   console.log(`Neues selbstsigniertes Zertifikat erzeugt fuer: ${ips.join(', ')}`);
   return { key: pems.private, cert: pems.cert };
 }
-
-function loadMessages() {
-  try {
-    return JSON.parse(fs.readFileSync(MESSAGES_FILE, 'utf-8'));
-  } catch (err) {
-    console.error('Konnte messages.json nicht lesen, starte leer:', err.message);
-    return [];
-  }
-}
-function saveMessages(msgs) {
-  const trimmed = msgs.slice(-MAX_HISTORY);
-  fs.writeFileSync(MESSAGES_FILE, JSON.stringify(trimmed, null, 2));
-  return trimmed;
-}
-
-function loadPinned() {
-  try {
-    return JSON.parse(fs.readFileSync(PINNED_FILE, 'utf-8'));
-  } catch (err) {
-    return null;
-  }
-}
-function savePinned(pinned) {
-  fs.writeFileSync(PINNED_FILE, JSON.stringify(pinned));
-}
-
-let messages = loadMessages();
-let pinned = loadPinned();
 
 async function main() {
   // --- App / Server / Socket.io ---------------------------------------------
@@ -181,7 +218,7 @@ async function main() {
   });
 
   // --- Online-Nutzer & Farben -------------------------------------------------
-  const onlineUsers = new Map(); // socket.id -> { name, color }
+  const onlineUsers = new Map(); // socket.id -> { name, color, avatar, room }
   const COLORS = ['#E8A33D', '#3E7C77', '#C9614A', '#6C8EBF', '#9B7EDE', '#5FAE6B', '#D9B24C'];
 
   function colorForName(name) {
@@ -190,8 +227,14 @@ async function main() {
     return COLORS[Math.abs(hash) % COLORS.length];
   }
 
-  function broadcastUsers() {
-    io.emit('users', [...onlineUsers.values()]);
+  function usersInRoom(roomId) {
+    return [...onlineUsers.values()].filter((u) => u.room === roomId);
+  }
+  function broadcastRoomUsers(roomId) {
+    io.to(roomId).emit('users', usersInRoom(roomId));
+  }
+  function broadcastGlobalUsers() {
+    io.emit('globalUsers', [...onlineUsers.values()]);
   }
 
   function makeId() {
@@ -210,27 +253,58 @@ async function main() {
   }
 
   io.on('connection', (socket) => {
-    // Sofort die aktuelle Online-Liste schicken, auch wenn noch nicht beigetreten
-    // (damit die Startseite bereits zeigen kann, wer gerade aktiv ist).
-    socket.emit('users', [...onlineUsers.values()]);
+    // Sofort Kanalliste + globale Online-Uebersicht schicken, auch wenn noch
+    // nicht beigetreten (damit die Startseite bereits zeigen kann, wer aktiv ist).
+    socket.emit('rooms', ROOMS);
+    socket.emit('globalUsers', [...onlineUsers.values()]);
 
     socket.on('join', (payload) => {
       const raw = typeof payload === 'string' ? { name: payload } : (payload || {});
       const name = (raw.name || 'Gast').toString().trim().slice(0, 24) || 'Gast';
       const avatar = (raw.avatar || '').toString().trim().slice(0, 8) || null;
+      const roomId = DEFAULT_ROOM;
+
       socket.data.name = name;
       socket.data.color = colorForName(name);
       socket.data.avatar = avatar;
-      onlineUsers.set(socket.id, { name, color: socket.data.color, avatar });
+      socket.data.room = roomId;
+      socket.join(roomId);
+      onlineUsers.set(socket.id, { name, color: socket.data.color, avatar, room: roomId });
 
-      socket.emit('history', messages.slice(-MAX_SEND));
-      socket.emit('pinnedUpdate', pinned);
-      broadcastUsers();
-      socket.broadcast.emit('system', `${name} ist beigetreten`);
+      const state = roomState.get(roomId);
+      socket.emit('roomChanged', roomId);
+      socket.emit('history', state.messages.slice(-MAX_SEND));
+      socket.emit('pinnedUpdate', state.pinned);
+      broadcastRoomUsers(roomId);
+      broadcastGlobalUsers();
+      socket.to(roomId).emit('system', `${name} ist beigetreten`);
+    });
+
+    socket.on('switchRoom', (payload) => {
+      if (!socket.data.name || !payload) return;
+      const roomId = payload.roomId;
+      if (!ROOMS.some((r) => r.id === roomId)) return;
+      const oldRoom = socket.data.room;
+      if (oldRoom === roomId) return;
+
+      socket.leave(oldRoom);
+      socket.join(roomId);
+      socket.data.room = roomId;
+      const entry = onlineUsers.get(socket.id);
+      if (entry) entry.room = roomId;
+
+      const state = roomState.get(roomId);
+      socket.emit('roomChanged', roomId);
+      socket.emit('history', state.messages.slice(-MAX_SEND));
+      socket.emit('pinnedUpdate', state.pinned);
+      broadcastRoomUsers(oldRoom);
+      broadcastRoomUsers(roomId);
     });
 
     socket.on('message', (payload) => {
-      if (!payload || !socket.data.name) return;
+      if (!payload || !socket.data.name || !socket.data.room) return;
+      const roomId = socket.data.room;
+      const state = roomState.get(roomId);
       const name = socket.data.name;
       const color = socket.data.color;
       const avatar = socket.data.avatar;
@@ -243,18 +317,18 @@ async function main() {
           id: makeId(), type: 'text', sender: name, color, avatar, text: clean, ts: Date.now(),
           reactions: {}, replyTo,
         };
-        messages.push(msg);
-        messages = saveMessages(messages);
-        io.emit('message', msg);
+        state.messages.push(msg);
+        saveRoomMessages(roomId);
+        io.to(roomId).emit('message', msg);
       } else if (payload.type === 'image') {
         if (!payload.url) return;
         const msg = {
           id: makeId(), type: 'image', sender: name, color, avatar, url: payload.url, ts: Date.now(),
           reactions: {}, replyTo,
         };
-        messages.push(msg);
-        messages = saveMessages(messages);
-        io.emit('message', msg);
+        state.messages.push(msg);
+        saveRoomMessages(roomId);
+        io.to(roomId).emit('message', msg);
       } else if (payload.type === 'audio') {
         if (!payload.url) return;
         const duration = Math.min(Math.max(Number(payload.duration) || 0, 0), 120);
@@ -262,17 +336,19 @@ async function main() {
           id: makeId(), type: 'audio', sender: name, color, avatar, url: payload.url, duration, ts: Date.now(),
           reactions: {}, replyTo,
         };
-        messages.push(msg);
-        messages = saveMessages(messages);
-        io.emit('message', msg);
+        state.messages.push(msg);
+        saveRoomMessages(roomId);
+        io.to(roomId).emit('message', msg);
       }
     });
 
     socket.on('reaction', (payload) => {
-      if (!socket.data.name || !payload) return;
+      if (!socket.data.name || !socket.data.room || !payload) return;
+      const roomId = socket.data.room;
+      const state = roomState.get(roomId);
       const { messageId, emoji } = payload;
       if (!REACTION_EMOJIS.includes(emoji)) return;
-      const msg = messages.find((m) => m.id === messageId);
+      const msg = state.messages.find((m) => m.id === messageId);
       if (!msg || msg.deleted) return;
       if (!msg.reactions) msg.reactions = {};
       const name = socket.data.name;
@@ -280,13 +356,15 @@ async function main() {
       const idx = list.indexOf(name);
       if (idx >= 0) list.splice(idx, 1); else list.push(name);
       if (list.length) msg.reactions[emoji] = list; else delete msg.reactions[emoji];
-      messages = saveMessages(messages);
-      io.emit('reactionUpdate', { messageId, reactions: msg.reactions });
+      saveRoomMessages(roomId);
+      io.to(roomId).emit('reactionUpdate', { messageId, reactions: msg.reactions });
     });
 
     socket.on('deleteMessage', (payload) => {
-      if (!socket.data.name || !payload) return;
-      const msg = messages.find((m) => m.id === payload.messageId);
+      if (!socket.data.name || !socket.data.room || !payload) return;
+      const roomId = socket.data.room;
+      const state = roomState.get(roomId);
+      const msg = state.messages.find((m) => m.id === payload.messageId);
       if (!msg || msg.deleted) return;
       if (msg.sender !== socket.data.name) return;
       if (Date.now() - msg.ts > DELETE_WINDOW_MS) return;
@@ -295,20 +373,22 @@ async function main() {
       delete msg.url;
       delete msg.duration;
       msg.reactions = {};
-      messages = saveMessages(messages);
-      io.emit('messageDeleted', { messageId: msg.id });
-      if (pinned && pinned.id === msg.id) {
-        pinned = null;
-        savePinned(pinned);
-        io.emit('pinnedUpdate', pinned);
+      saveRoomMessages(roomId);
+      io.to(roomId).emit('messageDeleted', { messageId: msg.id });
+      if (state.pinned && state.pinned.id === msg.id) {
+        state.pinned = null;
+        saveRoomPinned(roomId);
+        io.to(roomId).emit('pinnedUpdate', state.pinned);
       }
     });
 
     socket.on('pin', (payload) => {
-      if (!socket.data.name || !payload) return;
-      const msg = messages.find((m) => m.id === payload.messageId);
+      if (!socket.data.name || !socket.data.room || !payload) return;
+      const roomId = socket.data.room;
+      const state = roomState.get(roomId);
+      const msg = state.messages.find((m) => m.id === payload.messageId);
       if (!msg || msg.deleted) return;
-      pinned = {
+      state.pinned = {
         id: msg.id,
         sender: msg.sender,
         type: msg.type,
@@ -318,27 +398,33 @@ async function main() {
         pinnedBy: socket.data.name,
         ts: msg.ts,
       };
-      savePinned(pinned);
-      io.emit('pinnedUpdate', pinned);
+      saveRoomPinned(roomId);
+      io.to(roomId).emit('pinnedUpdate', state.pinned);
     });
 
     socket.on('unpin', () => {
-      if (!socket.data.name) return;
-      pinned = null;
-      savePinned(pinned);
-      io.emit('pinnedUpdate', pinned);
+      if (!socket.data.name || !socket.data.room) return;
+      const roomId = socket.data.room;
+      const state = roomState.get(roomId);
+      state.pinned = null;
+      saveRoomPinned(roomId);
+      io.to(roomId).emit('pinnedUpdate', state.pinned);
     });
 
     socket.on('typing', (isTyping) => {
-      if (!socket.data.name) return;
-      socket.broadcast.emit('typing', { name: socket.data.name, isTyping: !!isTyping });
+      if (!socket.data.name || !socket.data.room) return;
+      socket.to(socket.data.room).emit('typing', { name: socket.data.name, isTyping: !!isTyping });
     });
 
     socket.on('disconnect', () => {
       const name = socket.data.name;
+      const room = socket.data.room;
       onlineUsers.delete(socket.id);
-      broadcastUsers();
-      if (name) socket.broadcast.emit('system', `${name} hat den Kanal verlassen`);
+      if (room) {
+        broadcastRoomUsers(room);
+        if (name) io.to(room).emit('system', `${name} hat den Kanal verlassen`);
+      }
+      broadcastGlobalUsers();
     });
   });
 

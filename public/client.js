@@ -37,6 +37,11 @@ const galleryOverlay = document.getElementById('gallery-overlay');
 const galleryGrid = document.getElementById('gallery-grid');
 const galleryCloseBtn = document.getElementById('gallery-close');
 const micBtn = document.getElementById('mic-btn');
+const roomListEl = document.getElementById('room-list');
+const roomTitleEl = document.getElementById('room-title');
+
+let rooms = [];
+let currentRoom = null;
 
 const DELETE_WINDOW_MS = 5 * 60 * 1000; // muss zum Server-Wert passen
 let currentPinned = null;
@@ -601,7 +606,9 @@ socket.on('users', (list) => {
   renderUserList(userListEl, list);
   onlineCountEl.textContent = list.length;
   onlineCountMobileEl.textContent = list.length;
+});
 
+socket.on('globalUsers', (list) => {
   renderUserList(loginUserListEl, list);
   if (list.length) {
     loginUserListEl.classList.remove('hidden');
@@ -610,6 +617,44 @@ socket.on('users', (list) => {
     loginUserListEl.classList.add('hidden');
     loginOnlineEmptyEl.classList.remove('hidden');
   }
+});
+
+// --- Kanaele -----------------------------------------------------------------
+function renderRoomList() {
+  roomListEl.innerHTML = '';
+  rooms.forEach((r) => {
+    const li = document.createElement('li');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = `# ${r.label}`;
+    btn.className = r.id === currentRoom ? 'active' : '';
+    btn.addEventListener('click', () => {
+      if (r.id === currentRoom) return;
+      socket.emit('switchRoom', { roomId: r.id });
+    });
+    li.appendChild(btn);
+    roomListEl.appendChild(li);
+  });
+}
+
+socket.on('rooms', (list) => {
+  rooms = list;
+  renderRoomList();
+});
+
+socket.on('roomChanged', (roomId) => {
+  currentRoom = roomId;
+  const room = rooms.find((r) => r.id === roomId);
+  roomTitleEl.textContent = `# ${room ? room.label : roomId}`;
+  renderRoomList();
+  // Lokalen Zustand fuer den neuen Kanal zuruecksetzen
+  lastDateKey = null;
+  cancelReply();
+  searchInput.value = '';
+  searchBar.classList.add('hidden');
+  applySearchFilter('');
+  closeGallery();
+  sidebar.classList.remove('open');
 });
 
 socket.on('typing', ({ name, isTyping }) => {

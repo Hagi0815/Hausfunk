@@ -29,6 +29,25 @@ Dann `http://localhost:3210` öffnen. Port lässt sich per `PORT`-Umgebungsvaria
 PORT=4000 npm start
 ```
 
+## Kanäle / Räume
+
+Hausfunk hat mehrere Kanäle: **Familie**, **Technik**, **Einkaufsliste** (Standard
+beim Betreten ist "Familie"). Jeder Kanal hat seinen eigenen Verlauf, eigene
+angepinnte Nachricht und eigene Online-Liste – Nachrichten in einem Kanal sind für
+andere Kanäle unsichtbar.
+
+- Wechsel über die Kanal-Liste in der Sidebar
+- Daten liegen unter `data/rooms/<kanal-id>/messages.json` und `.../pinned.json`
+- **Weitere Kanäle hinzufügen:** in `server.js` das `ROOMS`-Array am Anfang der
+  Datei um ein Objekt erweitern, z. B.:
+  ```js
+  { id: 'garten', label: 'Garten' }
+  ```
+  `id` wird als Ordnername verwendet: klein geschrieben, keine Leer-/Sonderzeichen.
+  Nach `git pull` + `pm2 restart hausfunk` steht der neue Kanal direkt bereit.
+- Bestehender Chat-Verlauf aus der Zeit vor den Kanälen wird beim ersten Start
+  nach diesem Update automatisch in den Kanal "Familie" übernommen.
+
 ## HTTPS (selbstsigniertes Zertifikat)
 
 Hausfunk läuft über **HTTPS** auf Port 3210 (nicht mehr HTTP). Beim allerersten Start

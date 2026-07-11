@@ -43,6 +43,12 @@
           <button id="search-toggle" class="icon-toggle" title="Suche" aria-label="Suche">🔍</button>
         </div>
       </div>
+
+      <div class="room-list-section">
+        <div class="online-label">KANÄLE</div>
+        <ul id="room-list" class="room-list"></ul>
+      </div>
+
       <div class="online-label">ONLINE &middot; <span id="online-count">0</span></div>
       <ul id="user-list"></ul>
       <div class="sidebar-footer">
@@ -54,6 +60,7 @@
 
     <main class="chat-main">
       <header class="chat-header">
+        <span id="room-title" class="room-title"></span>
         <button id="sidebar-toggle" class="sidebar-toggle" aria-label="Nutzerliste anzeigen">
           <span class="brand-led small-led"></span>
           <span id="online-count-mobile">0</span> online
