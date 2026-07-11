@@ -30,6 +30,7 @@ const ROOMS = [
   { id: 'familie', label: 'Familie' },
   { id: 'technik', label: 'Technik' },
   { id: 'einkaufsliste', label: 'Einkaufsliste' },
+  { id: 'fun', label: 'FUN' },
 ];
 const DEFAULT_ROOM = ROOMS[0].id;
 
