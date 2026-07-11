@@ -66,27 +66,59 @@ andere Kanäle unsichtbar.
 - Bestehender Chat-Verlauf aus der Zeit vor den Kanälen wird beim ersten Start
   nach diesem Update automatisch in den Kanal "Familie" übernommen.
 
-## HTTPS (selbstsigniertes Zertifikat)
+## HTTPS über Caddy (echtes Let's-Encrypt-Zertifikat)
 
-Hausfunk läuft über **HTTPS** auf Port 3210 (nicht mehr HTTP). Beim allerersten Start
-erzeugt der Server automatisch ein selbstsigniertes Zertifikat unter `certs/`
-(liegt in `.gitignore`, wird nie versioniert – jede Installation bekommt ihr eigenes).
-Das Zertifikat enthält die zu diesem Zeitpunkt aktiven lokalen IPv4-Adressen des
-Servers als Subject Alternative Names, ist 10 Jahre gültig und wird bei jedem
-weiteren Start wiederverwendet.
+Hausfunk selbst läuft wieder auf **normalem HTTP** (Port 3210) – TLS übernimmt ein
+vorgeschalteter **Caddy** mit einem echten, öffentlich vertrauenswürdigen
+Zertifikat. Der Trick: die Subdomain zeigt per DNS auf die **private LAN-IP**
+des Containers, läuft aber **nicht** über Cloudflare Tunnel – der Zertifikats-
+Nachweis läuft rein über eine DNS-Challenge, der eigentliche Traffic bleibt im
+Heimnetz.
 
-- Aufruf jetzt über `https://<server-ip>:3210` (nicht `http://`)
-- Der Browser zeigt beim ersten Besuch pro Gerät eine Warnung
-  („Verbindung ist nicht privat“ / „Nicht sicher“), weil das Zertifikat
-  selbstsigniert und nicht von einer bekannten Stelle beglaubigt ist. Auf
-  „Erweitert“ → „Trotzdem fortfahren“ klicken – danach funktioniert die Seite
-  normal, inklusive Browser-Benachrichtigungen (die brauchen einen sicheren
-  Kontext, also HTTPS).
-- Ändert sich die IP des Servers dauerhaft (z. B. nach Wechsel von DHCP auf eine
-  andere Adresse), passt das alte Zertifikat evtl. nicht mehr zur neuen IP.
-  Einfach den `certs/`-Ordner löschen und `pm2 restart hausfunk` ausführen –
-  es wird automatisch ein neues, passendes Zertifikat erzeugt (Browser-Warnung
-  erscheint dann erneut einmalig).
+**1. Cloudflare API-Token anlegen**
+Ein Token mit `Zone → DNS → Edit`-Recht, beschränkt auf die Zone
+`christian-hagedorn.de`.
+
+**2. DNS-Eintrag anlegen**
+A-Record `hausfunk.christian-hagedorn.de` → LAN-IP des Hausfunk-Containers
+(z. B. `192.168.178.49`), Status **"DNS only"** (graue Wolke, nicht orange/
+proxied) – sonst versucht Cloudflare, eine private IP über sein Netz zu routen,
+was nicht funktioniert.
+
+**3. Prüfen, ob Caddy das Cloudflare-DNS-Modul hat**
+```bash
+caddy list-modules | grep cloudflare
+```
+Kommt nichts zurück, muss Caddy einmalig mit dem Modul neu gebaut werden (z. B.
+via [xcaddy](https://github.com/caddyserver/xcaddy)):
+```bash
+xcaddy build --with github.com/caddy-dns/cloudflare
+```
+und die bestehende Caddy-Binary durch die neu gebaute ersetzen.
+
+**4. Caddyfile-Eintrag ergänzen**
+```
+hausfunk.christian-hagedorn.de {
+    tls {
+        dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+    }
+    reverse_proxy 192.168.178.49:3210
+}
+```
+Den API-Token als Umgebungsvariable `CLOUDFLARE_API_TOKEN` dort setzen, wo der
+Caddy-Dienst gestartet wird (z. B. systemd-Unit oder `.env`), danach:
+```bash
+caddy reload
+```
+
+**5. Testen**
+`https://hausfunk.christian-hagedorn.de` aufrufen – echtes Zertifikat, keine
+Browser-Warnung mehr, Benachrichtigungen und Mikrofonzugriff funktionieren wie
+gewohnt (der Browser sieht HTTPS, unabhängig davon, dass Caddy intern per HTTP
+mit Hausfunk spricht).
+
+Ein direkter Aufruf über `http://<container-ip>:3210` funktioniert weiterhin
+(z. B. zum Debuggen), dann aber ohne HTTPS.
 
 ## Deployment auf deinem Proxmox-Setup (LXC + pm2)
 
@@ -101,17 +133,12 @@ Passend zu deinem bestehenden Muster (wie beim network-dashboard auf CT 112):
    pm2 save
    ```
 3. Firewall/Netzwerk: Der Container muss nur **innerhalb** deines LAN erreichbar sein.
-   **Nicht** über Cloudflare Tunnel oder Caddy nach außen freigeben, sonst ist der
-   Chat aus dem Internet erreichbar – das widerspricht dem Zweck (nur Heimnetz).
-4. Andere Geräte im selben Netz erreichen den Chat über die LAN-IP des Containers,
-   z. B. `http://192.168.178.XXX:3210`. Optional kannst du intern per Caddy einen
-   sprechenden Namen vergeben (nur lokal auflösbar, kein Tunnel):
-   ```
-   hausfunk.local.christian-hagedorn.de {
-       reverse_proxy 192.168.178.XXX:3210
-   }
-   ```
-   und den Namen per lokalem DNS/Pi-hole/Hosts-Datei auflösen lassen.
+   Für HTTPS mit echtem Zertifikat siehe den Abschnitt "HTTPS über Caddy" oben –
+   dabei bleibt der eigentliche Traffic weiterhin nur im Heimnetz, nur die
+   Zertifikatsprüfung läuft über Cloudflares DNS-API.
+4. Ohne Caddy erreichen andere Geräte im selben Netz den Chat direkt über die
+   LAN-IP des Containers, z. B. `http://192.168.178.XXX:3210` (dann ohne HTTPS,
+   also ohne Benachrichtigungen/Mikrofon – dafür siehe HTTPS-Abschnitt oben).
 
 ## Daten & Speicher
 

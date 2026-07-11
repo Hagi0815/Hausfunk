@@ -1,19 +1,14 @@
 const express = require('express');
-const https = require('https');
+const http = require('http');
 const path = require('path');
 const fs = require('fs');
-const os = require('os');
 const multer = require('multer');
-const selfsigned = require('selfsigned');
 const { Server } = require('socket.io');
 
 const PORT = process.env.PORT || 3210;
 const DATA_DIR = path.join(__dirname, 'data');
 const ROOMS_DIR = path.join(DATA_DIR, 'rooms');
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
-const CERT_DIR = path.join(__dirname, 'certs');
-const KEY_FILE = path.join(CERT_DIR, 'key.pem');
-const CERT_FILE = path.join(CERT_DIR, 'cert.pem');
 const LEGACY_MESSAGES_FILE = path.join(DATA_DIR, 'messages.json');
 const LEGACY_PINNED_FILE = path.join(DATA_DIR, 'pinned.json');
 const AVATAR_DIR = path.join(UPLOAD_DIR, 'avatars');
@@ -30,12 +25,11 @@ const ROOMS = [
   { id: 'familie', label: 'Familie' },
   { id: 'technik', label: 'Technik' },
   { id: 'einkaufsliste', label: 'Einkaufsliste' },
-  { id: 'fun', label: 'FUN' },
 ];
 const DEFAULT_ROOM = ROOMS[0].id;
 
 // --- Ordner sicherstellen ----------------------------------------------------
-[DATA_DIR, ROOMS_DIR, UPLOAD_DIR, AVATAR_DIR, CERT_DIR].forEach((dir) => {
+[DATA_DIR, ROOMS_DIR, UPLOAD_DIR, AVATAR_DIR].forEach((dir) => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 if (!fs.existsSync(AVATARS_FILE)) fs.writeFileSync(AVATARS_FILE, '{}');
@@ -155,65 +149,13 @@ function saveRoomPinned(roomId) {
 
 ROOMS.forEach((r) => roomState.set(r.id, loadRoom(r.id)));
 
-// --- Selbstsigniertes Zertifikat sicherstellen -----------------------------
-// Wird beim allerersten Start einmalig erzeugt und danach wiederverwendet.
-// certs/ steht in .gitignore, jede Installation bekommt ihr eigenes Zertifikat.
-function getLocalIPv4Addresses() {
-  const addresses = new Set(['127.0.0.1']);
-  const ifaces = os.networkInterfaces();
-  Object.values(ifaces).forEach((entries) => {
-    (entries || []).forEach((entry) => {
-      if (entry.family === 'IPv4' && !entry.internal) addresses.add(entry.address);
-    });
-  });
-  return [...addresses];
-}
-
-async function ensureCertificate() {
-  if (fs.existsSync(KEY_FILE) && fs.existsSync(CERT_FILE)) {
-    return { key: fs.readFileSync(KEY_FILE), cert: fs.readFileSync(CERT_FILE) };
-  }
-  const ips = getLocalIPv4Addresses();
-  const altNames = [
-    { type: 2, value: 'localhost' },
-    { type: 2, value: os.hostname() },
-    ...ips.map((ip) => ({ type: 7, ip })),
-  ];
-  const notBefore = new Date();
-  const notAfter = new Date(notBefore);
-  notAfter.setFullYear(notAfter.getFullYear() + 10);
-
-  const pems = await selfsigned.generate(
-    [{ name: 'commonName', value: os.hostname() || 'hausfunk' }],
-    {
-      notBeforeDate: notBefore,
-      notAfterDate: notAfter,
-      keySize: 2048,
-      algorithm: 'sha256',
-      extensions: [
-        { name: 'basicConstraints', cA: false },
-        {
-          name: 'keyUsage',
-          digitalSignature: true,
-          nonRepudiation: true,
-          keyEncipherment: true,
-          dataEncipherment: true,
-        },
-        { name: 'subjectAltName', altNames },
-      ],
-    },
-  );
-  fs.writeFileSync(KEY_FILE, pems.private, { mode: 0o600 });
-  fs.writeFileSync(CERT_FILE, pems.cert);
-  console.log(`Neues selbstsigniertes Zertifikat erzeugt fuer: ${ips.join(', ')}`);
-  return { key: pems.private, cert: pems.cert };
-}
-
 async function main() {
   // --- App / Server / Socket.io ---------------------------------------------
+  // HTTP nach innen: TLS wird von einem vorgeschalteten Reverse Proxy (Caddy)
+  // mit echtem Zertifikat uebernommen. Direkter Aufruf per IP:Port ist damit
+  // wieder http:// statt https:// -- siehe README fuer die Caddy-Einrichtung.
   const app = express();
-  const { key, cert } = await ensureCertificate();
-  const server = https.createServer({ key, cert }, app);
+  const server = http.createServer(app);
   const io = new Server(server, {
     maxHttpBufferSize: 12 * 1024 * 1024,
   });
@@ -546,7 +488,7 @@ async function main() {
   });
 
   server.listen(PORT, () => {
-    console.log(`Hausfunk laeuft (HTTPS, selbstsigniert) auf Port ${PORT}`);
+    console.log(`Hausfunk laeuft (HTTP, TLS uebernimmt der Reverse Proxy) auf Port ${PORT}`);
   });
 }
 
