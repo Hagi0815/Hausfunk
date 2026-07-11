@@ -29,6 +29,24 @@ Dann `http://localhost:3210` öffnen. Port lässt sich per `PORT`-Umgebungsvaria
 PORT=4000 npm start
 ```
 
+## Profilbilder
+
+Beim Betreten kann entweder ein Emoji-Symbol gewählt oder über „📷 Eigenes Bild“
+ein echtes Foto hochgeladen werden (JPG/PNG/WebP, max. 5 MB). Da es keine
+Benutzerkonten gibt, wird das Bild an den eingegebenen Namen gebunden: tippt man
+später denselben Namen erneut ein, wird das gespeicherte Bild automatisch
+vorgeschlagen (Vorschau aktualisiert sich, sobald man aus dem Namensfeld
+heraus-tabbt).
+
+- Zuordnung liegt in `data/avatars.json` (Name → Bild-URL), Bilder selbst unter
+  `uploads/avatars/`
+- Kein Zuschneiden/Verkleinern serverseitig – die Bilder werden nur in der
+  Chat-Oberfläche klein dargestellt; im LAN spielt die Dateigröße performance-
+  mäßig keine Rolle
+- Da es sich um ein vertrauenswürdiges Heimnetz ohne Zugriffsschutz handelt,
+  kann grundsätzlich jeder ein Bild unter einem beliebigen Namen hochladen –
+  für den Familiengebrauch unkritisch, aber gut zu wissen
+
 ## Kanäle / Räume
 
 Hausfunk hat mehrere Kanäle: **Familie**, **Technik**, **Einkaufsliste** (Standard

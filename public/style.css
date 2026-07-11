@@ -40,6 +40,12 @@
   background: var(--panel-alt);
   border: 1.5px solid var(--border);
   flex: none;
+  overflow: hidden;
+}
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 html, body {
@@ -179,6 +185,36 @@ html, body {
   margin-bottom: 20px;
 }
 .avatar-picker .online-label { margin-bottom: 8px; }
+.avatar-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.avatar-preview {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  background: var(--panel-alt);
+  border: 1.5px solid var(--border);
+  overflow: hidden;
+  flex: none;
+}
+.avatar-preview img { width: 100%; height: 100%; object-fit: cover; }
+.avatar-upload-btn {
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.avatar-upload-btn:hover { border-color: var(--accent-dim); color: var(--accent); }
 .avatar-list {
   display: flex;
   flex-wrap: wrap;

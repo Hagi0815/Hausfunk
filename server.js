@@ -16,6 +16,8 @@ const KEY_FILE = path.join(CERT_DIR, 'key.pem');
 const CERT_FILE = path.join(CERT_DIR, 'cert.pem');
 const LEGACY_MESSAGES_FILE = path.join(DATA_DIR, 'messages.json');
 const LEGACY_PINNED_FILE = path.join(DATA_DIR, 'pinned.json');
+const AVATAR_DIR = path.join(UPLOAD_DIR, 'avatars');
+const AVATARS_FILE = path.join(DATA_DIR, 'avatars.json');
 const MAX_HISTORY = 500;   // wie viele Nachrichten pro Kanal dauerhaft behalten werden
 const MAX_SEND = 200;      // wie viele beim Beitritt/Wechsel an den Client geschickt werden
 const DELETE_WINDOW_MS = 5 * 60 * 1000; // Zeitfenster, in dem eigene Nachrichten loeschbar sind
@@ -31,9 +33,23 @@ const ROOMS = [
 const DEFAULT_ROOM = ROOMS[0].id;
 
 // --- Ordner sicherstellen ----------------------------------------------------
-[DATA_DIR, ROOMS_DIR, UPLOAD_DIR, CERT_DIR].forEach((dir) => {
+[DATA_DIR, ROOMS_DIR, UPLOAD_DIR, AVATAR_DIR, CERT_DIR].forEach((dir) => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
+if (!fs.existsSync(AVATARS_FILE)) fs.writeFileSync(AVATARS_FILE, '{}');
+
+// --- Profilbilder (persistent pro Name, keine Benutzerkonten noetig) --------
+function loadAvatars() {
+  try {
+    return JSON.parse(fs.readFileSync(AVATARS_FILE, 'utf-8'));
+  } catch (err) {
+    return {};
+  }
+}
+function saveAvatars(map) {
+  fs.writeFileSync(AVATARS_FILE, JSON.stringify(map, null, 2));
+}
+let avatarsByName = loadAvatars(); // key: name.toLowerCase() -> Bild-URL
 
 function roomDir(roomId) {
   return path.join(ROOMS_DIR, roomId);
@@ -217,6 +233,39 @@ async function main() {
     });
   });
 
+  // --- Profilbild-Upload (persistent, an den Namen gebunden) ------------------
+  const avatarStorage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, AVATAR_DIR),
+    filename: (req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      const safeExt = ['.png', '.jpg', '.jpeg', '.webp'].includes(ext) ? ext : '.jpg';
+      const name = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${safeExt}`;
+      cb(null, name);
+    },
+  });
+  const uploadAvatar = multer({
+    storage: avatarStorage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+    fileFilter: (req, file, cb) => {
+      if (/^image\/(png|jpe?g|webp)$/.test(file.mimetype)) cb(null, true);
+      else cb(new Error('Nur Bilddateien sind erlaubt'));
+    },
+  });
+
+  app.post('/upload-avatar', (req, res) => {
+    uploadAvatar.single('avatar')(req, res, (err) => {
+      if (err) return res.status(400).json({ error: err.message });
+      if (!req.file) return res.status(400).json({ error: 'Keine Datei erhalten' });
+      const name = (req.body.name || '').toString().trim().slice(0, 24).toLowerCase();
+      if (!name) return res.status(400).json({ error: 'Name fehlt' });
+      const url = `/uploads/avatars/${req.file.filename}`;
+      avatarsByName[name] = url;
+      saveAvatars(avatarsByName);
+      io.emit('avatarMap', avatarsByName);
+      res.json({ url });
+    });
+  });
+
   // --- Online-Nutzer & Farben -------------------------------------------------
   const onlineUsers = new Map(); // socket.id -> { name, color, avatar, room }
   const COLORS = ['#E8A33D', '#3E7C77', '#C9614A', '#6C8EBF', '#9B7EDE', '#5FAE6B', '#D9B24C'];
@@ -257,19 +306,28 @@ async function main() {
     // nicht beigetreten (damit die Startseite bereits zeigen kann, wer aktiv ist).
     socket.emit('rooms', ROOMS);
     socket.emit('globalUsers', [...onlineUsers.values()]);
+    socket.emit('avatarMap', avatarsByName);
 
     socket.on('join', (payload) => {
       const raw = typeof payload === 'string' ? { name: payload } : (payload || {});
       const name = (raw.name || 'Gast').toString().trim().slice(0, 24) || 'Gast';
-      const avatar = (raw.avatar || '').toString().trim().slice(0, 8) || null;
+      const isPhoto = raw.avatarType === 'photo';
+      let avatarValue = (raw.avatarValue || '').toString().trim().slice(0, 300) || null;
+      if (isPhoto && (!avatarValue || !avatarValue.startsWith('/uploads/avatars/'))) {
+        avatarValue = null;
+      }
+      if (!isPhoto) avatarValue = avatarValue ? avatarValue.slice(0, 8) : null;
       const roomId = DEFAULT_ROOM;
 
       socket.data.name = name;
       socket.data.color = colorForName(name);
-      socket.data.avatar = avatar;
+      socket.data.avatar = isPhoto ? null : avatarValue;
+      socket.data.photo = isPhoto ? avatarValue : null;
       socket.data.room = roomId;
       socket.join(roomId);
-      onlineUsers.set(socket.id, { name, color: socket.data.color, avatar, room: roomId });
+      onlineUsers.set(socket.id, {
+        name, color: socket.data.color, avatar: socket.data.avatar, photo: socket.data.photo, room: roomId,
+      });
 
       const state = roomState.get(roomId);
       socket.emit('roomChanged', roomId);
@@ -308,13 +366,14 @@ async function main() {
       const name = socket.data.name;
       const color = socket.data.color;
       const avatar = socket.data.avatar;
+      const photo = socket.data.photo;
       const replyTo = sanitizeReplyTo(payload.replyTo);
 
       if (payload.type === 'text') {
         const clean = (payload.text || '').toString().slice(0, 2000).trim();
         if (!clean) return;
         const msg = {
-          id: makeId(), type: 'text', sender: name, color, avatar, text: clean, ts: Date.now(),
+          id: makeId(), type: 'text', sender: name, color, avatar, photo, text: clean, ts: Date.now(),
           reactions: {}, replyTo,
         };
         state.messages.push(msg);
@@ -323,7 +382,7 @@ async function main() {
       } else if (payload.type === 'image') {
         if (!payload.url) return;
         const msg = {
-          id: makeId(), type: 'image', sender: name, color, avatar, url: payload.url, ts: Date.now(),
+          id: makeId(), type: 'image', sender: name, color, avatar, photo, url: payload.url, ts: Date.now(),
           reactions: {}, replyTo,
         };
         state.messages.push(msg);
@@ -333,7 +392,7 @@ async function main() {
         if (!payload.url) return;
         const duration = Math.min(Math.max(Number(payload.duration) || 0, 0), 120);
         const msg = {
-          id: makeId(), type: 'audio', sender: name, color, avatar, url: payload.url, duration, ts: Date.now(),
+          id: makeId(), type: 'audio', sender: name, color, avatar, photo, url: payload.url, duration, ts: Date.now(),
           reactions: {}, replyTo,
         };
         state.messages.push(msg);

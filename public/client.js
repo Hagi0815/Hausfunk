@@ -47,7 +47,13 @@ const DELETE_WINDOW_MS = 5 * 60 * 1000; // muss zum Server-Wert passen
 let currentPinned = null;
 
 const AVATAR_LIST = ['🦊', '🐱', '🐶', '🐻', '🦁', '🐨', '🐼', '🐸', '🦄', '🐧', '🐢', '🦉', '🐝', '🐙', '🦋', '🐳'];
-let myAvatar = AVATAR_LIST[Math.floor(Math.random() * AVATAR_LIST.length)];
+let myAvatarType = 'emoji'; // 'emoji' | 'photo'
+let myAvatarValue = AVATAR_LIST[Math.floor(Math.random() * AVATAR_LIST.length)];
+let avatarMap = {}; // name (lowercase) -> gespeicherte Foto-URL
+
+const avatarPreviewEl = document.getElementById('avatar-preview');
+const avatarUploadBtn = document.getElementById('avatar-upload-btn');
+const avatarFileInput = document.getElementById('avatar-file-input');
 
 let myName = '';
 let typingTimeout = null;
@@ -247,27 +253,104 @@ themeToggleBtn.addEventListener('click', () => {
 });
 
 // --- Avatar-Auswahl auf der Login-Seite ------------------------------------------
+function updateAvatarPreview() {
+  avatarPreviewEl.innerHTML = '';
+  if (myAvatarType === 'photo') {
+    const img = document.createElement('img');
+    img.src = myAvatarValue;
+    img.alt = '';
+    avatarPreviewEl.appendChild(img);
+  } else {
+    avatarPreviewEl.textContent = myAvatarValue;
+  }
+}
+
+function selectEmojiAvatar(emoji) {
+  myAvatarType = 'emoji';
+  myAvatarValue = emoji;
+  avatarListEl.querySelectorAll('.avatar-option').forEach((b) => {
+    b.classList.toggle('selected', b.dataset.emoji === emoji);
+  });
+  updateAvatarPreview();
+}
+
 function buildAvatarPicker() {
   AVATAR_LIST.forEach((emoji) => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.textContent = emoji;
-    btn.className = `avatar-option${emoji === myAvatar ? ' selected' : ''}`;
-    btn.addEventListener('click', () => {
-      myAvatar = emoji;
-      avatarListEl.querySelectorAll('.avatar-option').forEach((b) => b.classList.remove('selected'));
-      btn.classList.add('selected');
-    });
+    btn.dataset.emoji = emoji;
+    btn.className = `avatar-option${emoji === myAvatarValue ? ' selected' : ''}`;
+    btn.addEventListener('click', () => selectEmojiAvatar(emoji));
     avatarListEl.appendChild(btn);
   });
 }
 buildAvatarPicker();
+updateAvatarPreview();
 
-function renderAvatar(color, avatar) {
+avatarUploadBtn.addEventListener('click', () => {
+  const name = nameInput.value.trim();
+  if (!name) {
+    nameInput.focus();
+    nameInput.placeholder = 'Erst Namen eingeben...';
+    return;
+  }
+  avatarFileInput.click();
+});
+
+avatarFileInput.addEventListener('change', async () => {
+  const file = avatarFileInput.files[0];
+  avatarFileInput.value = '';
+  if (!file) return;
+  const name = nameInput.value.trim();
+  if (!name) return;
+  const formData = new FormData();
+  formData.append('avatar', file);
+  formData.append('name', name);
+  avatarUploadBtn.textContent = '⏳ Lädt...';
+  try {
+    const res = await fetch('/upload-avatar', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.url) {
+      myAvatarType = 'photo';
+      myAvatarValue = data.url;
+      avatarListEl.querySelectorAll('.avatar-option').forEach((b) => b.classList.remove('selected'));
+      updateAvatarPreview();
+    }
+  } catch (err) {
+    // Upload fehlgeschlagen, Auswahl bleibt wie zuvor
+  }
+  avatarUploadBtn.textContent = '📷 Eigenes Bild';
+});
+
+// Falls fuer den eingegebenen Namen schon ein Profilbild gespeichert ist,
+// automatisch vorschlagen (aendert nichts, wenn der Name noch nicht bekannt ist).
+nameInput.addEventListener('blur', () => {
+  const key = nameInput.value.trim().toLowerCase();
+  if (key && avatarMap[key]) {
+    myAvatarType = 'photo';
+    myAvatarValue = avatarMap[key];
+    avatarListEl.querySelectorAll('.avatar-option').forEach((b) => b.classList.remove('selected'));
+    updateAvatarPreview();
+  }
+});
+
+socket.on('avatarMap', (map) => {
+  avatarMap = map || {};
+});
+
+function renderAvatar(color, avatar, photo) {
   const el = document.createElement('span');
   el.className = 'avatar';
-  el.style.borderColor = color;
-  el.textContent = avatar || '🙂';
+  if (color) el.style.borderColor = color;
+  if (photo) {
+    const img = document.createElement('img');
+    img.src = photo;
+    img.alt = '';
+    el.appendChild(img);
+  } else {
+    el.textContent = avatar || '🙂';
+  }
   return el;
 }
 
@@ -275,7 +358,7 @@ function join() {
   const name = nameInput.value.trim();
   if (!name) { nameInput.focus(); return; }
   myName = name;
-  socket.emit('join', { name, avatar: myAvatar });
+  socket.emit('join', { name, avatarType: myAvatarType, avatarValue: myAvatarValue });
   loginScreen.classList.add('hidden');
   chatScreen.classList.remove('hidden');
   textInput.focus();
@@ -354,7 +437,7 @@ function renderMessage(msg) {
 
   const meta = document.createElement('div');
   meta.className = 'msg-meta';
-  meta.appendChild(renderAvatar(msg.color, msg.avatar));
+  meta.appendChild(renderAvatar(msg.color, msg.avatar, msg.photo));
 
   const senderEl = document.createElement('span');
   senderEl.className = 'sender';
@@ -594,7 +677,7 @@ function renderUserList(container, list) {
   container.innerHTML = '';
   list.forEach((u) => {
     const li = document.createElement('li');
-    li.appendChild(renderAvatar(u.color, u.avatar));
+    li.appendChild(renderAvatar(u.color, u.avatar, u.photo));
     const label = document.createElement('span');
     label.textContent = u.name;
     li.appendChild(label);
