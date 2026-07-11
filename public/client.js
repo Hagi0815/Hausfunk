@@ -39,10 +39,21 @@ const galleryCloseBtn = document.getElementById('gallery-close');
 const micBtn = document.getElementById('mic-btn');
 const roomListEl = document.getElementById('room-list');
 const roomTitleEl = document.getElementById('room-title');
+const adminPasswordRow = document.getElementById('admin-password-row');
+const adminPasswordInput = document.getElementById('admin-password-input');
+const joinErrorEl = document.getElementById('join-error');
+const adminPanelToggle = document.getElementById('admin-panel-toggle');
+const adminOverlay = document.getElementById('admin-overlay');
+const adminOverlayClose = document.getElementById('admin-overlay-close');
+const bannedListEl = document.getElementById('banned-list');
+const bannedEmptyEl = document.getElementById('banned-empty');
 
 let rooms = [];
 let currentRoom = null;
 let unreadCounts = {}; // roomId -> Anzahl ungelesener Nachrichten
+let myRole = 'user';
+let hasJoined = false;
+let bannedNamesList = [];
 
 const DELETE_WINDOW_MS = 5 * 60 * 1000; // muss zum Server-Wert passen
 let currentPinned = null;
@@ -326,6 +337,11 @@ avatarFileInput.addEventListener('change', async () => {
 
 // Falls fuer den eingegebenen Namen schon ein Profilbild gespeichert ist,
 // automatisch vorschlagen (aendert nichts, wenn der Name noch nicht bekannt ist).
+// Ausserdem: Admin-Passwortfeld ein-/ausblenden, wenn der Name "DOM" lautet.
+nameInput.addEventListener('input', () => {
+  const isDOM = nameInput.value.trim().toLowerCase() === 'dom';
+  adminPasswordRow.classList.toggle('hidden', !isDOM);
+});
 nameInput.addEventListener('blur', () => {
   const key = nameInput.value.trim().toLowerCase();
   if (key && avatarMap[key]) {
@@ -359,16 +375,33 @@ function join() {
   const name = nameInput.value.trim();
   if (!name) { nameInput.focus(); return; }
   myName = name;
-  socket.emit('join', { name, avatarType: myAvatarType, avatarValue: myAvatarValue });
-  loginScreen.classList.add('hidden');
-  chatScreen.classList.remove('hidden');
-  textInput.focus();
-  requestNotificationPermission(); // Klick auf "Kanal betreten" zählt als Nutzer-Geste
-  unlockAudio();
+  const isDOM = name.toLowerCase() === 'dom';
+  const adminPassword = isDOM ? adminPasswordInput.value : '';
+  joinErrorEl.classList.add('hidden');
+  socket.emit('join', {
+    name, avatarType: myAvatarType, avatarValue: myAvatarValue, adminPassword,
+  });
 }
 
 joinBtn.addEventListener('click', join);
 nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
+adminPasswordInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
+
+socket.on('joinError', (message) => {
+  joinErrorEl.textContent = message;
+  joinErrorEl.classList.remove('hidden');
+});
+
+socket.on('kicked', (message) => {
+  alert(message || 'Du wurdest aus dem Kanal entfernt.');
+  window.location.reload();
+});
+
+socket.on('yourRole', (role) => {
+  myRole = role;
+  document.body.classList.toggle('is-admin', role === 'admin');
+  renderRoomList();
+});
 
 sidebarToggle.addEventListener('click', () => sidebar.classList.toggle('open'));
 
@@ -444,6 +477,13 @@ function renderMessage(msg) {
   senderEl.className = 'sender';
   senderEl.textContent = msg.sender;
   meta.appendChild(senderEl);
+
+  if (msg.role === 'admin') {
+    const roleBadge = document.createElement('span');
+    roleBadge.className = 'role-badge';
+    roleBadge.textContent = 'DOM';
+    meta.appendChild(roleBadge);
+  }
 
   const timeEl = document.createElement('span');
   timeEl.textContent = formatTime(msg.ts);
@@ -528,7 +568,7 @@ function renderMessage(msg) {
   pinBtn.addEventListener('click', () => socket.emit('pin', { messageId: msg.id }));
   actions.appendChild(pinBtn);
 
-  if (own && (Date.now() - msg.ts) < DELETE_WINDOW_MS) {
+  if ((own && (Date.now() - msg.ts) < DELETE_WINDOW_MS) || myRole === 'admin') {
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'action-btn';
     deleteBtn.textContent = '🗑';
@@ -674,7 +714,7 @@ searchCloseBtn.addEventListener('click', () => {
 });
 searchInput.addEventListener('input', () => applySearchFilter(searchInput.value));
 
-function renderUserList(container, list) {
+function renderUserList(container, list, allowActions) {
   container.innerHTML = '';
   list.forEach((u) => {
     const li = document.createElement('li');
@@ -682,18 +722,36 @@ function renderUserList(container, list) {
     const label = document.createElement('span');
     label.textContent = u.name;
     li.appendChild(label);
+    if (u.role === 'admin') {
+      const badge = document.createElement('span');
+      badge.className = 'role-badge';
+      badge.textContent = 'DOM';
+      li.appendChild(badge);
+    }
+    if (allowActions && myRole === 'admin' && u.name !== myName) {
+      const banBtn = document.createElement('button');
+      banBtn.className = 'ban-btn';
+      banBtn.textContent = '🚫';
+      banBtn.title = `${u.name} sperren`;
+      banBtn.addEventListener('click', () => {
+        if (confirm(`${u.name} wirklich aus dem Kanal entfernen und sperren?`)) {
+          socket.emit('admin:banUser', { name: u.name });
+        }
+      });
+      li.appendChild(banBtn);
+    }
     container.appendChild(li);
   });
 }
 
 socket.on('users', (list) => {
-  renderUserList(userListEl, list);
+  renderUserList(userListEl, list, true);
   onlineCountEl.textContent = list.length;
   onlineCountMobileEl.textContent = list.length;
 });
 
 socket.on('globalUsers', (list) => {
-  renderUserList(loginUserListEl, list);
+  renderUserList(loginUserListEl, list, false);
   if (list.length) {
     loginUserListEl.classList.remove('hidden');
     loginOnlineEmptyEl.classList.add('hidden');
@@ -708,9 +766,10 @@ function renderRoomList() {
   roomListEl.innerHTML = '';
   rooms.forEach((r) => {
     const li = document.createElement('li');
+    li.className = 'room-list-item';
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = r.id === currentRoom ? 'active' : '';
+    btn.className = `room-toggle-btn${r.id === currentRoom ? ' active' : ''}`;
 
     const label = document.createElement('span');
     label.textContent = `# ${r.label}`;
@@ -729,8 +788,56 @@ function renderRoomList() {
       socket.emit('switchRoom', { roomId: r.id });
     });
     li.appendChild(btn);
+
+    if (myRole === 'admin') {
+      const renameBtn = document.createElement('button');
+      renameBtn.className = 'room-admin-btn';
+      renameBtn.textContent = '✏️';
+      renameBtn.title = 'Kanal umbenennen';
+      renameBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const newLabel = prompt('Neuer Name für den Kanal:', r.label);
+        if (newLabel && newLabel.trim()) {
+          socket.emit('admin:renameRoom', { roomId: r.id, label: newLabel.trim() });
+        }
+      });
+      li.appendChild(renameBtn);
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'room-admin-btn';
+      deleteBtn.textContent = '🗑';
+      deleteBtn.title = 'Kanal löschen';
+      deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (rooms.length <= 1) {
+          alert('Der letzte verbleibende Kanal kann nicht gelöscht werden.');
+          return;
+        }
+        if (confirm(`Kanal "${r.label}" wirklich löschen? Der Verlauf bleibt auf dem Server erhalten, ist aber nicht mehr erreichbar.`)) {
+          socket.emit('admin:deleteRoom', { roomId: r.id });
+        }
+      });
+      li.appendChild(deleteBtn);
+    }
+
     roomListEl.appendChild(li);
   });
+
+  if (myRole === 'admin') {
+    const addLi = document.createElement('li');
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.className = 'room-add-btn';
+    addBtn.textContent = '+ Kanal';
+    addBtn.addEventListener('click', () => {
+      const label = prompt('Name des neuen Kanals:');
+      if (label && label.trim()) {
+        socket.emit('admin:createRoom', { label: label.trim() });
+      }
+    });
+    addLi.appendChild(addBtn);
+    roomListEl.appendChild(addLi);
+  }
 }
 
 socket.on('rooms', (list) => {
@@ -750,6 +857,14 @@ socket.on('roomActivity', ({ roomId }) => {
 });
 
 socket.on('roomChanged', (roomId) => {
+  if (!hasJoined) {
+    hasJoined = true;
+    loginScreen.classList.add('hidden');
+    chatScreen.classList.remove('hidden');
+    textInput.focus();
+    requestNotificationPermission(); // Klick auf "Kanal betreten" zählt als Nutzer-Geste
+    unlockAudio();
+  }
   currentRoom = roomId;
   unreadCounts[roomId] = 0;
   const room = rooms.find((r) => r.id === roomId);
@@ -977,3 +1092,38 @@ micBtn.addEventListener('mousedown', (e) => { e.preventDefault(); startRecording
 micBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startRecording(); }, { passive: false });
 ['mouseup', 'mouseleave'].forEach((evt) => micBtn.addEventListener(evt, () => stopRecording()));
 micBtn.addEventListener('touchend', (e) => { e.preventDefault(); stopRecording(); });
+
+// --- Admin-Panel: gesperrte Nutzer ------------------------------------------------
+function renderBannedList() {
+  bannedListEl.innerHTML = '';
+  if (!bannedNamesList.length) {
+    bannedEmptyEl.classList.remove('hidden');
+    return;
+  }
+  bannedEmptyEl.classList.add('hidden');
+  bannedNamesList.forEach((name) => {
+    const li = document.createElement('li');
+    const label = document.createElement('span');
+    label.textContent = name;
+    li.appendChild(label);
+    const unbanBtn = document.createElement('button');
+    unbanBtn.className = 'unban-btn';
+    unbanBtn.textContent = 'Entsperren';
+    unbanBtn.addEventListener('click', () => socket.emit('admin:unbanUser', { name }));
+    li.appendChild(unbanBtn);
+    bannedListEl.appendChild(li);
+  });
+}
+
+socket.on('bannedList', (list) => {
+  bannedNamesList = list || [];
+  renderBannedList();
+});
+
+adminPanelToggle.addEventListener('click', () => {
+  adminOverlay.classList.remove('hidden');
+});
+adminOverlayClose.addEventListener('click', () => adminOverlay.classList.add('hidden'));
+adminOverlay.addEventListener('click', (e) => {
+  if (e.target === adminOverlay) adminOverlay.classList.add('hidden');
+});
