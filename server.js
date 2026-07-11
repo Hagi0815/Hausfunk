@@ -18,6 +18,7 @@ const LEGACY_MESSAGES_FILE = path.join(DATA_DIR, 'messages.json');
 const LEGACY_PINNED_FILE = path.join(DATA_DIR, 'pinned.json');
 const AVATAR_DIR = path.join(UPLOAD_DIR, 'avatars');
 const AVATARS_FILE = path.join(DATA_DIR, 'avatars.json');
+const READ_STATE_FILE = path.join(DATA_DIR, 'read-state.json');
 const MAX_HISTORY = 500;   // wie viele Nachrichten pro Kanal dauerhaft behalten werden
 const MAX_SEND = 200;      // wie viele beim Beitritt/Wechsel an den Client geschickt werden
 const DELETE_WINDOW_MS = 5 * 60 * 1000; // Zeitfenster, in dem eigene Nachrichten loeschbar sind
@@ -37,6 +38,7 @@ const DEFAULT_ROOM = ROOMS[0].id;
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 if (!fs.existsSync(AVATARS_FILE)) fs.writeFileSync(AVATARS_FILE, '{}');
+if (!fs.existsSync(READ_STATE_FILE)) fs.writeFileSync(READ_STATE_FILE, '{}');
 
 // --- Profilbilder (persistent pro Name, keine Benutzerkonten noetig) --------
 function loadAvatars() {
@@ -50,6 +52,51 @@ function saveAvatars(map) {
   fs.writeFileSync(AVATARS_FILE, JSON.stringify(map, null, 2));
 }
 let avatarsByName = loadAvatars(); // key: name.toLowerCase() -> Bild-URL
+
+// --- Lesestatus pro Name (fuer Ungelesen-Zaehler an den Kanaelen) -----------
+function loadReadState() {
+  try {
+    return JSON.parse(fs.readFileSync(READ_STATE_FILE, 'utf-8'));
+  } catch (err) {
+    return {};
+  }
+}
+function saveReadState(state) {
+  fs.writeFileSync(READ_STATE_FILE, JSON.stringify(state));
+}
+let readState = loadReadState(); // { "<name-lower>": { "<roomId>": lastReadTs } }
+
+function ensureReadStateForName(name) {
+  const key = name.toLowerCase();
+  if (!readState[key]) {
+    // Neuer Name im Lesestatus: gesamten Altbestand als gelesen markieren,
+    // damit nicht sofort der komplette bisherige Verlauf als "ungelesen" zaehlt.
+    readState[key] = {};
+    const now = Date.now();
+    ROOMS.forEach((r) => { readState[key][r.id] = now; });
+    saveReadState(readState);
+  }
+}
+function getLastRead(name, roomId) {
+  const key = name.toLowerCase();
+  return (readState[key] && readState[key][roomId]) || 0;
+}
+function markRead(name, roomId, ts) {
+  const key = name.toLowerCase();
+  if (!readState[key]) readState[key] = {};
+  readState[key][roomId] = ts;
+  saveReadState(readState);
+}
+function computeUnreadCounts(name, activeRoomId) {
+  const counts = {};
+  ROOMS.forEach((r) => {
+    if (r.id === activeRoomId) { counts[r.id] = 0; return; }
+    const lastRead = getLastRead(name, r.id);
+    const state = roomState.get(r.id);
+    counts[r.id] = state.messages.filter((m) => m.ts > lastRead && !m.deleted).length;
+  });
+  return counts;
+}
 
 function roomDir(roomId) {
   return path.join(ROOMS_DIR, roomId);
@@ -329,10 +376,14 @@ async function main() {
         name, color: socket.data.color, avatar: socket.data.avatar, photo: socket.data.photo, room: roomId,
       });
 
+      ensureReadStateForName(name);
+      markRead(name, roomId, Date.now());
+
       const state = roomState.get(roomId);
       socket.emit('roomChanged', roomId);
       socket.emit('history', state.messages.slice(-MAX_SEND));
       socket.emit('pinnedUpdate', state.pinned);
+      socket.emit('unreadCounts', computeUnreadCounts(name, roomId));
       broadcastRoomUsers(roomId);
       broadcastGlobalUsers();
       socket.to(roomId).emit('system', `${name} ist beigetreten`);
@@ -351,10 +402,13 @@ async function main() {
       const entry = onlineUsers.get(socket.id);
       if (entry) entry.room = roomId;
 
+      markRead(socket.data.name, roomId, Date.now());
+
       const state = roomState.get(roomId);
       socket.emit('roomChanged', roomId);
       socket.emit('history', state.messages.slice(-MAX_SEND));
       socket.emit('pinnedUpdate', state.pinned);
+      socket.emit('unreadCounts', computeUnreadCounts(socket.data.name, roomId));
       broadcastRoomUsers(oldRoom);
       broadcastRoomUsers(roomId);
     });
@@ -379,6 +433,7 @@ async function main() {
         state.messages.push(msg);
         saveRoomMessages(roomId);
         io.to(roomId).emit('message', msg);
+        io.except(roomId).emit('roomActivity', { roomId });
       } else if (payload.type === 'image') {
         if (!payload.url) return;
         const msg = {
@@ -388,6 +443,7 @@ async function main() {
         state.messages.push(msg);
         saveRoomMessages(roomId);
         io.to(roomId).emit('message', msg);
+        io.except(roomId).emit('roomActivity', { roomId });
       } else if (payload.type === 'audio') {
         if (!payload.url) return;
         const duration = Math.min(Math.max(Number(payload.duration) || 0, 0), 120);
@@ -398,6 +454,7 @@ async function main() {
         state.messages.push(msg);
         saveRoomMessages(roomId);
         io.to(roomId).emit('message', msg);
+        io.except(roomId).emit('roomActivity', { roomId });
       }
     });
 

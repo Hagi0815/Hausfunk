@@ -42,6 +42,7 @@ const roomTitleEl = document.getElementById('room-title');
 
 let rooms = [];
 let currentRoom = null;
+let unreadCounts = {}; // roomId -> Anzahl ungelesener Nachrichten
 
 const DELETE_WINDOW_MS = 5 * 60 * 1000; // muss zum Server-Wert passen
 let currentPinned = null;
@@ -709,8 +710,20 @@ function renderRoomList() {
     const li = document.createElement('li');
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.textContent = `# ${r.label}`;
     btn.className = r.id === currentRoom ? 'active' : '';
+
+    const label = document.createElement('span');
+    label.textContent = `# ${r.label}`;
+    btn.appendChild(label);
+
+    const count = unreadCounts[r.id] || 0;
+    if (count > 0 && r.id !== currentRoom) {
+      const badge = document.createElement('span');
+      badge.className = 'room-badge';
+      badge.textContent = count > 99 ? '99+' : String(count);
+      btn.appendChild(badge);
+    }
+
     btn.addEventListener('click', () => {
       if (r.id === currentRoom) return;
       socket.emit('switchRoom', { roomId: r.id });
@@ -725,8 +738,20 @@ socket.on('rooms', (list) => {
   renderRoomList();
 });
 
+socket.on('unreadCounts', (counts) => {
+  unreadCounts = counts || {};
+  renderRoomList();
+});
+
+socket.on('roomActivity', ({ roomId }) => {
+  if (roomId === currentRoom) return;
+  unreadCounts[roomId] = (unreadCounts[roomId] || 0) + 1;
+  renderRoomList();
+});
+
 socket.on('roomChanged', (roomId) => {
   currentRoom = roomId;
+  unreadCounts[roomId] = 0;
   const room = rooms.find((r) => r.id === roomId);
   roomTitleEl.textContent = `# ${room ? room.label : roomId}`;
   renderRoomList();
