@@ -147,6 +147,39 @@ async function main() {
     });
   });
 
+  // --- Sprachnachrichten-Upload ------------------------------------------------
+  const AUDIO_EXT_BY_MIME = {
+    'audio/webm': '.webm',
+    'audio/ogg': '.ogg',
+    'audio/mp4': '.m4a',
+    'audio/mpeg': '.mp3',
+    'audio/aac': '.aac',
+  };
+  const audioStorage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, UPLOAD_DIR),
+    filename: (req, file, cb) => {
+      const ext = AUDIO_EXT_BY_MIME[file.mimetype] || '.webm';
+      const name = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
+      cb(null, name);
+    },
+  });
+  const uploadAudio = multer({
+    storage: audioStorage,
+    limits: { fileSize: 8 * 1024 * 1024 }, // 8 MB reicht fuer kurze Sprachnachrichten
+    fileFilter: (req, file, cb) => {
+      if (/^audio\//.test(file.mimetype)) cb(null, true);
+      else cb(new Error('Nur Audiodateien sind erlaubt'));
+    },
+  });
+
+  app.post('/upload-audio', (req, res) => {
+    uploadAudio.single('audio')(req, res, (err) => {
+      if (err) return res.status(400).json({ error: err.message });
+      if (!req.file) return res.status(400).json({ error: 'Keine Datei erhalten' });
+      res.json({ url: `/uploads/${req.file.filename}` });
+    });
+  });
+
   // --- Online-Nutzer & Farben -------------------------------------------------
   const onlineUsers = new Map(); // socket.id -> { name, color }
   const COLORS = ['#E8A33D', '#3E7C77', '#C9614A', '#6C8EBF', '#9B7EDE', '#5FAE6B', '#D9B24C'];
@@ -181,11 +214,14 @@ async function main() {
     // (damit die Startseite bereits zeigen kann, wer gerade aktiv ist).
     socket.emit('users', [...onlineUsers.values()]);
 
-    socket.on('join', (rawName) => {
-      const name = (rawName || 'Gast').toString().trim().slice(0, 24) || 'Gast';
+    socket.on('join', (payload) => {
+      const raw = typeof payload === 'string' ? { name: payload } : (payload || {});
+      const name = (raw.name || 'Gast').toString().trim().slice(0, 24) || 'Gast';
+      const avatar = (raw.avatar || '').toString().trim().slice(0, 8) || null;
       socket.data.name = name;
       socket.data.color = colorForName(name);
-      onlineUsers.set(socket.id, { name, color: socket.data.color });
+      socket.data.avatar = avatar;
+      onlineUsers.set(socket.id, { name, color: socket.data.color, avatar });
 
       socket.emit('history', messages.slice(-MAX_SEND));
       socket.emit('pinnedUpdate', pinned);
@@ -197,13 +233,14 @@ async function main() {
       if (!payload || !socket.data.name) return;
       const name = socket.data.name;
       const color = socket.data.color;
+      const avatar = socket.data.avatar;
       const replyTo = sanitizeReplyTo(payload.replyTo);
 
       if (payload.type === 'text') {
         const clean = (payload.text || '').toString().slice(0, 2000).trim();
         if (!clean) return;
         const msg = {
-          id: makeId(), type: 'text', sender: name, color, text: clean, ts: Date.now(),
+          id: makeId(), type: 'text', sender: name, color, avatar, text: clean, ts: Date.now(),
           reactions: {}, replyTo,
         };
         messages.push(msg);
@@ -212,7 +249,17 @@ async function main() {
       } else if (payload.type === 'image') {
         if (!payload.url) return;
         const msg = {
-          id: makeId(), type: 'image', sender: name, color, url: payload.url, ts: Date.now(),
+          id: makeId(), type: 'image', sender: name, color, avatar, url: payload.url, ts: Date.now(),
+          reactions: {}, replyTo,
+        };
+        messages.push(msg);
+        messages = saveMessages(messages);
+        io.emit('message', msg);
+      } else if (payload.type === 'audio') {
+        if (!payload.url) return;
+        const duration = Math.min(Math.max(Number(payload.duration) || 0, 0), 120);
+        const msg = {
+          id: makeId(), type: 'audio', sender: name, color, avatar, url: payload.url, duration, ts: Date.now(),
           reactions: {}, replyTo,
         };
         messages.push(msg);
@@ -246,6 +293,7 @@ async function main() {
       msg.deleted = true;
       delete msg.text;
       delete msg.url;
+      delete msg.duration;
       msg.reactions = {};
       messages = saveMessages(messages);
       io.emit('messageDeleted', { messageId: msg.id });
@@ -265,7 +313,8 @@ async function main() {
         sender: msg.sender,
         type: msg.type,
         text: msg.type === 'text' ? msg.text : null,
-        url: msg.type === 'image' ? msg.url : null,
+        url: msg.type === 'image' || msg.type === 'audio' ? msg.url : null,
+        duration: msg.type === 'audio' ? msg.duration : null,
         pinnedBy: socket.data.name,
         ts: msg.ts,
       };

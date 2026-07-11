@@ -30,9 +30,19 @@ const searchCloseBtn = document.getElementById('search-close');
 const pinnedBar = document.getElementById('pinned-bar');
 const pinnedTextEl = document.getElementById('pinned-text');
 const pinnedUnpinBtn = document.getElementById('pinned-unpin');
+const avatarListEl = document.getElementById('avatar-list');
+const themeToggleBtn = document.getElementById('theme-toggle');
+const galleryToggleBtn = document.getElementById('gallery-toggle');
+const galleryOverlay = document.getElementById('gallery-overlay');
+const galleryGrid = document.getElementById('gallery-grid');
+const galleryCloseBtn = document.getElementById('gallery-close');
+const micBtn = document.getElementById('mic-btn');
 
 const DELETE_WINDOW_MS = 5 * 60 * 1000; // muss zum Server-Wert passen
 let currentPinned = null;
+
+const AVATAR_LIST = ['🦊', '🐱', '🐶', '🐻', '🦁', '🐨', '🐼', '🐸', '🦄', '🐧', '🐢', '🦉', '🐝', '🐙', '🦋', '🐳'];
+let myAvatar = AVATAR_LIST[Math.floor(Math.random() * AVATAR_LIST.length)];
 
 let myName = '';
 let typingTimeout = null;
@@ -200,7 +210,7 @@ function requestNotificationPermission() {
 function notifyNewMessage(msg) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
   if (document.visibilityState === 'visible') return;
-  const body = msg.type === 'image' ? '📷 Bild gesendet' : msg.text;
+  const body = msg.type === 'image' ? '📷 Bild gesendet' : msg.type === 'audio' ? '🎙️ Sprachnachricht' : msg.text;
   const notif = new Notification(`${msg.sender} · Hausfunk`, { body });
   notif.onclick = () => {
     window.focus();
@@ -215,11 +225,52 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+// --- Light-/Dark-Mode -----------------------------------------------------------
+const THEME_KEY = 'hausfunk-theme';
+let currentTheme = localStorage.getItem(THEME_KEY) || 'dark';
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  themeToggleBtn.textContent = theme === 'light' ? '🌙 Dunkel' : '☀️ Hell';
+}
+applyTheme(currentTheme);
+
+themeToggleBtn.addEventListener('click', () => {
+  currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+  localStorage.setItem(THEME_KEY, currentTheme);
+  applyTheme(currentTheme);
+});
+
+// --- Avatar-Auswahl auf der Login-Seite ------------------------------------------
+function buildAvatarPicker() {
+  AVATAR_LIST.forEach((emoji) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = emoji;
+    btn.className = `avatar-option${emoji === myAvatar ? ' selected' : ''}`;
+    btn.addEventListener('click', () => {
+      myAvatar = emoji;
+      avatarListEl.querySelectorAll('.avatar-option').forEach((b) => b.classList.remove('selected'));
+      btn.classList.add('selected');
+    });
+    avatarListEl.appendChild(btn);
+  });
+}
+buildAvatarPicker();
+
+function renderAvatar(color, avatar) {
+  const el = document.createElement('span');
+  el.className = 'avatar';
+  el.style.borderColor = color;
+  el.textContent = avatar || '🙂';
+  return el;
+}
+
 function join() {
   const name = nameInput.value.trim();
   if (!name) { nameInput.focus(); return; }
   myName = name;
-  socket.emit('join', name);
+  socket.emit('join', { name, avatar: myAvatar });
   loginScreen.classList.add('hidden');
   chatScreen.classList.remove('hidden');
   textInput.focus();
@@ -236,6 +287,12 @@ function formatTime(ts) {
   return new Date(ts).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 }
 
+function formatDuration(sec) {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return m > 0 ? `${m}:${String(s).padStart(2, '0')}` : `${sec}s`;
+}
+
 function scrollToBottom() {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
@@ -250,7 +307,7 @@ function renderSystem(text) {
 
 // --- Antworten (Reply) -------------------------------------------------------
 function startReply(msg) {
-  const preview = msg.type === 'image' ? '📷 Bild' : msg.text;
+  const preview = msg.type === 'image' ? '📷 Bild' : msg.type === 'audio' ? '🎙️ Sprachnachricht' : msg.text;
   replyingTo = { id: msg.id, sender: msg.sender, preview: preview.slice(0, 80) };
   replyPreviewSender.textContent = msg.sender;
   replyPreviewText.textContent = preview.slice(0, 80);
@@ -292,11 +349,7 @@ function renderMessage(msg) {
 
   const meta = document.createElement('div');
   meta.className = 'msg-meta';
-
-  const dot = document.createElement('span');
-  dot.className = 'dot';
-  dot.style.background = msg.color;
-  meta.appendChild(dot);
+  meta.appendChild(renderAvatar(msg.color, msg.avatar));
 
   const senderEl = document.createElement('span');
   senderEl.className = 'sender';
@@ -340,6 +393,18 @@ function renderMessage(msg) {
     img.alt = `Bild von ${msg.sender}`;
     img.addEventListener('click', () => window.open(msg.url, '_blank'));
     bubble.appendChild(img);
+  } else if (msg.type === 'audio') {
+    const audio = document.createElement('audio');
+    audio.controls = true;
+    audio.src = msg.url;
+    audio.className = 'voice-audio';
+    bubble.appendChild(audio);
+    if (msg.duration) {
+      const durLabel = document.createElement('div');
+      durLabel.className = 'voice-duration';
+      durLabel.textContent = formatDuration(msg.duration);
+      bubble.appendChild(durLabel);
+    }
   }
 
   wrap.appendChild(bubble);
@@ -468,7 +533,7 @@ function renderPinned(pinned) {
     pinnedBar.classList.add('hidden');
     return;
   }
-  const preview = pinned.type === 'image' ? '📷 Bild' : (pinned.text || '');
+  const preview = pinned.type === 'image' ? '📷 Bild' : pinned.type === 'audio' ? '🎙️ Sprachnachricht' : (pinned.text || '');
   pinnedTextEl.textContent = `${pinned.sender}: ${preview}`;
   pinnedBar.classList.remove('hidden');
 }
@@ -524,12 +589,9 @@ function renderUserList(container, list) {
   container.innerHTML = '';
   list.forEach((u) => {
     const li = document.createElement('li');
-    const dot = document.createElement('span');
-    dot.className = 'dot';
-    dot.style.background = u.color;
+    li.appendChild(renderAvatar(u.color, u.avatar));
     const label = document.createElement('span');
     label.textContent = u.name;
-    li.appendChild(dot);
     li.appendChild(label);
     container.appendChild(li);
   });
@@ -646,3 +708,119 @@ document.addEventListener('click', (e) => {
     emojiPicker.classList.add('hidden');
   }
 });
+
+// --- Bilder-Galerie ---------------------------------------------------------------
+function openGallery() {
+  galleryGrid.innerHTML = '';
+  const images = messagesEl.querySelectorAll('.msg:not(.system) .chat-image');
+  if (!images.length) {
+    const empty = document.createElement('div');
+    empty.className = 'gallery-empty';
+    empty.textContent = 'Noch keine Bilder geteilt.';
+    galleryGrid.appendChild(empty);
+  } else {
+    images.forEach((img) => {
+      const thumbBtn = document.createElement('button');
+      thumbBtn.className = 'gallery-thumb';
+      thumbBtn.type = 'button';
+      const thumbImg = document.createElement('img');
+      thumbImg.src = img.src;
+      thumbImg.loading = 'lazy';
+      thumbImg.alt = img.alt || 'Geteiltes Bild';
+      thumbBtn.appendChild(thumbImg);
+      thumbBtn.addEventListener('click', () => {
+        const msgEl = img.closest('.msg');
+        closeGallery();
+        if (msgEl) {
+          msgEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          msgEl.classList.add('highlight');
+          setTimeout(() => msgEl.classList.remove('highlight'), 1200);
+        }
+      });
+      galleryGrid.appendChild(thumbBtn);
+    });
+  }
+  galleryOverlay.classList.remove('hidden');
+}
+function closeGallery() {
+  galleryOverlay.classList.add('hidden');
+}
+
+galleryToggleBtn.addEventListener('click', openGallery);
+galleryCloseBtn.addEventListener('click', closeGallery);
+galleryOverlay.addEventListener('click', (e) => {
+  if (e.target === galleryOverlay) closeGallery();
+});
+
+// --- Sprachnachrichten (Push-to-Talk) -----------------------------------------------
+let mediaRecorder = null;
+let audioChunks = [];
+let recordStartTime = 0;
+let recordingStream = null;
+
+async function startRecording() {
+  if (mediaRecorder && mediaRecorder.state === 'recording') return;
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (err) {
+    renderSystem('Mikrofon-Zugriff nicht möglich (Berechtigung fehlt oder kein Mikrofon gefunden).');
+    return;
+  }
+  recordingStream = stream;
+  audioChunks = [];
+  const preferredType = 'audio/webm;codecs=opus';
+  const mimeType = (window.MediaRecorder && MediaRecorder.isTypeSupported(preferredType)) ? preferredType : '';
+  try {
+    mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+  } catch (err) {
+    renderSystem('Sprachaufnahme wird von diesem Browser nicht unterstützt.');
+    stream.getTracks().forEach((t) => t.stop());
+    return;
+  }
+  mediaRecorder.ondataavailable = (e) => {
+    if (e.data && e.data.size > 0) audioChunks.push(e.data);
+  };
+  mediaRecorder.onstop = onRecordingStop;
+  recordStartTime = Date.now();
+  mediaRecorder.start();
+  micBtn.classList.add('recording');
+}
+
+function stopRecording() {
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop();
+  }
+  micBtn.classList.remove('recording');
+  if (recordingStream) {
+    recordingStream.getTracks().forEach((t) => t.stop());
+    recordingStream = null;
+  }
+}
+
+async function onRecordingStop() {
+  const durationSec = Math.round((Date.now() - recordStartTime) / 1000);
+  if (durationSec < 1 || !audioChunks.length) return; // zu kurz / versehentliches Antippen
+  const mimeType = mediaRecorder.mimeType || 'audio/webm';
+  const blob = new Blob(audioChunks, { type: mimeType });
+  const ext = mimeType.includes('ogg') ? 'ogg' : mimeType.includes('mp4') ? 'm4a' : 'webm';
+  const formData = new FormData();
+  formData.append('audio', blob, `voice.${ext}`);
+  try {
+    const res = await fetch('/upload-audio', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.url) {
+      socket.emit('message', { type: 'audio', url: data.url, duration: durationSec, replyTo: replyingTo });
+      cancelReply();
+    } else if (data.error) {
+      renderSystem(`Fehler bei Sprachnachricht: ${data.error}`);
+    }
+  } catch (err) {
+    renderSystem('Sprachnachricht konnte nicht gesendet werden. Verbindung prüfen.');
+  }
+}
+
+micBtn.addEventListener('mousedown', (e) => { e.preventDefault(); startRecording(); });
+micBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startRecording(); }, { passive: false });
+['mouseup', 'mouseleave'].forEach((evt) => micBtn.addEventListener(evt, () => stopRecording()));
+micBtn.addEventListener('touchend', (e) => { e.preventDefault(); stopRecording(); });

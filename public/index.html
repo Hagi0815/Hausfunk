@@ -23,6 +23,12 @@
       </div>
 
       <input id="name-input" type="text" placeholder="Dein Name" maxlength="24" autocomplete="off" />
+
+      <div class="avatar-picker">
+        <div class="online-label">DEIN SYMBOL</div>
+        <div id="avatar-list" class="avatar-list"></div>
+      </div>
+
       <button id="join-btn">Kanal betreten</button>
     </div>
   </div>
@@ -32,11 +38,15 @@
       <div class="brand small">
         <span class="brand-led"></span>
         <h1>HAUSFUNK</h1>
-        <button id="search-toggle" class="icon-toggle" title="Suche" aria-label="Suche">🔍</button>
+        <div class="brand-actions">
+          <button id="gallery-toggle" class="icon-toggle" title="Bilder-Galerie" aria-label="Bilder-Galerie">🖼</button>
+          <button id="search-toggle" class="icon-toggle" title="Suche" aria-label="Suche">🔍</button>
+        </div>
       </div>
       <div class="online-label">ONLINE &middot; <span id="online-count">0</span></div>
       <ul id="user-list"></ul>
       <div class="sidebar-footer">
+        <button id="theme-toggle" class="sound-toggle" type="button"></button>
         <button id="sound-toggle" class="sound-toggle" type="button"></button>
         <div id="notif-status" class="notif-status"></div>
       </div>
@@ -85,12 +95,23 @@
             </svg>
           </button>
           <input id="file-input" type="file" accept="image/*" hidden />
+          <button id="mic-btn" title="Sprachnachricht (gedrückt halten)" aria-label="Sprachnachricht aufnehmen">🎙️</button>
           <button id="emoji-btn" title="Emoji einfügen" aria-label="Emoji einfügen">🙂</button>
           <textarea id="text-input" rows="1" placeholder="Nachricht schreiben..." autocomplete="off"></textarea>
           <button id="send-btn" title="Senden" aria-label="Senden">SENDEN</button>
         </div>
       </div>
     </main>
+  </div>
+
+  <div id="gallery-overlay" class="gallery-overlay hidden">
+    <div class="gallery-panel">
+      <div class="gallery-header">
+        <span>🖼 Geteilte Bilder</span>
+        <button id="gallery-close" aria-label="Schließen">✕</button>
+      </div>
+      <div id="gallery-grid" class="gallery-grid"></div>
+    </div>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
