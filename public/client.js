@@ -23,6 +23,16 @@ const replyPreviewText = document.getElementById('reply-preview-text');
 const replyCancelBtn = document.getElementById('reply-cancel');
 const emojiBtn = document.getElementById('emoji-btn');
 const emojiPicker = document.getElementById('emoji-picker');
+const searchToggleBtn = document.getElementById('search-toggle');
+const searchBar = document.getElementById('search-bar');
+const searchInput = document.getElementById('search-input');
+const searchCloseBtn = document.getElementById('search-close');
+const pinnedBar = document.getElementById('pinned-bar');
+const pinnedTextEl = document.getElementById('pinned-text');
+const pinnedUnpinBtn = document.getElementById('pinned-unpin');
+
+const DELETE_WINDOW_MS = 5 * 60 * 1000; // muss zum Server-Wert passen
+let currentPinned = null;
 
 let myName = '';
 let typingTimeout = null;
@@ -37,6 +47,128 @@ const EMOJI_LIST = [
   '👏','🙌','🙏','👋','🤝','💪','❤️','🧡','💛','💚','💙','💜','🖤','💔','💯','🔥',
   '✨','🎉','🎂','🍕','🍺','☕','⚽','🎮','🚗','🏠','🌞','🌧️','⭐',
 ];
+
+// --- Sound bei neuer Nachricht -------------------------------------------------
+const SOUND_KEY = 'hausfunk-sound-enabled';
+let soundEnabled = localStorage.getItem(SOUND_KEY) !== 'off';
+let audioCtx = null;
+const soundToggleBtn = document.getElementById('sound-toggle');
+
+function updateSoundToggleLabel() {
+  soundToggleBtn.textContent = soundEnabled ? '🔊 Ton an' : '🔇 Ton aus';
+}
+updateSoundToggleLabel();
+
+function unlockAudio() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  } catch (err) { /* Web Audio evtl. nicht verfuegbar */ }
+}
+
+function playNotificationSound(urgent = false) {
+  if (!soundEnabled) return;
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const now = audioCtx.currentTime;
+    const beep = (start, freq, dur) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + start);
+      gain.gain.setValueAtTime(0.0001, now + start);
+      gain.gain.exponentialRampToValueAtTime(0.2, now + start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + start + dur);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(now + start);
+      osc.stop(now + start + dur + 0.05);
+    };
+    if (urgent) {
+      beep(0, 1046, 0.14);
+      beep(0.16, 1318, 0.18);
+    } else {
+      beep(0, 880, 0.18);
+    }
+  } catch (err) { /* Audio evtl. noch nicht freigegeben */ }
+}
+
+soundToggleBtn.addEventListener('click', () => {
+  soundEnabled = !soundEnabled;
+  localStorage.setItem(SOUND_KEY, soundEnabled ? 'on' : 'off');
+  updateSoundToggleLabel();
+  unlockAudio();
+  if (soundEnabled) playNotificationSound(false);
+});
+
+// --- @Erwähnungen ---------------------------------------------------------------
+const MENTION_REGEX = /(@[\p{L}\p{N}_-]+)/gu;
+
+function isMentioned(text, name) {
+  if (!name) return false;
+  const regex = /@([\p{L}\p{N}_-]+)/gu;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    if (match[1].toLowerCase() === name.toLowerCase()) return true;
+  }
+  return false;
+}
+
+function renderTextWithMentions(container, text) {
+  let lastIndex = 0;
+  let match;
+  MENTION_REGEX.lastIndex = 0;
+  while ((match = MENTION_REGEX.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      container.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+    }
+    const token = match[0];
+    const nameOnly = token.slice(1);
+    const span = document.createElement('span');
+    span.className = `mention${myName && nameOnly.toLowerCase() === myName.toLowerCase() ? ' mention-me' : ''}`;
+    span.textContent = token;
+    container.appendChild(span);
+    lastIndex = match.index + token.length;
+  }
+  if (lastIndex < text.length) {
+    container.appendChild(document.createTextNode(text.slice(lastIndex)));
+  }
+}
+
+function notifyMention(msg) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const notif = new Notification(`🔔 ${msg.sender} hat dich erwähnt · Hausfunk`, { body: msg.text });
+  notif.onclick = () => {
+    window.focus();
+    notif.close();
+  };
+}
+
+// --- Tages-Trenner --------------------------------------------------------------
+let lastDateKey = null;
+
+function formatDateLabel(ts) {
+  const date = new Date(ts);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  const isSameDay = (a, b) => a.toDateString() === b.toDateString();
+  if (isSameDay(date, today)) return 'Heute';
+  if (isSameDay(date, yesterday)) return 'Gestern';
+  return date.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function maybeRenderDateDivider(ts) {
+  const key = new Date(ts).toDateString();
+  if (key === lastDateKey) return;
+  lastDateKey = key;
+  const divider = document.createElement('div');
+  divider.className = 'date-divider';
+  const span = document.createElement('span');
+  span.textContent = formatDateLabel(ts);
+  divider.appendChild(span);
+  messagesEl.appendChild(divider);
+}
 
 // --- Browser-Benachrichtigungen ---
 const notifStatusEl = document.getElementById('notif-status');
@@ -92,6 +224,7 @@ function join() {
   chatScreen.classList.remove('hidden');
   textInput.focus();
   requestNotificationPermission(); // Klick auf "Kanal betreten" zählt als Nutzer-Geste
+  unlockAudio();
 }
 
 joinBtn.addEventListener('click', join);
@@ -150,6 +283,8 @@ function renderReactions(container, reactions) {
 }
 
 function renderMessage(msg) {
+  maybeRenderDateDivider(msg.ts);
+
   const own = msg.sender === myName;
   const wrap = document.createElement('div');
   wrap.className = `msg ${own ? 'own' : ''}`;
@@ -192,8 +327,11 @@ function renderMessage(msg) {
   const bubble = document.createElement('div');
   bubble.className = 'bubble';
 
-  if (msg.type === 'text') {
-    bubble.textContent = msg.text;
+  if (msg.deleted) {
+    bubble.classList.add('deleted');
+    bubble.textContent = 'Nachricht wurde gelöscht';
+  } else if (msg.type === 'text') {
+    renderTextWithMentions(bubble, msg.text);
   } else if (msg.type === 'image') {
     const img = document.createElement('img');
     img.src = msg.url;
@@ -206,7 +344,13 @@ function renderMessage(msg) {
 
   wrap.appendChild(bubble);
 
-  // Aktionen: Reagieren + Antworten
+  if (msg.deleted) {
+    messagesEl.appendChild(wrap);
+    scrollToBottom();
+    return;
+  }
+
+  // Aktionen: Reagieren + Antworten + Anpinnen + (eigene, kurze Zeit) Löschen
   const actions = document.createElement('div');
   actions.className = 'msg-actions';
 
@@ -222,6 +366,26 @@ function renderMessage(msg) {
   replyBtn.title = 'Auf diese Nachricht antworten';
   replyBtn.addEventListener('click', () => startReply(msg));
   actions.appendChild(replyBtn);
+
+  const pinBtn = document.createElement('button');
+  pinBtn.className = 'action-btn';
+  pinBtn.textContent = '📌';
+  pinBtn.title = 'Nachricht anpinnen';
+  pinBtn.addEventListener('click', () => socket.emit('pin', { messageId: msg.id }));
+  actions.appendChild(pinBtn);
+
+  if (own && (Date.now() - msg.ts) < DELETE_WINDOW_MS) {
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'action-btn';
+    deleteBtn.textContent = '🗑';
+    deleteBtn.title = 'Nachricht löschen';
+    deleteBtn.addEventListener('click', () => {
+      if (confirm('Nachricht wirklich löschen?')) {
+        socket.emit('deleteMessage', { messageId: msg.id });
+      }
+    });
+    actions.appendChild(deleteBtn);
+  }
 
   wrap.appendChild(actions);
 
@@ -251,18 +415,26 @@ function renderMessage(msg) {
 
 socket.on('history', (msgs) => {
   messagesEl.innerHTML = '';
+  lastDateKey = null;
   msgs.forEach(renderMessage);
 });
 
 socket.on('message', (msg) => {
   renderMessage(msg);
   if (msg.sender !== myName) {
+    const mentioned = msg.type === 'text' && isMentioned(msg.text, myName);
     if (document.hidden) {
       unreadCount += 1;
       document.title = `(${unreadCount}) ${baseTitle}`;
     }
-    notifyNewMessage(msg);
+    if (mentioned) {
+      notifyMention(msg); // auch wenn der Tab sichtbar/aktiv ist
+    } else {
+      notifyNewMessage(msg);
+    }
+    playNotificationSound(mentioned);
   }
+  applySearchFilter(searchInput.value);
 });
 socket.on('system', renderSystem);
 
@@ -272,6 +444,81 @@ socket.on('reactionUpdate', ({ messageId, reactions }) => {
   const reactionsEl = target.querySelector('.reactions');
   if (reactionsEl) renderReactions(reactionsEl, reactions || {});
 });
+
+socket.on('messageDeleted', ({ messageId }) => {
+  const target = messagesEl.querySelector(`[data-id="${CSS.escape(messageId)}"]`);
+  if (!target) return;
+  const bubble = target.querySelector('.bubble');
+  if (bubble) {
+    bubble.innerHTML = '';
+    bubble.classList.add('deleted');
+    bubble.textContent = 'Nachricht wurde gelöscht';
+  }
+  const actions = target.querySelector('.msg-actions');
+  if (actions) actions.remove();
+  const quickRow = target.querySelector('.quick-react-row');
+  if (quickRow) quickRow.remove();
+  const reactionsEl = target.querySelector('.reactions');
+  if (reactionsEl) reactionsEl.remove();
+});
+
+function renderPinned(pinned) {
+  currentPinned = pinned;
+  if (!pinned) {
+    pinnedBar.classList.add('hidden');
+    return;
+  }
+  const preview = pinned.type === 'image' ? '📷 Bild' : (pinned.text || '');
+  pinnedTextEl.textContent = `${pinned.sender}: ${preview}`;
+  pinnedBar.classList.remove('hidden');
+}
+
+pinnedUnpinBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  socket.emit('unpin');
+});
+
+pinnedBar.addEventListener('click', () => {
+  if (!currentPinned) return;
+  const target = messagesEl.querySelector(`[data-id="${CSS.escape(currentPinned.id)}"]`);
+  if (target) {
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    target.classList.add('highlight');
+    setTimeout(() => target.classList.remove('highlight'), 1200);
+  }
+});
+
+socket.on('pinnedUpdate', renderPinned);
+
+// --- Suche im Verlauf ----------------------------------------------------------
+function applySearchFilter(query) {
+  const q = query.trim().toLowerCase();
+  const hasQuery = q.length > 0;
+  messagesEl.classList.toggle('searching', hasQuery);
+  messagesEl.querySelectorAll('.msg:not(.system)').forEach((el) => {
+    if (!hasQuery) { el.classList.remove('search-hidden'); return; }
+    const sender = el.querySelector('.sender')?.textContent.toLowerCase() || '';
+    const bubbleText = el.querySelector('.bubble')?.textContent.toLowerCase() || '';
+    const match = sender.includes(q) || bubbleText.includes(q);
+    el.classList.toggle('search-hidden', !match);
+  });
+}
+
+searchToggleBtn.addEventListener('click', () => {
+  searchBar.classList.toggle('hidden');
+  if (!searchBar.classList.contains('hidden')) {
+    searchInput.focus();
+  } else {
+    searchInput.value = '';
+    applySearchFilter('');
+  }
+});
+searchCloseBtn.addEventListener('click', () => {
+  searchBar.classList.add('hidden');
+  searchInput.value = '';
+  applySearchFilter('');
+});
+searchInput.addEventListener('input', () => applySearchFilter(searchInput.value));
 
 function renderUserList(container, list) {
   container.innerHTML = '';

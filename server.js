@@ -14,14 +14,17 @@ const CERT_DIR = path.join(__dirname, 'certs');
 const KEY_FILE = path.join(CERT_DIR, 'key.pem');
 const CERT_FILE = path.join(CERT_DIR, 'cert.pem');
 const MESSAGES_FILE = path.join(DATA_DIR, 'messages.json');
+const PINNED_FILE = path.join(DATA_DIR, 'pinned.json');
 const MAX_HISTORY = 500;   // wie viele Nachrichten dauerhaft behalten werden
 const MAX_SEND = 200;      // wie viele beim Beitritt an den Client geschickt werden
+const DELETE_WINDOW_MS = 5 * 60 * 1000; // Zeitfenster, in dem eigene Nachrichten loeschbar sind
 
 // --- Ordner & Datendatei sicherstellen -------------------------------------
 [DATA_DIR, UPLOAD_DIR, CERT_DIR].forEach((dir) => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 if (!fs.existsSync(MESSAGES_FILE)) fs.writeFileSync(MESSAGES_FILE, '[]');
+if (!fs.existsSync(PINNED_FILE)) fs.writeFileSync(PINNED_FILE, 'null');
 
 // --- Selbstsigniertes Zertifikat sicherstellen -----------------------------
 // Wird beim allerersten Start einmalig erzeugt und danach wiederverwendet.
@@ -91,7 +94,19 @@ function saveMessages(msgs) {
   return trimmed;
 }
 
+function loadPinned() {
+  try {
+    return JSON.parse(fs.readFileSync(PINNED_FILE, 'utf-8'));
+  } catch (err) {
+    return null;
+  }
+}
+function savePinned(pinned) {
+  fs.writeFileSync(PINNED_FILE, JSON.stringify(pinned));
+}
+
 let messages = loadMessages();
+let pinned = loadPinned();
 
 async function main() {
   // --- App / Server / Socket.io ---------------------------------------------
@@ -173,6 +188,7 @@ async function main() {
       onlineUsers.set(socket.id, { name, color: socket.data.color });
 
       socket.emit('history', messages.slice(-MAX_SEND));
+      socket.emit('pinnedUpdate', pinned);
       broadcastUsers();
       socket.broadcast.emit('system', `${name} ist beigetreten`);
     });
@@ -210,7 +226,7 @@ async function main() {
       const { messageId, emoji } = payload;
       if (!REACTION_EMOJIS.includes(emoji)) return;
       const msg = messages.find((m) => m.id === messageId);
-      if (!msg) return;
+      if (!msg || msg.deleted) return;
       if (!msg.reactions) msg.reactions = {};
       const name = socket.data.name;
       const list = msg.reactions[emoji] || [];
@@ -219,6 +235,49 @@ async function main() {
       if (list.length) msg.reactions[emoji] = list; else delete msg.reactions[emoji];
       messages = saveMessages(messages);
       io.emit('reactionUpdate', { messageId, reactions: msg.reactions });
+    });
+
+    socket.on('deleteMessage', (payload) => {
+      if (!socket.data.name || !payload) return;
+      const msg = messages.find((m) => m.id === payload.messageId);
+      if (!msg || msg.deleted) return;
+      if (msg.sender !== socket.data.name) return;
+      if (Date.now() - msg.ts > DELETE_WINDOW_MS) return;
+      msg.deleted = true;
+      delete msg.text;
+      delete msg.url;
+      msg.reactions = {};
+      messages = saveMessages(messages);
+      io.emit('messageDeleted', { messageId: msg.id });
+      if (pinned && pinned.id === msg.id) {
+        pinned = null;
+        savePinned(pinned);
+        io.emit('pinnedUpdate', pinned);
+      }
+    });
+
+    socket.on('pin', (payload) => {
+      if (!socket.data.name || !payload) return;
+      const msg = messages.find((m) => m.id === payload.messageId);
+      if (!msg || msg.deleted) return;
+      pinned = {
+        id: msg.id,
+        sender: msg.sender,
+        type: msg.type,
+        text: msg.type === 'text' ? msg.text : null,
+        url: msg.type === 'image' ? msg.url : null,
+        pinnedBy: socket.data.name,
+        ts: msg.ts,
+      };
+      savePinned(pinned);
+      io.emit('pinnedUpdate', pinned);
+    });
+
+    socket.on('unpin', () => {
+      if (!socket.data.name) return;
+      pinned = null;
+      savePinned(pinned);
+      io.emit('pinnedUpdate', pinned);
     });
 
     socket.on('typing', (isTyping) => {

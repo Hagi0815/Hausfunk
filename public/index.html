@@ -32,10 +32,14 @@
       <div class="brand small">
         <span class="brand-led"></span>
         <h1>HAUSFUNK</h1>
+        <button id="search-toggle" class="icon-toggle" title="Suche" aria-label="Suche">🔍</button>
       </div>
       <div class="online-label">ONLINE &middot; <span id="online-count">0</span></div>
       <ul id="user-list"></ul>
-      <div id="notif-status" class="notif-status"></div>
+      <div class="sidebar-footer">
+        <button id="sound-toggle" class="sound-toggle" type="button"></button>
+        <div id="notif-status" class="notif-status"></div>
+      </div>
     </aside>
 
     <main class="chat-main">
@@ -45,6 +49,19 @@
           <span id="online-count-mobile">0</span> online
         </button>
       </header>
+
+      <div id="search-bar" class="search-bar hidden">
+        <input id="search-input" type="text" placeholder="Suche nach Text oder Namen..." autocomplete="off" />
+        <button id="search-close" aria-label="Suche schließen">✕</button>
+      </div>
+
+      <div id="pinned-bar" class="pinned-bar hidden">
+        <div class="pinned-content">
+          <span class="pinned-label">📌 Angepinnt</span>
+          <span id="pinned-text" class="pinned-text"></span>
+        </div>
+        <button id="pinned-unpin" aria-label="Lösen">✕</button>
+      </div>
 
       <div id="messages" class="messages"></div>
       <div id="typing-indicator" class="typing"></div>
