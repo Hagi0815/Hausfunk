@@ -249,6 +249,24 @@ Tippt man `@` gefolgt von ein paar Buchstaben, erscheint eine Dropdown-Liste
 mit passenden Namen aus dem aktuellen Kanal (Pfeiltasten zum Navigieren,
 Enter/Tab zum Übernehmen, Escape zum Schließen).
 
+## Angemeldet bleiben (Sitzungen)
+
+Nach dem Anmelden merkt sich der Browser die Sitzung (ein Token in
+`localStorage`, 30 Tage gültig) – ein Reload oder ein kurzer Verbindungsabbruch
+(WLAN-Wechsel, Handy kurz offline) führt **nicht** mehr zurück zur Login-Seite,
+sondern man ist automatisch wieder im Kanal.
+
+- Token liegen serverseitig in `data/sessions.json`, nie das Passwort selbst
+- **Abmelden**-Button unten in der Sidebar löscht die Sitzung sowohl im
+  Browser als auch auf dem Server – wichtig für gemeinsam genutzte Geräte
+  (z. B. ein Familien-Tablet), damit dort nicht dauerhaft ein fremder Name
+  eingeloggt bleibt
+- Wird DOM umbenannt, wird die bisherige Sitzung automatisch ungültig und
+  durch eine neue mit dem neuen Namen ersetzt – kein erneutes Passwort nötig
+- Wird ein Name gesperrt oder ein geschütztes Konto entfernt, wird eine
+  bestehende Sitzung dafür beim nächsten Verbindungsversuch ebenfalls
+  ungültig
+
 ## Login-Absicherung & Passwort-Reset
 
 - **Rate-Limiting:** Nach 5 falschen Passwort-Versuchen für denselben Namen

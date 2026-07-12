@@ -33,6 +33,7 @@ const pinnedTextEl = document.getElementById('pinned-text');
 const pinnedUnpinBtn = document.getElementById('pinned-unpin');
 const avatarListEl = document.getElementById('avatar-list');
 const themeToggleBtn = document.getElementById('theme-toggle');
+const logoutBtn = document.getElementById('logout-btn');
 const galleryToggleBtn = document.getElementById('gallery-toggle');
 const galleryOverlay = document.getElementById('gallery-overlay');
 const galleryGrid = document.getElementById('gallery-grid');
@@ -65,6 +66,7 @@ let unreadCounts = {}; // roomId -> Anzahl ungelesener Nachrichten
 let myRole = 'user';
 let hasJoined = false;
 let lastJoinPassword = ''; // nur im Speicher (RAM), fuer automatisches Re-Login nach Verbindungsabbruch
+let sessionToken = localStorage.getItem('hausfunk-session-token') || '';
 let bannedNamesList = [];
 let protectedNamesList = []; // [{ name, status: 'pending'|'approved' }]
 let pendingRequestsList = [];
@@ -152,6 +154,14 @@ soundToggleBtn.addEventListener('click', () => {
   updateSoundToggleLabel();
   unlockAudio();
   if (soundEnabled) playNotificationSound(false);
+});
+
+logoutBtn.addEventListener('click', () => {
+  if (!confirm('Wirklich abmelden? Auf diesem Gerät wird dann erneut Name + Passwort benötigt.')) return;
+  socket.emit('logout');
+  localStorage.removeItem('hausfunk-session-token');
+  localStorage.removeItem('hausfunk-session-name');
+  window.location.reload();
 });
 
 // --- @Erwähnungen ---------------------------------------------------------------
@@ -474,18 +484,42 @@ joinBtn.addEventListener('click', join);
 nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
 adminPasswordInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
 
-// Bei jeder (Wieder-)Verbindung automatisch neu anmelden -- Socket.IO baut die
-// Verbindung nach kurzen Netzwerkaussetzern (WLAN-Wechsel, Handy kurz offline
-// etc.) selbststaendig neu auf, dabei aber mit einer neuen, noch nicht
-// angemeldeten Verbindung server-seitig. Ohne diesen Re-Join wuerde man optisch
-// weiter im Chat sitzen, aber keine neuen Ereignisse (Nachrichten, Online-Liste,
-// Konto-Anfragen) mehr bekommen, bis man die Seite manuell neu laedt.
+// "Angemeldet bleiben": bei jeder (Wieder-)Verbindung -- egal ob erster
+// Seitenaufruf nach einem Reload oder stiller Reconnect nach einem kurzen
+// Netzwerkaussetzer -- automatisch mit dem gespeicherten Sitzungs-Token
+// wiederanmelden. Ohne das wuerde man nach jedem Reload wieder auf der
+// Login-Seite landen bzw. nach einem Verbindungsabbruch "geisterhaft" im
+// Chat sitzen, ohne neue Ereignisse zu bekommen.
 socket.on('connect', () => {
   if (hasJoined && myName) {
-    socket.emit('join', {
-      name: myName, avatarType: myAvatarType, avatarValue: myAvatarValue, password: lastJoinPassword,
-    });
+    // Verbindung wurde neu aufgebaut (kurzer Netzwerkaussetzer o.ae.) --
+    // bevorzugt per Sitzungs-Token neu anmelden, sonst mit dem zuletzt
+    // genutzten Passwort.
+    if (sessionToken) {
+      socket.emit('resumeSession', { token: sessionToken });
+    } else {
+      socket.emit('join', {
+        name: myName, avatarType: myAvatarType, avatarValue: myAvatarValue, password: lastJoinPassword,
+      });
+    }
+  } else if (!hasJoined && sessionToken) {
+    // Allererster Verbindungsaufbau nach einem Seiten-Reload: gespeicherte
+    // Sitzung versuchen, damit man nicht jedes Mal neu eingeben muss.
+    myName = localStorage.getItem('hausfunk-session-name') || '';
+    socket.emit('resumeSession', { token: sessionToken });
   }
+});
+
+socket.on('sessionToken', (token) => {
+  sessionToken = token;
+  localStorage.setItem('hausfunk-session-token', token);
+  localStorage.setItem('hausfunk-session-name', myName);
+});
+
+socket.on('resumeFailed', () => {
+  sessionToken = '';
+  localStorage.removeItem('hausfunk-session-token');
+  localStorage.removeItem('hausfunk-session-name');
 });
 
 socket.on('registerPending', (name) => {

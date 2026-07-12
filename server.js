@@ -22,6 +22,8 @@ const PROTECTED_USERS_FILE = path.join(DATA_DIR, 'protected-users.json');
 const ADMIN_CONFIG_FILE = path.join(DATA_DIR, 'admin-config.json');
 const VAPID_FILE = path.join(DATA_DIR, 'vapid-keys.json');
 const PUSH_SUBS_FILE = path.join(DATA_DIR, 'push-subscriptions.json');
+const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
+const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 Tage "angemeldet bleiben"
 const MAX_HISTORY = 500;   // wie viele Nachrichten pro Kanal dauerhaft behalten werden
 const MAX_SEND = 200;      // wie viele beim Beitritt/Wechsel an den Client geschickt werden
 const DELETE_WINDOW_MS = 5 * 60 * 1000; // Zeitfenster, in dem eigene Nachrichten loeschbar sind (nicht fuer Admins)
@@ -60,6 +62,7 @@ if (!fs.existsSync(ADMIN_CONFIG_FILE)) {
   fs.writeFileSync(ADMIN_CONFIG_FILE, JSON.stringify({ displayName: DEFAULT_ADMIN_NAME }));
 }
 if (!fs.existsSync(PUSH_SUBS_FILE)) fs.writeFileSync(PUSH_SUBS_FILE, '{}');
+if (!fs.existsSync(SESSIONS_FILE)) fs.writeFileSync(SESSIONS_FILE, '{}');
 if (!fs.existsSync(PROTECTED_USERS_FILE)) fs.writeFileSync(PROTECTED_USERS_FILE, '{}');
 
 // --- Profilbilder (persistent pro Name, keine Benutzerkonten noetig) --------
@@ -234,7 +237,29 @@ function clearFailedAttempts(nameKey) {
   loginAttempts.delete(nameKey);
 }
 
-// --- Geschützte Konten (Name+Passwort, per Admin genehmigt) -----------------
+// --- Sitzungen ("angemeldet bleiben" ueber Reloads hinweg) ------------------
+function loadSessions() {
+  try {
+    return JSON.parse(fs.readFileSync(SESSIONS_FILE, 'utf-8'));
+  } catch (err) {
+    return {};
+  }
+}
+function saveSessions() {
+  const now = Date.now();
+  Object.keys(sessions).forEach((token) => {
+    if (sessions[token].expiresAt < now) delete sessions[token];
+  });
+  fs.writeFileSync(SESSIONS_FILE, JSON.stringify(sessions, null, 2));
+}
+let sessions = loadSessions(); // token -> { name, role, expiresAt }
+
+function createSession(name, role) {
+  const token = crypto.randomBytes(24).toString('hex');
+  sessions[token] = { name, role, expiresAt: Date.now() + SESSION_DURATION_MS };
+  saveSessions();
+  return token;
+}
 // { "<name-lower>": { displayName, passwordHash, status: 'pending'|'approved' } }
 function loadProtectedUsers() {
   try {
@@ -539,6 +564,50 @@ async function main() {
     return { id, sender, preview };
   }
 
+  // Gemeinsamer Erfolgspfad fuer normalen Login (Name+Passwort) und
+  // Sitzungs-Wiederaufnahme (Token) -- beide enden hier gleich.
+  function completeJoin(socket, { name, role, avatarType, avatarValue }) {
+    const isPhoto = avatarType === 'photo';
+    let avatar = (avatarValue || '').toString().trim().slice(0, 300) || null;
+    if (isPhoto && (!avatar || !avatar.startsWith('/uploads/avatars/'))) avatar = null;
+    if (!isPhoto) avatar = avatar ? avatar.slice(0, 8) : null;
+    const roomId = DEFAULT_ROOM;
+
+    socket.data.name = name;
+    socket.data.color = colorForName(name);
+    socket.data.avatar = isPhoto ? null : avatar;
+    socket.data.photo = isPhoto ? avatar : null;
+    socket.data.role = role;
+    socket.data.room = roomId;
+    socket.join(roomId);
+    onlineUsers.set(socket.id, {
+      name, color: socket.data.color, avatar: socket.data.avatar, photo: socket.data.photo, role, room: roomId,
+    });
+
+    ensureReadStateForName(name);
+    markRead(name, roomId, Date.now());
+
+    const state = roomState.get(roomId);
+    socket.emit('yourRole', role);
+    socket.emit('roomChanged', roomId);
+    socket.emit('history', state.messages.slice(-MAX_SEND));
+    socket.emit('pinnedUpdate', state.pinned);
+    socket.emit('unreadCounts', computeUnreadCounts(name, roomId));
+    if (role === 'admin') {
+      socket.emit('bannedList', bannedNames);
+      socket.emit('pendingRequests', getPendingList());
+      socket.emit('approvedAccounts', getApprovedList());
+      socket.emit('pendingResets', getPendingResetsList());
+    }
+    broadcastRoomUsers(roomId);
+    broadcastGlobalUsers();
+    socket.to(roomId).emit('system', `${name} ist beigetreten`);
+
+    const token = createSession(name, role);
+    socket.data.sessionToken = token;
+    socket.emit('sessionToken', token);
+  }
+
   io.on('connection', (socket) => {
     // Sofort Kanalliste + globale Online-Uebersicht schicken, auch wenn noch
     // nicht beigetreten (damit die Startseite bereits zeigen kann, wer aktiv ist).
@@ -614,43 +683,55 @@ async function main() {
         return;
       }
 
-      const isPhoto = raw.avatarType === 'photo';
-      let avatarValue = (raw.avatarValue || '').toString().trim().slice(0, 300) || null;
-      if (isPhoto && (!avatarValue || !avatarValue.startsWith('/uploads/avatars/'))) {
-        avatarValue = null;
-      }
-      if (!isPhoto) avatarValue = avatarValue ? avatarValue.slice(0, 8) : null;
-      const roomId = DEFAULT_ROOM;
+      completeJoin(socket, { name, role, avatarType: raw.avatarType, avatarValue: raw.avatarValue });
+    });
 
-      socket.data.name = name;
-      socket.data.color = colorForName(name);
-      socket.data.avatar = isPhoto ? null : avatarValue;
-      socket.data.photo = isPhoto ? avatarValue : null;
-      socket.data.role = role;
-      socket.data.room = roomId;
-      socket.join(roomId);
-      onlineUsers.set(socket.id, {
-        name, color: socket.data.color, avatar: socket.data.avatar, photo: socket.data.photo, role, room: roomId,
+    // --- Sitzung wiederaufnehmen (angemeldet bleiben nach Reload) ---------------
+    socket.on('resumeSession', (payload) => {
+      const token = ((payload && payload.token) || '').toString();
+      const session = sessions[token];
+      if (!session || session.expiresAt < Date.now()) {
+        delete sessions[token];
+        socket.emit('resumeFailed');
+        return;
+      }
+      const nameKey = session.name.toLowerCase();
+      if (bannedNames.includes(nameKey)) {
+        delete sessions[token];
+        saveSessions();
+        socket.emit('resumeFailed');
+        return;
+      }
+      if (session.role === 'admin' && nameKey !== adminDisplayName.toLowerCase()) {
+        // Admin-Name wurde inzwischen geaendert -- alte Sitzung ist nicht mehr gueltig
+        delete sessions[token];
+        saveSessions();
+        socket.emit('resumeFailed');
+        return;
+      }
+      if (session.role === 'user' && protectedUsers[nameKey] && protectedUsers[nameKey].status !== 'approved') {
+        // Konto wurde entfernt oder wartet neu auf Freigabe
+        delete sessions[token];
+        saveSessions();
+        socket.emit('resumeFailed');
+        return;
+      }
+      delete sessions[token]; // wird gleich durch einen frischen Token in completeJoin ersetzt
+      const avatarUrl = avatarsByName[nameKey];
+      completeJoin(socket, {
+        name: session.name,
+        role: session.role,
+        avatarType: avatarUrl ? 'photo' : 'emoji',
+        avatarValue: avatarUrl || '🙂',
       });
+    });
 
-      ensureReadStateForName(name);
-      markRead(name, roomId, Date.now());
-
-      const state = roomState.get(roomId);
-      socket.emit('yourRole', role);
-      socket.emit('roomChanged', roomId);
-      socket.emit('history', state.messages.slice(-MAX_SEND));
-      socket.emit('pinnedUpdate', state.pinned);
-      socket.emit('unreadCounts', computeUnreadCounts(name, roomId));
-      if (role === 'admin') {
-        socket.emit('bannedList', bannedNames);
-        socket.emit('pendingRequests', getPendingList());
-        socket.emit('approvedAccounts', getApprovedList());
-        socket.emit('pendingResets', getPendingResetsList());
+    socket.on('logout', () => {
+      if (socket.data.sessionToken) {
+        delete sessions[socket.data.sessionToken];
+        saveSessions();
+        socket.data.sessionToken = null;
       }
-      broadcastRoomUsers(roomId);
-      broadcastGlobalUsers();
-      socket.to(roomId).emit('system', `${name} ist beigetreten`);
     });
 
     // --- Passwort vergessen: Reset-Anfrage (wartet auf Admin-Freigabe) ----------
@@ -998,6 +1079,12 @@ async function main() {
       }
       broadcastRoomUsers(socket.data.room);
       broadcastGlobalUsers();
+
+      // Alten Sitzungs-Token (mit dem alten Namen) ungueltig machen, neuen ausstellen
+      if (socket.data.sessionToken) delete sessions[socket.data.sessionToken];
+      const newToken = createSession(newName, 'admin');
+      socket.data.sessionToken = newToken;
+      socket.emit('sessionToken', newToken);
       socket.emit('adminRenamed', newName);
     });
 
