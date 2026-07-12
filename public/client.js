@@ -1134,6 +1134,16 @@ socket.on('roomChanged', (roomId) => {
     loginScreen.classList.add('hidden');
     chatScreen.classList.remove('hidden');
     textInput.focus();
+    // Falls wir per gespeicherter Sitzung direkt hier gelandet sind (kein Klick
+    // auf "Kanal betreten" in dieser Sitzung), Benachrichtigungsstatus trotzdem
+    // aktualisieren -- ist die Erlaubnis schon erteilt, ist das gefahrlos, ohne
+    // Nutzer-Geste wuerde nur eine ERSTMALIGE Anfrage vom Browser blockiert.
+    requestNotificationPermission();
+    // Audio braucht dagegen zwingend eine echte Nutzer-Geste zum Freischalten --
+    // beim naechsten Klick/Tastendruck/Antippen irgendwo auf der Seite nachholen.
+    document.addEventListener('click', unlockAudio, { once: true });
+    document.addEventListener('keydown', unlockAudio, { once: true });
+    document.addEventListener('touchstart', unlockAudio, { once: true });
   }
   currentRoom = roomId;
   unreadCounts[roomId] = 0;
