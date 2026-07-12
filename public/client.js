@@ -24,6 +24,7 @@ const emojiBtn = document.getElementById('emoji-btn');
 const emojiPicker = document.getElementById('emoji-picker');
 const mentionDropdown = document.getElementById('mention-dropdown');
 const searchToggleBtn = document.getElementById('search-toggle');
+const searchToggleMobileBtn = document.getElementById('search-toggle-mobile');
 const searchBar = document.getElementById('search-bar');
 const searchInput = document.getElementById('search-input');
 const searchCloseBtn = document.getElementById('search-close');
@@ -949,7 +950,7 @@ function applySearchFilter(query) {
   });
 }
 
-searchToggleBtn.addEventListener('click', () => {
+function toggleSearchBar() {
   searchBar.classList.toggle('hidden');
   if (!searchBar.classList.contains('hidden')) {
     searchInput.focus();
@@ -957,7 +958,10 @@ searchToggleBtn.addEventListener('click', () => {
     searchInput.value = '';
     applySearchFilter('');
   }
-});
+}
+
+searchToggleBtn.addEventListener('click', toggleSearchBar);
+searchToggleMobileBtn.addEventListener('click', toggleSearchBar);
 searchCloseBtn.addEventListener('click', () => {
   searchBar.classList.add('hidden');
   searchInput.value = '';
@@ -965,14 +969,26 @@ searchCloseBtn.addEventListener('click', () => {
 });
 searchInput.addEventListener('input', () => applySearchFilter(searchInput.value));
 
-function renderUserList(container, list, allowActions) {
+function renderUserList(container, list, allowActions, showRoom) {
   container.innerHTML = '';
   list.forEach((u) => {
     const li = document.createElement('li');
     li.appendChild(renderAvatar(u.color, u.avatar, u.photo));
+
+    const nameWrap = document.createElement('span');
+    nameWrap.className = 'user-list-name-wrap';
     const label = document.createElement('span');
     label.textContent = u.name;
-    li.appendChild(label);
+    nameWrap.appendChild(label);
+    if (showRoom && u.room) {
+      const room = rooms.find((r) => r.id === u.room);
+      const roomLabel = document.createElement('span');
+      roomLabel.className = 'user-room-label';
+      roomLabel.textContent = `# ${room ? room.label : u.room}`;
+      nameWrap.appendChild(roomLabel);
+    }
+    li.appendChild(nameWrap);
+
     if (u.role === 'admin') {
       const badge = document.createElement('span');
       badge.className = 'role-badge';
@@ -995,20 +1011,26 @@ function renderUserList(container, list, allowActions) {
   });
 }
 
+// 'users' ist raumbezogen und wird nur noch fuer die @Erwaehnungs-Vorschlaege
+// gebraucht (dort ergibt nur der aktuelle Kanal Sinn). Die Sidebar zeigt ueber
+// 'globalUsers' immer ALLE Online-Nutzer, jeweils mit ihrem aktuellen Kanal.
 socket.on('users', (list) => {
   currentRoomUsersList = list;
-  renderUserList(userListEl, list, true);
-  onlineCountEl.textContent = list.length;
 });
 
 socket.on('globalUsers', (list) => {
-  renderUserList(loginUserListEl, list, false);
+  renderUserList(loginUserListEl, list, false, false);
   if (list.length) {
     loginUserListEl.classList.remove('hidden');
     loginOnlineEmptyEl.classList.add('hidden');
   } else {
     loginUserListEl.classList.add('hidden');
     loginOnlineEmptyEl.classList.remove('hidden');
+  }
+
+  if (hasJoined) {
+    renderUserList(userListEl, list, true, true);
+    onlineCountEl.textContent = list.length;
   }
 });
 

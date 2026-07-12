@@ -781,6 +781,7 @@ async function main() {
       socket.emit('unreadCounts', computeUnreadCounts(socket.data.name, roomId));
       broadcastRoomUsers(oldRoom);
       broadcastRoomUsers(roomId);
+      broadcastGlobalUsers();
     });
 
     socket.on('message', (payload) => {
@@ -980,6 +981,7 @@ async function main() {
         s.emit('unreadCounts', computeUnreadCounts(entry.name, fallbackRoom));
       }
       broadcastRoomUsers(fallbackRoom);
+      broadcastGlobalUsers();
       io.emit('rooms', ROOMS);
     });
 

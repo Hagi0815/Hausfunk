@@ -498,6 +498,24 @@ html, body {
   border-radius: 50%;
   flex: none;
 }
+.user-list-name-wrap {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 1px;
+}
+.user-list-name-wrap span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.user-room-label {
+  font-family: var(--font-display);
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.03em;
+}
 .ban-btn {
   flex: none;
   background: none;
@@ -577,6 +595,7 @@ html, body {
   padding: 0;
 }
 .sidebar-toggle:hover { border-color: var(--accent-dim); color: var(--accent); }
+.header-search-btn { margin-left: auto; }
 
 .messages {
   flex: 1;
