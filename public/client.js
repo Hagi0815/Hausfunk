@@ -14,6 +14,7 @@ const typingEl = document.getElementById('typing-indicator');
 const sidebar = document.getElementById('sidebar');
 const sidebarToggle = document.getElementById('sidebar-toggle');
 const onlineCountEl = document.getElementById('online-count');
+const onlineCountMobileEl = document.getElementById('online-count-mobile');
 const loginUserListEl = document.getElementById('login-user-list');
 const loginOnlineEmptyEl = document.getElementById('login-online-empty');
 const replyPreview = document.getElementById('reply-preview');
@@ -999,6 +1000,7 @@ socket.on('users', (list) => {
   currentRoomUsersList = list;
   renderUserList(userListEl, list, true);
   onlineCountEl.textContent = list.length;
+  onlineCountMobileEl.textContent = list.length;
 });
 
 socket.on('globalUsers', (list) => {
