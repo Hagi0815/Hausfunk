@@ -46,6 +46,8 @@ const pendingListEl = document.getElementById('pending-list');
 const pendingEmptyEl = document.getElementById('pending-empty');
 const approvedListEl = document.getElementById('approved-list');
 const approvedEmptyEl = document.getElementById('approved-empty');
+const adminCurrentNameEl = document.getElementById('admin-current-name');
+const adminRenameBtn = document.getElementById('admin-rename-btn');
 const joinErrorEl = document.getElementById('join-error');
 const adminPanelToggle = document.getElementById('admin-panel-toggle');
 const adminOverlay = document.getElementById('admin-overlay');
@@ -443,7 +445,25 @@ socket.on('kicked', (message) => {
 socket.on('yourRole', (role) => {
   myRole = role;
   document.body.classList.toggle('is-admin', role === 'admin');
+  if (role === 'admin') adminCurrentNameEl.textContent = myName;
   renderRoomList();
+});
+
+adminRenameBtn.addEventListener('click', () => {
+  const newName = prompt('Neuer Admin-Name (Login-Name, mit dem du dich künftig anmeldest):', myName);
+  if (newName && newName.trim() && newName.trim() !== myName) {
+    socket.emit('admin:renameAdmin', { newName: newName.trim() });
+  }
+});
+
+socket.on('adminRenamed', (newName) => {
+  myName = newName;
+  adminCurrentNameEl.textContent = newName;
+  alert(`Dein Admin-Name ist jetzt „${newName}". Bitte für die nächste Anmeldung merken!`);
+});
+
+socket.on('adminRenameError', (message) => {
+  alert(message);
 });
 
 sidebarToggle.addEventListener('click', () => sidebar.classList.toggle('open'));

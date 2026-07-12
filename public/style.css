@@ -327,6 +327,17 @@ html, body {
 }
 .admin-section .online-label { margin-top: 4px; }
 
+.admin-rename-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--panel-alt);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
 #join-btn {
   width: 100%;
   padding: 12px 14px;

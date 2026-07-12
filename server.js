@@ -18,6 +18,7 @@ const READ_STATE_FILE = path.join(DATA_DIR, 'read-state.json');
 const ROOMS_CONFIG_FILE = path.join(DATA_DIR, 'rooms-config.json');
 const BANNED_FILE = path.join(DATA_DIR, 'banned.json');
 const PROTECTED_USERS_FILE = path.join(DATA_DIR, 'protected-users.json');
+const ADMIN_CONFIG_FILE = path.join(DATA_DIR, 'admin-config.json');
 const MAX_HISTORY = 500;   // wie viele Nachrichten pro Kanal dauerhaft behalten werden
 const MAX_SEND = 200;      // wie viele beim Beitritt/Wechsel an den Client geschickt werden
 const DELETE_WINDOW_MS = 5 * 60 * 1000; // Zeitfenster, in dem eigene Nachrichten loeschbar sind (nicht fuer Admins)
@@ -25,8 +26,10 @@ const DELETE_WINDOW_MS = 5 * 60 * 1000; // Zeitfenster, in dem eigene Nachrichte
 // --- Admin-Zugang (Name "DOM" + Passwort) -----------------------------------
 // Passwort wird NICHT im Code hinterlegt, sondern als Umgebungsvariable gesetzt
 // (siehe ecosystem.config.js). Ist sie nicht gesetzt, ist der Admin-Zugang aus.
+// Der Admin-NAME selbst ist aenderbar (siehe admin-config.json) -- "DOM" ist
+// nur der Ausgangspunkt, der Admin kann sich im Panel umbenennen.
 const ADMIN_PASSWORD = process.env.HAUSFUNK_ADMIN_PASSWORD || null;
-const ADMIN_NAME_KEY = 'dom';
+const DEFAULT_ADMIN_NAME = 'DOM';
 
 function hashPassword(password) {
   return crypto.createHash('sha256').update(password).digest('hex');
@@ -48,6 +51,9 @@ const DEFAULT_ROOMS = [
 if (!fs.existsSync(AVATARS_FILE)) fs.writeFileSync(AVATARS_FILE, '{}');
 if (!fs.existsSync(READ_STATE_FILE)) fs.writeFileSync(READ_STATE_FILE, '{}');
 if (!fs.existsSync(BANNED_FILE)) fs.writeFileSync(BANNED_FILE, '[]');
+if (!fs.existsSync(ADMIN_CONFIG_FILE)) {
+  fs.writeFileSync(ADMIN_CONFIG_FILE, JSON.stringify({ displayName: DEFAULT_ADMIN_NAME }));
+}
 if (!fs.existsSync(PROTECTED_USERS_FILE)) fs.writeFileSync(PROTECTED_USERS_FILE, '{}');
 
 // --- Profilbilder (persistent pro Name, keine Benutzerkonten noetig) --------
@@ -111,6 +117,21 @@ function saveBanned(list) {
   fs.writeFileSync(BANNED_FILE, JSON.stringify(list, null, 2));
 }
 let bannedNames = loadBanned(); // Array von name.toLowerCase()
+
+// --- Admin-Name (aenderbar, Ausgangspunkt "DOM") ----------------------------
+function loadAdminConfig() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(ADMIN_CONFIG_FILE, 'utf-8'));
+    if (parsed && parsed.displayName) return parsed;
+  } catch (err) {
+    // fällt durch auf Default
+  }
+  return { displayName: DEFAULT_ADMIN_NAME };
+}
+function saveAdminConfig() {
+  fs.writeFileSync(ADMIN_CONFIG_FILE, JSON.stringify({ displayName: adminDisplayName }));
+}
+let adminDisplayName = loadAdminConfig().displayName;
 
 // --- Geschützte Konten (Name+Passwort, per Admin genehmigt) -----------------
 // { "<name-lower>": { displayName, passwordHash, status: 'pending'|'approved' } }
@@ -416,7 +437,7 @@ async function main() {
       }
 
       let role = 'user';
-      if (nameKey === ADMIN_NAME_KEY) {
+      if (nameKey === adminDisplayName.toLowerCase()) {
         if (!ADMIN_PASSWORD) {
           socket.emit('joinError', 'Admin-Zugang ist auf diesem Server nicht eingerichtet.');
           return;
@@ -691,7 +712,7 @@ async function main() {
       const targetName = (payload.name || '').toString().trim();
       if (!targetName) return;
       const key = targetName.toLowerCase();
-      if (key === ADMIN_NAME_KEY) return; // Admin kann sich nicht selbst sperren
+      if (key === adminDisplayName.toLowerCase()) return; // Admin kann sich nicht selbst sperren
 
       if (!bannedNames.includes(key)) {
         bannedNames.push(key);
@@ -750,6 +771,38 @@ async function main() {
         broadcastToAdmins('pendingRequests', getPendingList());
         broadcastToAdmins('approvedAccounts', getApprovedList());
       }
+    });
+
+    // --- Admin: eigenen Login-Namen aendern --------------------------------------
+    socket.on('admin:renameAdmin', (payload) => {
+      if (socket.data.role !== 'admin' || !payload) return;
+      const newName = (payload.newName || '').toString().trim().slice(0, 24);
+      if (!newName) return;
+      const newKey = newName.toLowerCase();
+      if (newKey === adminDisplayName.toLowerCase()) return;
+      if (bannedNames.includes(newKey)) {
+        socket.emit('adminRenameError', 'Dieser Name ist gesperrt.');
+        return;
+      }
+      if (protectedUsers[newKey]) {
+        socket.emit('adminRenameError', 'Dieser Name ist bereits als geschütztes Konto vergeben.');
+        return;
+      }
+
+      adminDisplayName = newName;
+      saveAdminConfig();
+
+      // Laufende eigene Sitzung sofort mit umbenennen, kein Neu-Login noetig
+      socket.data.name = newName;
+      socket.data.color = colorForName(newName);
+      const entry = onlineUsers.get(socket.id);
+      if (entry) {
+        entry.name = newName;
+        entry.color = socket.data.color;
+      }
+      broadcastRoomUsers(socket.data.room);
+      broadcastGlobalUsers();
+      socket.emit('adminRenamed', newName);
     });
 
     socket.on('typing', (isTyping) => {

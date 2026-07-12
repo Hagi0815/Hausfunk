@@ -70,12 +70,18 @@ gespeichert, nie im Klartext.
 
 ## Admin-Rolle (DOM)
 
-Es gibt eine Admin-Rolle mit dem reservierten Namen **„DOM"**. Wer sich mit
-diesem Namen anmeldet, braucht zusätzlich ein Passwort – ohne korrektes
-Passwort wird der Beitritt komplett abgelehnt (der Name „DOM" ist für normale
-Nutzer gesperrt).
+Es gibt eine Admin-Rolle, die zu Beginn den Namen **„DOM"** trägt. Wer sich
+mit diesem Namen anmeldet, braucht zusätzlich ein Passwort – ohne korrektes
+Passwort wird der Beitritt komplett abgelehnt.
 
-**Was DOM kann, was andere nicht können:**
+**Admin-Namen ändern:** Im Admin-Panel (🛡) unter „Dein Admin-Name" auf
+„Ändern" klicken und einen neuen Namen eingeben. Die Umstellung gilt sofort
+(auch für die laufende Sitzung, kein erneutes Anmelden nötig) – ab dann muss
+mit dem **neuen** Namen + demselben Passwort angemeldet werden. Der alte Name
+verliert alle Sonderrechte und wird zu einem ganz normalen Namen (der wie
+jeder neue Name künftig eine eigene Konto-Anfrage auslöst).
+
+**Was der Admin kann, was andere nicht können:**
 - Jede Nachricht löschen, unabhängig davon wer sie geschrieben hat und wie
   lange sie schon her ist (normale Nutzer: nur eigene, nur 5 Minuten)
 - Kanäle verwalten: neue anlegen, umbenennen, löschen – direkt in der Sidebar
@@ -84,6 +90,8 @@ Nutzer gesperrt).
   entfernt die Person sofort aus dem Kanal und verhindert, dass sie sich unter
   diesem Namen erneut anmeldet, bis sie über das Admin-Panel (🛡-Symbol oben in
   der Sidebar) wieder entsperrt wird
+- Konto-Anfragen genehmigen/ablehnen, geschützte Konten wieder freigeben
+- Den eigenen Admin-Namen ändern
 
 Alle Admin-Aktionen werden **serverseitig** geprüft (nicht nur im UI
 versteckt) – ein normaler Nutzer kann diese Funktionen also nicht über die
