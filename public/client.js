@@ -13,6 +13,7 @@ const imageBtn = document.getElementById('image-btn');
 const typingEl = document.getElementById('typing-indicator');
 const sidebar = document.getElementById('sidebar');
 const sidebarToggle = document.getElementById('sidebar-toggle');
+const sidebarCloseBtn = document.getElementById('sidebar-close');
 const onlineCountEl = document.getElementById('online-count');
 const loginUserListEl = document.getElementById('login-user-list');
 const loginOnlineEmptyEl = document.getElementById('login-online-empty');
@@ -582,6 +583,7 @@ socket.on('adminRenameError', (message) => {
 });
 
 sidebarToggle.addEventListener('click', () => sidebar.classList.toggle('open'));
+sidebarCloseBtn.addEventListener('click', () => sidebar.classList.remove('open'));
 
 function formatTime(ts) {
   return new Date(ts).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });

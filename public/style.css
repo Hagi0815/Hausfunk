@@ -388,6 +388,10 @@ html, body {
   gap: 18px;
 }
 
+.sidebar-close-btn {
+  display: none;
+}
+
 .online-label {
   font-family: var(--font-display);
   font-size: 11px;
@@ -1084,6 +1088,24 @@ html, body {
   .sidebar.open { transform: translateX(0); }
   .sidebar-toggle { display: flex; }
   #search-toggle { display: none; }
+  .sidebar-close-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 36px;
+    height: 36px;
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    align-self: flex-start;
+  }
+  .sidebar-close-btn:hover { border-color: var(--accent-dim); color: var(--accent); }
   .messages { padding: 18px; }
   .msg { max-width: 85%; }
   .input-bar { padding: 12px; }
