@@ -25,7 +25,6 @@ const emojiBtn = document.getElementById('emoji-btn');
 const emojiPicker = document.getElementById('emoji-picker');
 const mentionDropdown = document.getElementById('mention-dropdown');
 const searchToggleBtn = document.getElementById('search-toggle');
-const searchToggleMobileBtn = document.getElementById('search-toggle-mobile');
 const searchBar = document.getElementById('search-bar');
 const searchInput = document.getElementById('search-input');
 const searchCloseBtn = document.getElementById('search-close');
@@ -963,7 +962,6 @@ function toggleSearchBar() {
 }
 
 searchToggleBtn.addEventListener('click', toggleSearchBar);
-searchToggleMobileBtn.addEventListener('click', toggleSearchBar);
 searchCloseBtn.addEventListener('click', () => {
   searchBar.classList.add('hidden');
   searchInput.value = '';

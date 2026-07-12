@@ -599,7 +599,25 @@ html, body {
   padding: 0;
 }
 .sidebar-toggle:hover { border-color: var(--accent-dim); color: var(--accent); }
-.header-search-btn { margin-left: auto; }
+
+.header-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  margin-left: auto;
+}
+.header-icon-btn:hover { border-color: var(--accent-dim); color: var(--accent); }
 
 .messages {
   flex: 1;
@@ -1087,7 +1105,6 @@ html, body {
   }
   .sidebar.open { transform: translateX(0); }
   .sidebar-toggle { display: flex; }
-  #search-toggle { display: none; }
   .sidebar-close-btn {
     display: flex;
     align-items: center;
