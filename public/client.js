@@ -34,6 +34,9 @@ const pinnedUnpinBtn = document.getElementById('pinned-unpin');
 const avatarListEl = document.getElementById('avatar-list');
 const themeToggleBtn = document.getElementById('theme-toggle');
 const logoutBtn = document.getElementById('logout-btn');
+const locationToggleBtn = document.getElementById('location-toggle');
+const locationsListEl = document.getElementById('locations-list');
+const locationsEmptyEl = document.getElementById('locations-empty');
 const galleryToggleBtn = document.getElementById('gallery-toggle');
 const galleryOverlay = document.getElementById('gallery-overlay');
 const galleryGrid = document.getElementById('gallery-grid');
@@ -73,6 +76,9 @@ let pendingRequestsList = [];
 let approvedAccountsList = [];
 let pendingResetsList = [];
 let currentRoomUsersList = [];
+let locationsList = [];
+let locationSharing = false;
+let locationWatchId = null;
 let mentionActive = false;
 let mentionStart = -1;
 let mentionIndex = 0;
@@ -162,6 +168,50 @@ logoutBtn.addEventListener('click', () => {
   localStorage.removeItem('hausfunk-session-token');
   localStorage.removeItem('hausfunk-session-name');
   window.location.reload();
+});
+
+// --- Standort-Freigabe (freiwillig, nur der Admin sieht sie) ------------------
+function updateLocationToggleLabel() {
+  locationToggleBtn.textContent = locationSharing ? '📍 Standort aus' : '📍 Standort teilen';
+}
+
+function startSharingLocation() {
+  if (!('geolocation' in navigator)) {
+    alert('Dein Browser unterstützt keine Standortfreigabe.');
+    return;
+  }
+  if (!confirm('Standort mit dem Admin teilen? Er bleibt sichtbar, bis du es hier wieder ausschaltest oder die Seite verlässt.')) return;
+  locationWatchId = navigator.geolocation.watchPosition(
+    (pos) => {
+      socket.emit('shareLocation', {
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        accuracy: pos.coords.accuracy,
+      });
+    },
+    (err) => {
+      alert(`Standort konnte nicht ermittelt werden: ${err.message}`);
+      stopSharingLocation();
+    },
+    { enableHighAccuracy: false, maximumAge: 30000, timeout: 15000 },
+  );
+  locationSharing = true;
+  updateLocationToggleLabel();
+}
+
+function stopSharingLocation() {
+  if (locationWatchId !== null) {
+    navigator.geolocation.clearWatch(locationWatchId);
+    locationWatchId = null;
+  }
+  locationSharing = false;
+  updateLocationToggleLabel();
+  socket.emit('stopSharingLocation');
+}
+
+locationToggleBtn.addEventListener('click', () => {
+  if (locationSharing) stopSharingLocation();
+  else startSharingLocation();
 });
 
 // --- @Erwähnungen ---------------------------------------------------------------
@@ -1547,6 +1597,53 @@ function renderApprovedList() {
     approvedListEl.appendChild(li);
   });
 }
+
+function timeAgo(ts) {
+  const diffSec = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+  if (diffSec < 60) return 'gerade eben';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `vor ${diffMin} Min.`;
+  const diffH = Math.floor(diffMin / 60);
+  return `vor ${diffH} Std.`;
+}
+
+function renderLocationsList() {
+  locationsListEl.innerHTML = '';
+  if (!locationsList.length) {
+    locationsEmptyEl.classList.remove('hidden');
+    return;
+  }
+  locationsEmptyEl.classList.add('hidden');
+  locationsList.forEach(({ name, lat, lng, ts }) => {
+    const li = document.createElement('li');
+
+    const infoWrap = document.createElement('span');
+    infoWrap.className = 'user-list-name-wrap';
+    const label = document.createElement('span');
+    label.textContent = name;
+    infoWrap.appendChild(label);
+    const timeLabel = document.createElement('span');
+    timeLabel.className = 'user-room-label';
+    timeLabel.textContent = timeAgo(ts);
+    infoWrap.appendChild(timeLabel);
+    li.appendChild(infoWrap);
+
+    const link = document.createElement('a');
+    link.href = `https://www.google.com/maps?q=${lat},${lng}`;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.className = 'unban-btn';
+    link.textContent = '🗺️ Karte';
+    li.appendChild(link);
+
+    locationsListEl.appendChild(li);
+  });
+}
+
+socket.on('locationsUpdate', (list) => {
+  locationsList = list || [];
+  renderLocationsList();
+});
 
 function renderPendingResetsList() {
   pendingResetsListEl.innerHTML = '';

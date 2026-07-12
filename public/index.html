@@ -71,6 +71,7 @@
       <div class="sidebar-footer">
         <button id="theme-toggle" class="sound-toggle" type="button"></button>
         <button id="sound-toggle" class="sound-toggle" type="button"></button>
+        <button id="location-toggle" class="sound-toggle" type="button">📍 Standort teilen</button>
         <button id="logout-btn" class="sound-toggle" type="button">🚪 Abmelden</button>
         <div id="notif-status" class="notif-status"></div>
       </div>
@@ -151,6 +152,12 @@
           <span id="admin-current-name">DOM</span>
           <button id="admin-rename-btn" class="unban-btn">Ändern</button>
         </div>
+      </div>
+
+      <div class="admin-section">
+        <div class="online-label">STANDORTE (FREIGEGEBEN)</div>
+        <ul id="locations-list" class="banned-list"></ul>
+        <div id="locations-empty" class="gallery-empty hidden">Niemand teilt gerade seinen Standort.</div>
       </div>
 
       <div class="admin-section">

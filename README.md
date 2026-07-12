@@ -280,6 +280,19 @@ sondern man ist automatisch wieder im Kanal.
   – so kann niemand durch eine bloße Reset-Anfrage ein fremdes Konto
   übernehmen.
 
+## Standort-Freigabe (freiwillig, nur für DOM sichtbar)
+
+Unten in der Sidebar kann jede Person „📍 Standort teilen" aktivieren:
+
+- Der Browser fragt einmalig nach Standort-Erlaubnis (Geolocation-API)
+- Danach sieht **nur DOM** im Admin-Panel (🛡 → „Standorte") den Namen, wann
+  zuletzt aktualisiert wurde, und einen Link „🗺️ Karte" (öffnet Google Maps)
+- Standortdaten liegen **nur im Arbeitsspeicher** des Servers, nie in einer
+  Datei – sie verschwinden automatisch, sobald die Person „📍 Standort aus"
+  klickt, die Verbindung trennt (Tab schließt, Seite verlässt) oder der
+  Server neu startet
+- Andere Nutzer (außer DOM) sehen nie, wer seinen Standort teilt oder wo
+
 ## Grenzen (bewusst einfach gehalten)
 
 - Keine Zwei-Faktor-Authentifizierung.
