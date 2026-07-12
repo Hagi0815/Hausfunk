@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const multer = require('multer');
 const { Server } = require('socket.io');
 
@@ -14,19 +15,31 @@ const LEGACY_PINNED_FILE = path.join(DATA_DIR, 'pinned.json');
 const AVATAR_DIR = path.join(UPLOAD_DIR, 'avatars');
 const AVATARS_FILE = path.join(DATA_DIR, 'avatars.json');
 const READ_STATE_FILE = path.join(DATA_DIR, 'read-state.json');
+const ROOMS_CONFIG_FILE = path.join(DATA_DIR, 'rooms-config.json');
+const BANNED_FILE = path.join(DATA_DIR, 'banned.json');
+const PROTECTED_USERS_FILE = path.join(DATA_DIR, 'protected-users.json');
 const MAX_HISTORY = 500;   // wie viele Nachrichten pro Kanal dauerhaft behalten werden
 const MAX_SEND = 200;      // wie viele beim Beitritt/Wechsel an den Client geschickt werden
-const DELETE_WINDOW_MS = 5 * 60 * 1000; // Zeitfenster, in dem eigene Nachrichten loeschbar sind
+const DELETE_WINDOW_MS = 5 * 60 * 1000; // Zeitfenster, in dem eigene Nachrichten loeschbar sind (nicht fuer Admins)
 
-// --- Kanaele -----------------------------------------------------------------
-// Um weitere Kanaele hinzuzufuegen, hier einfach ein Objekt ergaenzen.
-// "id" wird als Ordnername verwendet: klein geschrieben, keine Leer-/Sonderzeichen.
-const ROOMS = [
+// --- Admin-Zugang (Name "DOM" + Passwort) -----------------------------------
+// Passwort wird NICHT im Code hinterlegt, sondern als Umgebungsvariable gesetzt
+// (siehe ecosystem.config.js). Ist sie nicht gesetzt, ist der Admin-Zugang aus.
+const ADMIN_PASSWORD = process.env.HAUSFUNK_ADMIN_PASSWORD || null;
+const ADMIN_NAME_KEY = 'dom';
+
+function hashPassword(password) {
+  return crypto.createHash('sha256').update(password).digest('hex');
+}
+
+// --- Kanaele (jetzt per Admin verwaltbar, siehe rooms-config.json) ----------
+// Beim allerersten Start werden diese drei als Ausgangspunkt angelegt, damit
+// bestehende Installationen ihre bisherigen Kanaele unveraendert behalten.
+const DEFAULT_ROOMS = [
   { id: 'familie', label: 'Familie' },
   { id: 'technik', label: 'Technik' },
   { id: 'einkaufsliste', label: 'Einkaufsliste' },
 ];
-const DEFAULT_ROOM = ROOMS[0].id;
 
 // --- Ordner sicherstellen ----------------------------------------------------
 [DATA_DIR, ROOMS_DIR, UPLOAD_DIR, AVATAR_DIR].forEach((dir) => {
@@ -34,6 +47,8 @@ const DEFAULT_ROOM = ROOMS[0].id;
 });
 if (!fs.existsSync(AVATARS_FILE)) fs.writeFileSync(AVATARS_FILE, '{}');
 if (!fs.existsSync(READ_STATE_FILE)) fs.writeFileSync(READ_STATE_FILE, '{}');
+if (!fs.existsSync(BANNED_FILE)) fs.writeFileSync(BANNED_FILE, '[]');
+if (!fs.existsSync(PROTECTED_USERS_FILE)) fs.writeFileSync(PROTECTED_USERS_FILE, '{}');
 
 // --- Profilbilder (persistent pro Name, keine Benutzerkonten noetig) --------
 function loadAvatars() {
@@ -47,6 +62,84 @@ function saveAvatars(map) {
   fs.writeFileSync(AVATARS_FILE, JSON.stringify(map, null, 2));
 }
 let avatarsByName = loadAvatars(); // key: name.toLowerCase() -> Bild-URL
+
+// --- Kanal-Konfiguration (jetzt per Admin aenderbar, in Datei persistiert) --
+function loadRoomsConfig() {
+  if (!fs.existsSync(ROOMS_CONFIG_FILE)) {
+    fs.writeFileSync(ROOMS_CONFIG_FILE, JSON.stringify(DEFAULT_ROOMS, null, 2));
+    return DEFAULT_ROOMS.map((r) => ({ ...r }));
+  }
+  try {
+    const parsed = JSON.parse(fs.readFileSync(ROOMS_CONFIG_FILE, 'utf-8'));
+    if (Array.isArray(parsed) && parsed.length) return parsed;
+  } catch (err) {
+    // fällt durch auf Default
+  }
+  return DEFAULT_ROOMS.map((r) => ({ ...r }));
+}
+function saveRoomsConfig() {
+  fs.writeFileSync(ROOMS_CONFIG_FILE, JSON.stringify(ROOMS, null, 2));
+}
+let ROOMS = loadRoomsConfig();
+const DEFAULT_ROOM = ROOMS[0].id;
+
+function slugifyRoomId(label) {
+  const base = label.toString().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  const root = base || 'kanal';
+  const existingIds = new Set(ROOMS.map((r) => r.id));
+  let candidate = root;
+  let suffix = 1;
+  while (existingIds.has(candidate)) {
+    suffix += 1;
+    candidate = `${root}-${suffix}`;
+  }
+  return candidate;
+}
+
+// --- Gesperrte Namen (persistent) --------------------------------------------
+function loadBanned() {
+  try {
+    return JSON.parse(fs.readFileSync(BANNED_FILE, 'utf-8'));
+  } catch (err) {
+    return [];
+  }
+}
+function saveBanned(list) {
+  fs.writeFileSync(BANNED_FILE, JSON.stringify(list, null, 2));
+}
+let bannedNames = loadBanned(); // Array von name.toLowerCase()
+
+// --- Geschützte Konten (Name+Passwort, per Admin genehmigt) -----------------
+// { "<name-lower>": { displayName, passwordHash, status: 'pending'|'approved' } }
+function loadProtectedUsers() {
+  try {
+    return JSON.parse(fs.readFileSync(PROTECTED_USERS_FILE, 'utf-8'));
+  } catch (err) {
+    return {};
+  }
+}
+function saveProtectedUsers() {
+  fs.writeFileSync(PROTECTED_USERS_FILE, JSON.stringify(protectedUsers, null, 2));
+}
+let protectedUsers = loadProtectedUsers();
+
+function getProtectedNamesPublic() {
+  // Nur Name + Status nach aussen geben, NIE das Passwort/den Hash
+  return Object.values(protectedUsers).map((u) => ({ name: u.displayName, status: u.status }));
+}
+function getPendingList() {
+  return Object.values(protectedUsers)
+    .filter((u) => u.status === 'pending')
+    .map((u) => ({ name: u.displayName }));
+}
+function getApprovedList() {
+  return Object.values(protectedUsers)
+    .filter((u) => u.status === 'approved')
+    .map((u) => ({ name: u.displayName }));
+}
 
 // --- Lesestatus pro Name (fuer Ungelesen-Zaehler an den Kanaelen) -----------
 function loadReadState() {
@@ -257,7 +350,7 @@ async function main() {
   });
 
   // --- Online-Nutzer & Farben -------------------------------------------------
-  const onlineUsers = new Map(); // socket.id -> { name, color, avatar, room }
+  const onlineUsers = new Map(); // socket.id -> { name, color, avatar, photo, role, room }
   const COLORS = ['#E8A33D', '#3E7C77', '#C9614A', '#6C8EBF', '#9B7EDE', '#5FAE6B', '#D9B24C'];
 
   function colorForName(name) {
@@ -274,6 +367,14 @@ async function main() {
   }
   function broadcastGlobalUsers() {
     io.emit('globalUsers', [...onlineUsers.values()]);
+  }
+  function broadcastToAdmins(event, data) {
+    for (const [socketId, entry] of onlineUsers.entries()) {
+      if (entry.role === 'admin') {
+        const s = io.sockets.sockets.get(socketId);
+        if (s) s.emit(event, data);
+      }
+    }
   }
 
   function makeId() {
@@ -297,10 +398,42 @@ async function main() {
     socket.emit('rooms', ROOMS);
     socket.emit('globalUsers', [...onlineUsers.values()]);
     socket.emit('avatarMap', avatarsByName);
+    socket.emit('protectedNames', getProtectedNamesPublic());
 
     socket.on('join', (payload) => {
       const raw = typeof payload === 'string' ? { name: payload } : (payload || {});
       const name = (raw.name || 'Gast').toString().trim().slice(0, 24) || 'Gast';
+      const nameKey = name.toLowerCase();
+      const providedPassword = (raw.password || '').toString();
+
+      if (bannedNames.includes(nameKey)) {
+        socket.emit('joinError', 'Dieser Name wurde gesperrt.');
+        return;
+      }
+
+      let role = 'user';
+      if (nameKey === ADMIN_NAME_KEY) {
+        if (!ADMIN_PASSWORD) {
+          socket.emit('joinError', 'Admin-Zugang ist auf diesem Server nicht eingerichtet.');
+          return;
+        }
+        if (providedPassword !== ADMIN_PASSWORD) {
+          socket.emit('joinError', 'Falsches Admin-Passwort.');
+          return;
+        }
+        role = 'admin';
+      } else if (protectedUsers[nameKey]) {
+        const account = protectedUsers[nameKey];
+        if (account.status === 'pending') {
+          socket.emit('joinError', 'Dieser Name wartet noch auf Freigabe durch den Admin.');
+          return;
+        }
+        if (hashPassword(providedPassword) !== account.passwordHash) {
+          socket.emit('joinError', 'Falsches Passwort.');
+          return;
+        }
+      }
+
       const isPhoto = raw.avatarType === 'photo';
       let avatarValue = (raw.avatarValue || '').toString().trim().slice(0, 300) || null;
       if (isPhoto && (!avatarValue || !avatarValue.startsWith('/uploads/avatars/'))) {
@@ -313,23 +446,64 @@ async function main() {
       socket.data.color = colorForName(name);
       socket.data.avatar = isPhoto ? null : avatarValue;
       socket.data.photo = isPhoto ? avatarValue : null;
+      socket.data.role = role;
       socket.data.room = roomId;
       socket.join(roomId);
       onlineUsers.set(socket.id, {
-        name, color: socket.data.color, avatar: socket.data.avatar, photo: socket.data.photo, room: roomId,
+        name, color: socket.data.color, avatar: socket.data.avatar, photo: socket.data.photo, role, room: roomId,
       });
 
       ensureReadStateForName(name);
       markRead(name, roomId, Date.now());
 
       const state = roomState.get(roomId);
+      socket.emit('yourRole', role);
       socket.emit('roomChanged', roomId);
       socket.emit('history', state.messages.slice(-MAX_SEND));
       socket.emit('pinnedUpdate', state.pinned);
       socket.emit('unreadCounts', computeUnreadCounts(name, roomId));
+      if (role === 'admin') {
+        socket.emit('bannedList', bannedNames);
+        socket.emit('pendingRequests', getPendingList());
+        socket.emit('approvedAccounts', getApprovedList());
+      }
       broadcastRoomUsers(roomId);
       broadcastGlobalUsers();
       socket.to(roomId).emit('system', `${name} ist beigetreten`);
+    });
+
+    // --- Konto-Anfrage (Name + Passwort, wartet auf Admin-Freigabe) -------------
+    socket.on('requestAccount', (payload) => {
+      const name = ((payload && payload.name) || '').toString().trim().slice(0, 24);
+      const password = ((payload && payload.password) || '').toString();
+      if (!name || !password) {
+        socket.emit('registerError', 'Name und Passwort werden benötigt.');
+        return;
+      }
+      const key = name.toLowerCase();
+      if (key === ADMIN_NAME_KEY) {
+        socket.emit('registerError', 'Dieser Name ist reserviert.');
+        return;
+      }
+      if (bannedNames.includes(key)) {
+        socket.emit('registerError', 'Dieser Name ist gesperrt.');
+        return;
+      }
+      if (protectedUsers[key]) {
+        socket.emit('registerError', protectedUsers[key].status === 'approved'
+          ? 'Dieser Name ist bereits geschützt vergeben.'
+          : 'Für diesen Namen liegt bereits eine Anfrage vor.');
+        return;
+      }
+      protectedUsers[key] = {
+        displayName: name,
+        passwordHash: hashPassword(password),
+        status: 'pending',
+      };
+      saveProtectedUsers();
+      socket.emit('registerPending', name);
+      io.emit('protectedNames', getProtectedNamesPublic());
+      broadcastToAdmins('pendingRequests', getPendingList());
     });
 
     socket.on('switchRoom', (payload) => {
@@ -364,13 +538,14 @@ async function main() {
       const color = socket.data.color;
       const avatar = socket.data.avatar;
       const photo = socket.data.photo;
+      const role = socket.data.role;
       const replyTo = sanitizeReplyTo(payload.replyTo);
 
       if (payload.type === 'text') {
         const clean = (payload.text || '').toString().slice(0, 2000).trim();
         if (!clean) return;
         const msg = {
-          id: makeId(), type: 'text', sender: name, color, avatar, photo, text: clean, ts: Date.now(),
+          id: makeId(), type: 'text', sender: name, color, avatar, photo, role, text: clean, ts: Date.now(),
           reactions: {}, replyTo,
         };
         state.messages.push(msg);
@@ -380,7 +555,7 @@ async function main() {
       } else if (payload.type === 'image') {
         if (!payload.url) return;
         const msg = {
-          id: makeId(), type: 'image', sender: name, color, avatar, photo, url: payload.url, ts: Date.now(),
+          id: makeId(), type: 'image', sender: name, color, avatar, photo, role, url: payload.url, ts: Date.now(),
           reactions: {}, replyTo,
         };
         state.messages.push(msg);
@@ -391,7 +566,7 @@ async function main() {
         if (!payload.url) return;
         const duration = Math.min(Math.max(Number(payload.duration) || 0, 0), 120);
         const msg = {
-          id: makeId(), type: 'audio', sender: name, color, avatar, photo, url: payload.url, duration, ts: Date.now(),
+          id: makeId(), type: 'audio', sender: name, color, avatar, photo, role, url: payload.url, duration, ts: Date.now(),
           reactions: {}, replyTo,
         };
         state.messages.push(msg);
@@ -425,8 +600,10 @@ async function main() {
       const state = roomState.get(roomId);
       const msg = state.messages.find((m) => m.id === payload.messageId);
       if (!msg || msg.deleted) return;
-      if (msg.sender !== socket.data.name) return;
-      if (Date.now() - msg.ts > DELETE_WINDOW_MS) return;
+      const isOwn = msg.sender === socket.data.name;
+      const isAdmin = socket.data.role === 'admin';
+      if (!isOwn && !isAdmin) return;
+      if (isOwn && !isAdmin && Date.now() - msg.ts > DELETE_WINDOW_MS) return;
       msg.deleted = true;
       delete msg.text;
       delete msg.url;
@@ -470,6 +647,124 @@ async function main() {
       io.to(roomId).emit('pinnedUpdate', state.pinned);
     });
 
+    // --- Admin: Kanalverwaltung --------------------------------------------------
+    socket.on('admin:createRoom', (payload) => {
+      if (socket.data.role !== 'admin' || !payload) return;
+      const label = (payload.label || '').toString().trim().slice(0, 40);
+      if (!label) return;
+      const id = slugifyRoomId(label);
+      ROOMS.push({ id, label });
+      saveRoomsConfig();
+      roomState.set(id, loadRoom(id));
+      io.emit('rooms', ROOMS);
+    });
+
+    socket.on('admin:renameRoom', (payload) => {
+      if (socket.data.role !== 'admin' || !payload) return;
+      const room = ROOMS.find((r) => r.id === payload.roomId);
+      if (!room) return;
+      const label = (payload.label || '').toString().trim().slice(0, 40);
+      if (!label) return;
+      room.label = label;
+      saveRoomsConfig();
+      io.emit('rooms', ROOMS);
+    });
+
+    socket.on('admin:deleteRoom', (payload) => {
+      if (socket.data.role !== 'admin' || !payload) return;
+      if (ROOMS.length <= 1) return; // mindestens ein Kanal muss erhalten bleiben
+      const idx = ROOMS.findIndex((r) => r.id === payload.roomId);
+      if (idx === -1) return;
+      const [removed] = ROOMS.splice(idx, 1);
+      saveRoomsConfig();
+      roomState.delete(removed.id); // Daten bleiben auf der Platte, nur aus der aktiven Liste entfernt
+      const fallbackRoom = ROOMS[0].id;
+
+      for (const [socketId, entry] of onlineUsers.entries()) {
+        if (entry.room !== removed.id) continue;
+        const s = io.sockets.sockets.get(socketId);
+        if (!s) continue;
+        s.leave(removed.id);
+        s.join(fallbackRoom);
+        s.data.room = fallbackRoom;
+        entry.room = fallbackRoom;
+        const state = roomState.get(fallbackRoom);
+        s.emit('roomChanged', fallbackRoom);
+        s.emit('history', state.messages.slice(-MAX_SEND));
+        s.emit('pinnedUpdate', state.pinned);
+        s.emit('unreadCounts', computeUnreadCounts(entry.name, fallbackRoom));
+      }
+      broadcastRoomUsers(fallbackRoom);
+      io.emit('rooms', ROOMS);
+    });
+
+    // --- Admin: Nutzer sperren/entsperren ----------------------------------------
+    socket.on('admin:banUser', (payload) => {
+      if (socket.data.role !== 'admin' || !payload) return;
+      const targetName = (payload.name || '').toString().trim();
+      if (!targetName) return;
+      const key = targetName.toLowerCase();
+      if (key === ADMIN_NAME_KEY) return; // Admin kann sich nicht selbst sperren
+
+      if (!bannedNames.includes(key)) {
+        bannedNames.push(key);
+        saveBanned(bannedNames);
+      }
+      for (const [socketId, entry] of onlineUsers.entries()) {
+        if (entry.name.toLowerCase() !== key) continue;
+        const s = io.sockets.sockets.get(socketId);
+        if (s) {
+          s.emit('kicked', 'Ein Administrator hat dich aus dem Kanal entfernt.');
+          s.disconnect(true);
+        }
+      }
+      broadcastToAdmins('bannedList', bannedNames);
+    });
+
+    socket.on('admin:unbanUser', (payload) => {
+      if (socket.data.role !== 'admin' || !payload) return;
+      const key = (payload.name || '').toString().trim().toLowerCase();
+      bannedNames = bannedNames.filter((n) => n !== key);
+      saveBanned(bannedNames);
+      broadcastToAdmins('bannedList', bannedNames);
+    });
+
+    // --- Admin: Konto-Anfragen genehmigen/ablehnen/entfernen ---------------------
+    socket.on('admin:approveUser', (payload) => {
+      if (socket.data.role !== 'admin' || !payload) return;
+      const key = (payload.name || '').toString().trim().toLowerCase();
+      const entry = protectedUsers[key];
+      if (!entry || entry.status !== 'pending') return;
+      entry.status = 'approved';
+      saveProtectedUsers();
+      io.emit('protectedNames', getProtectedNamesPublic());
+      broadcastToAdmins('pendingRequests', getPendingList());
+      broadcastToAdmins('approvedAccounts', getApprovedList());
+    });
+
+    socket.on('admin:rejectUser', (payload) => {
+      if (socket.data.role !== 'admin' || !payload) return;
+      const key = (payload.name || '').toString().trim().toLowerCase();
+      if (protectedUsers[key] && protectedUsers[key].status === 'pending') {
+        delete protectedUsers[key];
+        saveProtectedUsers();
+        io.emit('protectedNames', getProtectedNamesPublic());
+        broadcastToAdmins('pendingRequests', getPendingList());
+      }
+    });
+
+    socket.on('admin:removeAccount', (payload) => {
+      if (socket.data.role !== 'admin' || !payload) return;
+      const key = (payload.name || '').toString().trim().toLowerCase();
+      if (protectedUsers[key]) {
+        delete protectedUsers[key];
+        saveProtectedUsers();
+        io.emit('protectedNames', getProtectedNamesPublic());
+        broadcastToAdmins('pendingRequests', getPendingList());
+        broadcastToAdmins('approvedAccounts', getApprovedList());
+      }
+    });
+
     socket.on('typing', (isTyping) => {
       if (!socket.data.name || !socket.data.room) return;
       socket.to(socket.data.room).emit('typing', { name: socket.data.name, isTyping: !!isTyping });
@@ -489,6 +784,9 @@ async function main() {
 
   server.listen(PORT, () => {
     console.log(`Hausfunk laeuft (HTTP, TLS uebernimmt der Reverse Proxy) auf Port ${PORT}`);
+    if (!ADMIN_PASSWORD) {
+      console.log('Hinweis: HAUSFUNK_ADMIN_PASSWORD ist nicht gesetzt -- der Admin-Zugang (Name "DOM") ist deaktiviert.');
+    }
   });
 }
 

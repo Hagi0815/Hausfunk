@@ -24,10 +24,15 @@
 
       <input id="name-input" type="text" placeholder="Dein Name" maxlength="24" autocomplete="off" />
 
-      <div id="admin-password-row" class="admin-password-row hidden">
-        <input id="admin-password-input" type="password" placeholder="Admin-Passwort" autocomplete="off" />
+      <div id="auth-password-row" class="admin-password-row hidden">
+        <input id="auth-password-input" type="password" placeholder="Passwort" autocomplete="off" />
       </div>
+      <label id="register-toggle-row" class="register-toggle-row hidden">
+        <input type="checkbox" id="register-checkbox" />
+        Diesen Namen mit Passwort schützen (Konto-Anfrage an Admin)
+      </label>
       <div id="join-error" class="join-error hidden"></div>
+      <div id="join-info" class="join-info hidden"></div>
 
       <div class="avatar-picker">
         <div class="online-label">DEIN SYMBOL</div>
@@ -135,11 +140,27 @@
   <div id="admin-overlay" class="gallery-overlay hidden">
     <div class="gallery-panel">
       <div class="gallery-header">
-        <span>🛡 Admin &middot; Gesperrte Nutzer</span>
+        <span>🛡 Admin</span>
         <button id="admin-overlay-close" aria-label="Schließen">✕</button>
       </div>
-      <ul id="banned-list" class="banned-list"></ul>
-      <div id="banned-empty" class="gallery-empty hidden">Niemand gesperrt.</div>
+
+      <div class="admin-section">
+        <div class="online-label">AUSSTEHENDE KONTO-ANFRAGEN</div>
+        <ul id="pending-list" class="banned-list"></ul>
+        <div id="pending-empty" class="gallery-empty hidden">Keine offenen Anfragen.</div>
+      </div>
+
+      <div class="admin-section">
+        <div class="online-label">GESCHÜTZTE KONTEN</div>
+        <ul id="approved-list" class="banned-list"></ul>
+        <div id="approved-empty" class="gallery-empty hidden">Noch keine geschützten Konten.</div>
+      </div>
+
+      <div class="admin-section">
+        <div class="online-label">GESPERRTE NUTZER</div>
+        <ul id="banned-list" class="banned-list"></ul>
+        <div id="banned-empty" class="gallery-empty hidden">Niemand gesperrt.</div>
+      </div>
     </div>
   </div>
 

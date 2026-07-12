@@ -39,8 +39,15 @@ const galleryCloseBtn = document.getElementById('gallery-close');
 const micBtn = document.getElementById('mic-btn');
 const roomListEl = document.getElementById('room-list');
 const roomTitleEl = document.getElementById('room-title');
-const adminPasswordRow = document.getElementById('admin-password-row');
-const adminPasswordInput = document.getElementById('admin-password-input');
+const adminPasswordRow = document.getElementById('auth-password-row');
+const adminPasswordInput = document.getElementById('auth-password-input');
+const registerToggleRow = document.getElementById('register-toggle-row');
+const registerCheckbox = document.getElementById('register-checkbox');
+const joinInfoEl = document.getElementById('join-info');
+const pendingListEl = document.getElementById('pending-list');
+const pendingEmptyEl = document.getElementById('pending-empty');
+const approvedListEl = document.getElementById('approved-list');
+const approvedEmptyEl = document.getElementById('approved-empty');
 const joinErrorEl = document.getElementById('join-error');
 const adminPanelToggle = document.getElementById('admin-panel-toggle');
 const adminOverlay = document.getElementById('admin-overlay');
@@ -54,6 +61,9 @@ let unreadCounts = {}; // roomId -> Anzahl ungelesener Nachrichten
 let myRole = 'user';
 let hasJoined = false;
 let bannedNamesList = [];
+let protectedNamesList = []; // [{ name, status: 'pending'|'approved' }]
+let pendingRequestsList = [];
+let approvedAccountsList = [];
 
 const DELETE_WINDOW_MS = 5 * 60 * 1000; // muss zum Server-Wert passen
 let currentPinned = null;
@@ -335,13 +345,31 @@ avatarFileInput.addEventListener('change', async () => {
   avatarUploadBtn.textContent = '📷 Eigenes Bild';
 });
 
+// Passwortfeld/Registrierungs-Option abhaengig vom eingegebenen Namen steuern:
+// - Name "DOM" oder ein bereits genehmigtes geschuetztes Konto -> Passwort noetig
+// - Neuer, noch nicht geschuetzter Name -> Option, ihn per Passwort zu schuetzen
+// - Name mit offener Anfrage -> weder Passwortfeld noch erneute Registrierung
+function updateNameFieldUI() {
+  const key = nameInput.value.trim().toLowerCase();
+  const isAdmin = key === 'dom';
+  const protectedEntry = protectedNamesList.find((p) => p.name.toLowerCase() === key);
+
+  const needsPassword = isAdmin || (protectedEntry && protectedEntry.status === 'approved');
+  adminPasswordRow.classList.toggle('hidden', !needsPassword);
+
+  const canRegister = Boolean(key) && !isAdmin && !protectedEntry;
+  registerToggleRow.classList.toggle('hidden', !canRegister);
+  if (!canRegister) registerCheckbox.checked = false;
+  if (canRegister && registerCheckbox.checked) {
+    adminPasswordRow.classList.remove('hidden');
+  }
+}
+
+registerCheckbox.addEventListener('change', updateNameFieldUI);
+
 // Falls fuer den eingegebenen Namen schon ein Profilbild gespeichert ist,
 // automatisch vorschlagen (aendert nichts, wenn der Name noch nicht bekannt ist).
-// Ausserdem: Admin-Passwortfeld ein-/ausblenden, wenn der Name "DOM" lautet.
-nameInput.addEventListener('input', () => {
-  const isDOM = nameInput.value.trim().toLowerCase() === 'dom';
-  adminPasswordRow.classList.toggle('hidden', !isDOM);
-});
+nameInput.addEventListener('input', updateNameFieldUI);
 nameInput.addEventListener('blur', () => {
   const key = nameInput.value.trim().toLowerCase();
   if (key && avatarMap[key]) {
@@ -354,6 +382,11 @@ nameInput.addEventListener('blur', () => {
 
 socket.on('avatarMap', (map) => {
   avatarMap = map || {};
+});
+
+socket.on('protectedNames', (list) => {
+  protectedNamesList = list || [];
+  updateNameFieldUI();
 });
 
 function renderAvatar(color, avatar, photo) {
@@ -374,18 +407,44 @@ function renderAvatar(color, avatar, photo) {
 function join() {
   const name = nameInput.value.trim();
   if (!name) { nameInput.focus(); return; }
-  myName = name;
-  const isDOM = name.toLowerCase() === 'dom';
-  const adminPassword = isDOM ? adminPasswordInput.value : '';
+  const key = name.toLowerCase();
+  const isAdmin = key === 'dom';
+  const protectedEntry = protectedNamesList.find((p) => p.name.toLowerCase() === key);
+  const password = adminPasswordInput.value;
+
   joinErrorEl.classList.add('hidden');
+  joinInfoEl.classList.add('hidden');
+
+  const wantsRegister = registerCheckbox.checked && !isAdmin && !protectedEntry;
+  if (wantsRegister) {
+    if (!password) {
+      joinErrorEl.textContent = 'Bitte ein Passwort für die Konto-Anfrage eingeben.';
+      joinErrorEl.classList.remove('hidden');
+      return;
+    }
+    socket.emit('requestAccount', { name, password });
+    return;
+  }
+
+  myName = name;
   socket.emit('join', {
-    name, avatarType: myAvatarType, avatarValue: myAvatarValue, adminPassword,
+    name, avatarType: myAvatarType, avatarValue: myAvatarValue, password,
   });
 }
 
 joinBtn.addEventListener('click', join);
 nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
 adminPasswordInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
+
+socket.on('registerPending', (name) => {
+  joinInfoEl.textContent = `Anfrage für „${name}" wurde gesendet. Bitte auf Freigabe durch den Admin warten.`;
+  joinInfoEl.classList.remove('hidden');
+});
+
+socket.on('registerError', (message) => {
+  joinErrorEl.textContent = message;
+  joinErrorEl.classList.remove('hidden');
+});
 
 socket.on('joinError', (message) => {
   joinErrorEl.textContent = message;
@@ -1118,6 +1177,77 @@ function renderBannedList() {
 socket.on('bannedList', (list) => {
   bannedNamesList = list || [];
   renderBannedList();
+});
+
+// --- Admin-Panel: Konto-Anfragen & geschuetzte Konten ---------------------------
+function renderPendingList() {
+  pendingListEl.innerHTML = '';
+  if (!pendingRequestsList.length) {
+    pendingEmptyEl.classList.remove('hidden');
+    return;
+  }
+  pendingEmptyEl.classList.add('hidden');
+  pendingRequestsList.forEach(({ name }) => {
+    const li = document.createElement('li');
+    const label = document.createElement('span');
+    label.textContent = name;
+    li.appendChild(label);
+
+    const actions = document.createElement('span');
+    actions.style.display = 'flex';
+    actions.style.gap = '6px';
+
+    const approveBtn = document.createElement('button');
+    approveBtn.className = 'unban-btn';
+    approveBtn.textContent = '✓ Genehmigen';
+    approveBtn.addEventListener('click', () => socket.emit('admin:approveUser', { name }));
+    actions.appendChild(approveBtn);
+
+    const rejectBtn = document.createElement('button');
+    rejectBtn.className = 'unban-btn';
+    rejectBtn.textContent = '✗ Ablehnen';
+    rejectBtn.addEventListener('click', () => socket.emit('admin:rejectUser', { name }));
+    actions.appendChild(rejectBtn);
+
+    li.appendChild(actions);
+    pendingListEl.appendChild(li);
+  });
+}
+
+function renderApprovedList() {
+  approvedListEl.innerHTML = '';
+  if (!approvedAccountsList.length) {
+    approvedEmptyEl.classList.remove('hidden');
+    return;
+  }
+  approvedEmptyEl.classList.add('hidden');
+  approvedAccountsList.forEach(({ name }) => {
+    const li = document.createElement('li');
+    const label = document.createElement('span');
+    label.textContent = name;
+    li.appendChild(label);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'unban-btn';
+    removeBtn.textContent = 'Schutz entfernen';
+    removeBtn.addEventListener('click', () => {
+      if (confirm(`Passwortschutz für "${name}" wirklich entfernen? Der Name ist danach wieder frei nutzbar.`)) {
+        socket.emit('admin:removeAccount', { name });
+      }
+    });
+    li.appendChild(removeBtn);
+    approvedListEl.appendChild(li);
+  });
+}
+
+socket.on('pendingRequests', (list) => {
+  pendingRequestsList = list || [];
+  renderPendingList();
+});
+
+socket.on('approvedAccounts', (list) => {
+  approvedAccountsList = list || [];
+  renderApprovedList();
 });
 
 adminPanelToggle.addEventListener('click', () => {

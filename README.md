@@ -47,6 +47,63 @@ heraus-tabbt).
   kann grundsätzlich jeder ein Bild unter einem beliebigen Namen hochladen –
   für den Familiengebrauch unkritisch, aber gut zu wissen
 
+## Konto-Anfragen (weitere passwortgeschützte Namen)
+
+Über „DOM" hinaus kann jede Person selbst einen **eigenen geschützten Namen**
+beantragen:
+
+- Beim Betreten den gewünschten Namen eingeben, die Checkbox „Diesen Namen mit
+  Passwort schützen (Konto-Anfrage an Admin)" aktivieren, ein Passwort
+  eingeben und auf „Kanal betreten" klicken
+- Die Anfrage geht an DOM und muss im Admin-Panel (🛡) unter „Ausstehende
+  Konto-Anfragen" genehmigt werden, bevor der Name nutzbar ist
+- Bis zur Genehmigung kann sich niemand mit diesem Namen anmelden (auch nicht
+  mit dem richtigen Passwort) – so wird verhindert, dass sich jemand einen
+  Namen "vormerkt", ohne dass der Admin zugestimmt hat
+- Nach der Genehmigung braucht dieser Name **immer** das Passwort, um sich
+  anzumelden – ganz wie bei DOM, nur ohne die Admin-Rechte
+- Im Admin-Panel unter „Geschützte Konten" kann DOM den Schutz jederzeit
+  wieder entfernen (der Name wird dann wieder ganz normal/offen)
+
+Passwörter werden **gehasht** (SHA-256) in `data/protected-users.json`
+gespeichert, nie im Klartext.
+
+## Admin-Rolle (DOM)
+
+Es gibt eine Admin-Rolle mit dem reservierten Namen **„DOM"**. Wer sich mit
+diesem Namen anmeldet, braucht zusätzlich ein Passwort – ohne korrektes
+Passwort wird der Beitritt komplett abgelehnt (der Name „DOM" ist für normale
+Nutzer gesperrt).
+
+**Was DOM kann, was andere nicht können:**
+- Jede Nachricht löschen, unabhängig davon wer sie geschrieben hat und wie
+  lange sie schon her ist (normale Nutzer: nur eigene, nur 5 Minuten)
+- Kanäle verwalten: neue anlegen, umbenennen, löschen – direkt in der Sidebar
+  (✏️/🗑 neben jedem Kanal, „+ Kanal" ganz unten in der Liste)
+- Nutzer sperren/entsperren: 🚫-Symbol neben jedem Namen in der Online-Liste
+  entfernt die Person sofort aus dem Kanal und verhindert, dass sie sich unter
+  diesem Namen erneut anmeldet, bis sie über das Admin-Panel (🛡-Symbol oben in
+  der Sidebar) wieder entsperrt wird
+
+Alle Admin-Aktionen werden **serverseitig** geprüft (nicht nur im UI
+versteckt) – ein normaler Nutzer kann diese Funktionen also nicht über die
+Browser-Konsole erzwingen.
+
+**Einrichtung des Passworts** (das Passwort steht nirgends im Code oder Git-Repo):
+```bash
+cp ecosystem.config.example.js ecosystem.config.js
+nano ecosystem.config.js   # Passwort eintragen
+pm2 delete hausfunk        # falls bisher per "pm2 start server.js" gestartet
+pm2 start ecosystem.config.js
+pm2 save
+```
+Ist kein Passwort gesetzt, ist der Admin-Zugang komplett deaktiviert (Beitritt
+mit dem Namen „DOM" schlägt dann mit einer entsprechenden Meldung fehl).
+
+**Kanäle selbst verwalten:** Das `ROOMS`-Array in `server.js` wird nicht mehr
+verwendet – die Kanalliste liegt jetzt in `data/rooms-config.json` und lässt
+sich komplett über das Admin-Panel im Chat bearbeiten, ganz ohne Server-Neustart.
+
 ## Kanäle / Räume
 
 Hausfunk hat mehrere Kanäle: **Familie**, **Technik**, **Einkaufsliste** (Standard
