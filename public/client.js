@@ -301,7 +301,6 @@ async function setupPushSubscription() {
 
 function notifyNewMessage(msg) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
-  if (document.visibilityState === 'visible') return;
   const body = msg.type === 'image' ? '📷 Bild gesendet' : msg.type === 'audio' ? '🎙️ Sprachnachricht' : msg.text;
   const notif = new Notification(`${msg.sender} · Hausfunk`, { body });
   notif.onclick = () => {
