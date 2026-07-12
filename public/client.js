@@ -461,6 +461,8 @@ function join() {
   joinInfoEl.classList.add('hidden');
 
   myName = name;
+  requestNotificationPermission(); // direkt im Klick, nicht erst nach Server-Antwort -- sonst blockt Android Chrome den Prompt
+  unlockAudio();
   socket.emit('join', {
     name, avatarType: myAvatarType, avatarValue: myAvatarValue, password,
   });
@@ -1063,8 +1065,6 @@ socket.on('roomChanged', (roomId) => {
     loginScreen.classList.add('hidden');
     chatScreen.classList.remove('hidden');
     textInput.focus();
-    requestNotificationPermission(); // Klick auf "Kanal betreten" zählt als Nutzer-Geste
-    unlockAudio();
   }
   currentRoom = roomId;
   unreadCounts[roomId] = 0;
