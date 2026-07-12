@@ -320,6 +320,20 @@ html, body {
 }
 .join-info.hidden { display: none; }
 
+.forgot-password-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  margin: -8px 0 14px;
+  text-align: left;
+  display: block;
+}
+.forgot-password-btn:hover { color: var(--accent); }
+
 .admin-section {
   display: flex;
   flex-direction: column;
@@ -671,6 +685,31 @@ html, body {
   border-radius: 50%;
 }
 .msg-meta .sender { color: var(--text); font-weight: 600; }
+.edited-tag {
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.edit-textarea {
+  width: 100%;
+  min-width: 220px;
+  min-height: 60px;
+  resize: vertical;
+  background: var(--panel-alt);
+  border: 1px solid var(--accent-dim);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  padding: 8px 10px;
+  outline: none;
+}
+.edit-textarea:focus { border-color: var(--accent); }
+.edit-controls {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
 
 .bubble {
   background: var(--other-bubble);
@@ -862,6 +901,37 @@ html, body {
   line-height: 1;
 }
 .emoji-picker button:hover { background: var(--panel-alt); }
+
+.mention-dropdown {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 20px;
+  width: 220px;
+  max-height: 220px;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 4px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+  z-index: 30;
+}
+.mention-dropdown.hidden { display: none; }
+.mention-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 14px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+}
+.mention-item:hover, .mention-item.active { background: var(--panel-alt); }
 
 .chat-image {
   max-width: 280px;

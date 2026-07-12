@@ -3,7 +3,11 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#161d26" />
 <title>Hausfunk</title>
+<link rel="manifest" href="/manifest.json" />
+<link rel="icon" href="/icons/icon-192.png" />
+<link rel="apple-touch-icon" href="/icons/icon-192.png" />
 <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
@@ -27,6 +31,7 @@
       <div id="auth-password-row" class="admin-password-row">
         <input id="auth-password-input" type="password" placeholder="Passwort (für neue Namen frei wählbar)" autocomplete="off" />
       </div>
+      <button type="button" id="forgot-password-btn" class="forgot-password-btn">Passwort vergessen?</button>
       <div id="join-error" class="join-error hidden"></div>
       <div id="join-info" class="join-info hidden"></div>
 
@@ -105,6 +110,7 @@
 
       <div class="input-bar-wrapper">
         <div id="emoji-picker" class="emoji-picker hidden"></div>
+        <div id="mention-dropdown" class="mention-dropdown hidden"></div>
         <div class="input-bar">
           <button id="image-btn" title="Bild senden" aria-label="Bild senden">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -152,6 +158,12 @@
         <div class="online-label">AUSSTEHENDE KONTO-ANFRAGEN</div>
         <ul id="pending-list" class="banned-list"></ul>
         <div id="pending-empty" class="gallery-empty hidden">Keine offenen Anfragen.</div>
+      </div>
+
+      <div class="admin-section">
+        <div class="online-label">PASSWORT-RESET-ANFRAGEN</div>
+        <ul id="pending-resets-list" class="banned-list"></ul>
+        <div id="pending-resets-empty" class="gallery-empty hidden">Keine offenen Reset-Anfragen.</div>
       </div>
 
       <div class="admin-section">

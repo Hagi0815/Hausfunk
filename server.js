@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const multer = require('multer');
+const webPush = require('web-push');
 const { Server } = require('socket.io');
 
 const PORT = process.env.PORT || 3210;
@@ -19,9 +20,13 @@ const ROOMS_CONFIG_FILE = path.join(DATA_DIR, 'rooms-config.json');
 const BANNED_FILE = path.join(DATA_DIR, 'banned.json');
 const PROTECTED_USERS_FILE = path.join(DATA_DIR, 'protected-users.json');
 const ADMIN_CONFIG_FILE = path.join(DATA_DIR, 'admin-config.json');
+const VAPID_FILE = path.join(DATA_DIR, 'vapid-keys.json');
+const PUSH_SUBS_FILE = path.join(DATA_DIR, 'push-subscriptions.json');
 const MAX_HISTORY = 500;   // wie viele Nachrichten pro Kanal dauerhaft behalten werden
 const MAX_SEND = 200;      // wie viele beim Beitritt/Wechsel an den Client geschickt werden
 const DELETE_WINDOW_MS = 5 * 60 * 1000; // Zeitfenster, in dem eigene Nachrichten loeschbar sind (nicht fuer Admins)
+const LOGIN_ATTEMPT_LIMIT = 5;
+const LOGIN_LOCKOUT_MS = 5 * 60 * 1000; // 5 Minuten Sperre nach zu vielen Fehlversuchen
 
 // --- Admin-Zugang (Name "DOM" + Passwort) -----------------------------------
 // Passwort wird NICHT im Code hinterlegt, sondern als Umgebungsvariable gesetzt
@@ -54,6 +59,7 @@ if (!fs.existsSync(BANNED_FILE)) fs.writeFileSync(BANNED_FILE, '[]');
 if (!fs.existsSync(ADMIN_CONFIG_FILE)) {
   fs.writeFileSync(ADMIN_CONFIG_FILE, JSON.stringify({ displayName: DEFAULT_ADMIN_NAME }));
 }
+if (!fs.existsSync(PUSH_SUBS_FILE)) fs.writeFileSync(PUSH_SUBS_FILE, '{}');
 if (!fs.existsSync(PROTECTED_USERS_FILE)) fs.writeFileSync(PROTECTED_USERS_FILE, '{}');
 
 // --- Profilbilder (persistent pro Name, keine Benutzerkonten noetig) --------
@@ -133,6 +139,101 @@ function saveAdminConfig() {
 }
 let adminDisplayName = loadAdminConfig().displayName;
 
+// --- Web-Push: VAPID-Schluessel (einmalig automatisch erzeugt, wie das
+//     selbstsignierte Zertifikat frueher -- kein manuelles Setup noetig) ----
+function ensureVapidKeys() {
+  if (fs.existsSync(VAPID_FILE)) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(VAPID_FILE, 'utf-8'));
+      if (parsed.publicKey && parsed.privateKey) return parsed;
+    } catch (err) {
+      // fällt durch auf Neuerzeugung
+    }
+  }
+  const keys = webPush.generateVAPIDKeys();
+  fs.writeFileSync(VAPID_FILE, JSON.stringify(keys, null, 2));
+  console.log('Neue VAPID-Schluessel fuer Push-Benachrichtigungen erzeugt.');
+  return keys;
+}
+const vapidKeys = ensureVapidKeys();
+webPush.setVapidDetails('mailto:admin@localhost', vapidKeys.publicKey, vapidKeys.privateKey);
+
+// --- Push-Abos (pro Name, mehrere Geraete moeglich) -------------------------
+function loadPushSubs() {
+  try {
+    return JSON.parse(fs.readFileSync(PUSH_SUBS_FILE, 'utf-8'));
+  } catch (err) {
+    return {};
+  }
+}
+function savePushSubs() {
+  fs.writeFileSync(PUSH_SUBS_FILE, JSON.stringify(pushSubs, null, 2));
+}
+let pushSubs = loadPushSubs(); // { "<name-lower>": [subscriptionObjekt, ...] }
+
+function addPushSub(nameKey, subscription) {
+  if (!pushSubs[nameKey]) pushSubs[nameKey] = [];
+  const exists = pushSubs[nameKey].some((s) => s.endpoint === subscription.endpoint);
+  if (!exists) {
+    pushSubs[nameKey].push(subscription);
+    savePushSubs();
+  }
+}
+function removePushSubByEndpoint(endpoint) {
+  let changed = false;
+  for (const key of Object.keys(pushSubs)) {
+    const before = pushSubs[key].length;
+    pushSubs[key] = pushSubs[key].filter((s) => s.endpoint !== endpoint);
+    if (pushSubs[key].length !== before) changed = true;
+    if (pushSubs[key].length === 0) delete pushSubs[key];
+  }
+  if (changed) savePushSubs();
+}
+
+async function sendPushToName(nameKey, payload) {
+  const subs = pushSubs[nameKey];
+  if (!subs || !subs.length) return;
+  const body = JSON.stringify(payload);
+  for (const sub of subs.slice()) {
+    try {
+      await webPush.sendNotification(sub, body);
+    } catch (err) {
+      if (err.statusCode === 404 || err.statusCode === 410) {
+        removePushSubByEndpoint(sub.endpoint); // Abo ist abgelaufen/ungueltig
+      }
+    }
+  }
+}
+
+// --- Login-Rate-Limit (Schutz gegen wiederholtes Passwort-Raten) -----------
+const loginAttempts = new Map(); // nameKey -> { count, lockedUntil }
+
+function isLockedOut(nameKey) {
+  const entry = loginAttempts.get(nameKey);
+  if (!entry || !entry.lockedUntil) return false;
+  if (Date.now() >= entry.lockedUntil) {
+    loginAttempts.delete(nameKey);
+    return false;
+  }
+  return true;
+}
+function remainingLockoutSeconds(nameKey) {
+  const entry = loginAttempts.get(nameKey);
+  if (!entry || !entry.lockedUntil) return 0;
+  return Math.max(1, Math.ceil((entry.lockedUntil - Date.now()) / 1000));
+}
+function registerFailedAttempt(nameKey) {
+  const entry = loginAttempts.get(nameKey) || { count: 0, lockedUntil: null };
+  entry.count += 1;
+  if (entry.count >= LOGIN_ATTEMPT_LIMIT) {
+    entry.lockedUntil = Date.now() + LOGIN_LOCKOUT_MS;
+  }
+  loginAttempts.set(nameKey, entry);
+}
+function clearFailedAttempts(nameKey) {
+  loginAttempts.delete(nameKey);
+}
+
 // --- Geschützte Konten (Name+Passwort, per Admin genehmigt) -----------------
 // { "<name-lower>": { displayName, passwordHash, status: 'pending'|'approved' } }
 function loadProtectedUsers() {
@@ -159,6 +260,11 @@ function getPendingList() {
 function getApprovedList() {
   return Object.values(protectedUsers)
     .filter((u) => u.status === 'approved')
+    .map((u) => ({ name: u.displayName }));
+}
+function getPendingResetsList() {
+  return Object.values(protectedUsers)
+    .filter((u) => u.status === 'approved' && u.pendingResetHash)
     .map((u) => ({ name: u.displayName }));
 }
 
@@ -370,6 +476,11 @@ async function main() {
     });
   });
 
+  // --- Web-Push: oeffentlicher Schluessel fuer den Client ---------------------
+  app.get('/vapid-public-key', (req, res) => {
+    res.json({ publicKey: vapidKeys.publicKey });
+  });
+
   // --- Online-Nutzer & Farben -------------------------------------------------
   const onlineUsers = new Map(); // socket.id -> { name, color, avatar, photo, role, room }
   const COLORS = ['#E8A33D', '#3E7C77', '#C9614A', '#6C8EBF', '#9B7EDE', '#5FAE6B', '#D9B24C'];
@@ -396,6 +507,21 @@ async function main() {
         if (s) s.emit(event, data);
       }
     }
+  }
+
+  function notifyPushForMessage(roomId, msg) {
+    const connectedNames = new Set([...onlineUsers.values()].map((u) => u.name.toLowerCase()));
+    const room = ROOMS.find((r) => r.id === roomId);
+    const roomLabel = room ? room.label : roomId;
+    const bodyText = msg.type === 'image' ? '📷 Bild' : msg.type === 'audio' ? '🎙️ Sprachnachricht' : msg.text;
+    Object.keys(pushSubs).forEach((nameKey) => {
+      if (nameKey === msg.sender.toLowerCase()) return; // nicht an sich selbst
+      if (connectedNames.has(nameKey)) return; // ist gerade aktiv, braucht kein Push
+      sendPushToName(nameKey, {
+        title: `${msg.sender} in #${roomLabel} · Hausfunk`,
+        body: bodyText,
+      });
+    });
   }
 
   function makeId() {
@@ -437,15 +563,25 @@ async function main() {
       }
 
       let role = 'user';
+      const isPasswordProtected = nameKey === adminDisplayName.toLowerCase()
+        || (protectedUsers[nameKey] && protectedUsers[nameKey].status === 'approved');
+
+      if (isPasswordProtected && isLockedOut(nameKey)) {
+        socket.emit('joinError', `Zu viele Fehlversuche. Bitte in ${remainingLockoutSeconds(nameKey)} Sekunden erneut versuchen.`);
+        return;
+      }
+
       if (nameKey === adminDisplayName.toLowerCase()) {
         if (!ADMIN_PASSWORD) {
           socket.emit('joinError', 'Admin-Zugang ist auf diesem Server nicht eingerichtet.');
           return;
         }
         if (providedPassword !== ADMIN_PASSWORD) {
+          registerFailedAttempt(nameKey);
           socket.emit('joinError', 'Falsches Admin-Passwort.');
           return;
         }
+        clearFailedAttempts(nameKey);
         role = 'admin';
       } else if (protectedUsers[nameKey]) {
         const account = protectedUsers[nameKey];
@@ -454,9 +590,11 @@ async function main() {
           return;
         }
         if (!providedPassword || hashPassword(providedPassword) !== account.passwordHash) {
+          registerFailedAttempt(nameKey);
           socket.emit('joinError', 'Falsches Passwort.');
           return;
         }
+        clearFailedAttempts(nameKey);
       } else {
         // Komplett neuer Name: Passwort ist Pflicht, wird automatisch als
         // Konto-Anfrage angelegt und muss vom Admin freigegeben werden.
@@ -508,10 +646,36 @@ async function main() {
         socket.emit('bannedList', bannedNames);
         socket.emit('pendingRequests', getPendingList());
         socket.emit('approvedAccounts', getApprovedList());
+        socket.emit('pendingResets', getPendingResetsList());
       }
       broadcastRoomUsers(roomId);
       broadcastGlobalUsers();
       socket.to(roomId).emit('system', `${name} ist beigetreten`);
+    });
+
+    // --- Passwort vergessen: Reset-Anfrage (wartet auf Admin-Freigabe) ----------
+    socket.on('requestPasswordReset', (payload) => {
+      const name = ((payload && payload.name) || '').toString().trim().slice(0, 24);
+      const newPassword = ((payload && payload.newPassword) || '').toString();
+      if (!name || !newPassword) {
+        socket.emit('joinError', 'Name und neues Passwort werden benötigt.');
+        return;
+      }
+      const key = name.toLowerCase();
+      if (key === adminDisplayName.toLowerCase()) {
+        socket.emit('joinError', 'Für den Admin-Namen gibt es keinen Passwort-Reset über den Chat -- das Passwort steht in der Server-Konfiguration.');
+        return;
+      }
+      const account = protectedUsers[key];
+      if (!account || account.status !== 'approved') {
+        socket.emit('joinError', 'Für diesen Namen gibt es kein geschütztes Konto.');
+        return;
+      }
+      account.pendingResetHash = hashPassword(newPassword);
+      account.pendingResetAt = Date.now();
+      saveProtectedUsers();
+      socket.emit('resetPending', name);
+      broadcastToAdmins('pendingResets', getPendingResetsList());
     });
 
     socket.on('switchRoom', (payload) => {
@@ -560,6 +724,7 @@ async function main() {
         saveRoomMessages(roomId);
         io.to(roomId).emit('message', msg);
         io.except(roomId).emit('roomActivity', { roomId });
+        notifyPushForMessage(roomId, msg);
       } else if (payload.type === 'image') {
         if (!payload.url) return;
         const msg = {
@@ -570,6 +735,7 @@ async function main() {
         saveRoomMessages(roomId);
         io.to(roomId).emit('message', msg);
         io.except(roomId).emit('roomActivity', { roomId });
+        notifyPushForMessage(roomId, msg);
       } else if (payload.type === 'audio') {
         if (!payload.url) return;
         const duration = Math.min(Math.max(Number(payload.duration) || 0, 0), 120);
@@ -581,7 +747,13 @@ async function main() {
         saveRoomMessages(roomId);
         io.to(roomId).emit('message', msg);
         io.except(roomId).emit('roomActivity', { roomId });
+        notifyPushForMessage(roomId, msg);
       }
+    });
+
+    socket.on('subscribePush', (payload) => {
+      if (!socket.data.name || !payload || !payload.subscription) return;
+      addPushSub(socket.data.name.toLowerCase(), payload.subscription);
     });
 
     socket.on('reaction', (payload) => {
@@ -621,6 +793,30 @@ async function main() {
       io.to(roomId).emit('messageDeleted', { messageId: msg.id });
       if (state.pinned && state.pinned.id === msg.id) {
         state.pinned = null;
+        saveRoomPinned(roomId);
+        io.to(roomId).emit('pinnedUpdate', state.pinned);
+      }
+    });
+
+    socket.on('editMessage', (payload) => {
+      if (!socket.data.name || !socket.data.room || !payload) return;
+      const roomId = socket.data.room;
+      const state = roomState.get(roomId);
+      const msg = state.messages.find((m) => m.id === payload.messageId);
+      if (!msg || msg.deleted || msg.type !== 'text') return;
+      const isOwn = msg.sender === socket.data.name;
+      const isAdmin = socket.data.role === 'admin';
+      if (!isOwn && !isAdmin) return;
+      if (isOwn && !isAdmin && Date.now() - msg.ts > DELETE_WINDOW_MS) return;
+      const newText = (payload.newText || '').toString().slice(0, 2000).trim();
+      if (!newText) return;
+      msg.text = newText;
+      msg.edited = true;
+      msg.editedAt = Date.now();
+      saveRoomMessages(roomId);
+      io.to(roomId).emit('messageEdited', { messageId: msg.id, text: msg.text, editedAt: msg.editedAt });
+      if (state.pinned && state.pinned.id === msg.id) {
+        state.pinned.text = msg.text;
         saveRoomPinned(roomId);
         io.to(roomId).emit('pinnedUpdate', state.pinned);
       }
@@ -803,6 +999,31 @@ async function main() {
       broadcastRoomUsers(socket.data.room);
       broadcastGlobalUsers();
       socket.emit('adminRenamed', newName);
+    });
+
+    // --- Admin: Passwort-Reset-Anfragen genehmigen/ablehnen ---------------------
+    socket.on('admin:approveReset', (payload) => {
+      if (socket.data.role !== 'admin' || !payload) return;
+      const key = (payload.name || '').toString().trim().toLowerCase();
+      const account = protectedUsers[key];
+      if (!account || !account.pendingResetHash) return;
+      account.passwordHash = account.pendingResetHash;
+      delete account.pendingResetHash;
+      delete account.pendingResetAt;
+      saveProtectedUsers();
+      broadcastToAdmins('pendingResets', getPendingResetsList());
+    });
+
+    socket.on('admin:rejectReset', (payload) => {
+      if (socket.data.role !== 'admin' || !payload) return;
+      const key = (payload.name || '').toString().trim().toLowerCase();
+      const account = protectedUsers[key];
+      if (account) {
+        delete account.pendingResetHash;
+        delete account.pendingResetAt;
+        saveProtectedUsers();
+      }
+      broadcastToAdmins('pendingResets', getPendingResetsList());
     });
 
     socket.on('typing', (isTyping) => {

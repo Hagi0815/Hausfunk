@@ -23,6 +23,7 @@ const replyPreviewText = document.getElementById('reply-preview-text');
 const replyCancelBtn = document.getElementById('reply-cancel');
 const emojiBtn = document.getElementById('emoji-btn');
 const emojiPicker = document.getElementById('emoji-picker');
+const mentionDropdown = document.getElementById('mention-dropdown');
 const searchToggleBtn = document.getElementById('search-toggle');
 const searchBar = document.getElementById('search-bar');
 const searchInput = document.getElementById('search-input');
@@ -49,6 +50,9 @@ const approvedEmptyEl = document.getElementById('approved-empty');
 const adminCurrentNameEl = document.getElementById('admin-current-name');
 const adminRenameBtn = document.getElementById('admin-rename-btn');
 const joinErrorEl = document.getElementById('join-error');
+const forgotPasswordBtn = document.getElementById('forgot-password-btn');
+const pendingResetsListEl = document.getElementById('pending-resets-list');
+const pendingResetsEmptyEl = document.getElementById('pending-resets-empty');
 const adminPanelToggle = document.getElementById('admin-panel-toggle');
 const adminOverlay = document.getElementById('admin-overlay');
 const adminOverlayClose = document.getElementById('admin-overlay-close');
@@ -64,6 +68,11 @@ let bannedNamesList = [];
 let protectedNamesList = []; // [{ name, status: 'pending'|'approved' }]
 let pendingRequestsList = [];
 let approvedAccountsList = [];
+let pendingResetsList = [];
+let currentRoomUsersList = [];
+let mentionActive = false;
+let mentionStart = -1;
+let mentionIndex = 0;
 
 const DELETE_WINDOW_MS = 5 * 60 * 1000; // muss zum Server-Wert passen
 let currentPinned = null;
@@ -235,9 +244,48 @@ function updateNotifStatus() {
 function requestNotificationPermission() {
   if (!('Notification' in window)) return;
   if (Notification.permission === 'default') {
-    Notification.requestPermission().then(updateNotifStatus);
+    Notification.requestPermission().then((permission) => {
+      updateNotifStatus();
+      if (permission === 'granted') setupPushSubscription();
+    });
+  } else {
+    updateNotifStatus();
+    if (Notification.permission === 'granted') setupPushSubscription();
   }
-  updateNotifStatus();
+}
+
+// --- Echte Push-Benachrichtigungen (auch bei geschlossenem Tab/Browser) --------
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i++) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+async function setupPushSubscription() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  try {
+    const registration = await navigator.serviceWorker.register('/sw.js');
+    await navigator.serviceWorker.ready;
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      const res = await fetch('/vapid-public-key');
+      const { publicKey } = await res.json();
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+    }
+    socket.emit('subscribePush', { subscription: subscription.toJSON() });
+  } catch (err) {
+    // Push ist ein Extra-Komfort -- falls es scheitert (z. B. iOS ohne
+    // installierte PWA), funktionieren normale In-App-Benachrichtigungen weiter.
+    console.warn('Push-Abo konnte nicht eingerichtet werden:', err);
+  }
 }
 
 function notifyNewMessage(msg) {
@@ -427,6 +475,21 @@ socket.on('registerPending', (name) => {
   joinInfoEl.classList.remove('hidden');
 });
 
+forgotPasswordBtn.addEventListener('click', () => {
+  const name = nameInput.value.trim();
+  if (!name) { nameInput.focus(); return; }
+  const newPassword = prompt(`Neues Passwort für „${name}" (muss vom Admin bestätigt werden, bevor es gilt):`);
+  if (newPassword && newPassword.trim()) {
+    joinErrorEl.classList.add('hidden');
+    socket.emit('requestPasswordReset', { name, newPassword: newPassword.trim() });
+  }
+});
+
+socket.on('resetPending', (name) => {
+  joinInfoEl.textContent = `Passwort-Reset für „${name}" wurde beantragt. Bitte auf Freigabe durch den Admin warten (das alte Passwort funktioniert bis dahin weiter).`;
+  joinInfoEl.classList.remove('hidden');
+});
+
 socket.on('registerError', (message) => {
   joinErrorEl.textContent = message;
   joinErrorEl.classList.remove('hidden');
@@ -552,6 +615,13 @@ function renderMessage(msg) {
   timeEl.textContent = formatTime(msg.ts);
   meta.appendChild(timeEl);
 
+  if (msg.edited) {
+    const editedTag = document.createElement('span');
+    editedTag.className = 'edited-tag';
+    editedTag.textContent = '(bearbeitet)';
+    meta.appendChild(editedTag);
+  }
+
   wrap.appendChild(meta);
 
   if (msg.replyTo) {
@@ -630,6 +700,15 @@ function renderMessage(msg) {
   pinBtn.title = 'Nachricht anpinnen';
   pinBtn.addEventListener('click', () => socket.emit('pin', { messageId: msg.id }));
   actions.appendChild(pinBtn);
+
+  if (((own && (Date.now() - msg.ts) < DELETE_WINDOW_MS) || myRole === 'admin') && msg.type === 'text') {
+    const editBtn = document.createElement('button');
+    editBtn.className = 'action-btn';
+    editBtn.textContent = '✏️';
+    editBtn.title = 'Nachricht bearbeiten';
+    editBtn.addEventListener('click', () => startEditMessage(bubble, msg));
+    actions.appendChild(editBtn);
+  }
 
   if ((own && (Date.now() - msg.ts) < DELETE_WINDOW_MS) || myRole === 'admin') {
     const deleteBtn = document.createElement('button');
@@ -717,6 +796,64 @@ socket.on('messageDeleted', ({ messageId }) => {
   if (quickRow) quickRow.remove();
   const reactionsEl = target.querySelector('.reactions');
   if (reactionsEl) reactionsEl.remove();
+});
+
+// --- Nachrichten bearbeiten ---------------------------------------------------
+function startEditMessage(bubble, msg) {
+  bubble.innerHTML = '';
+  const textarea = document.createElement('textarea');
+  textarea.className = 'edit-textarea';
+  textarea.value = msg.text;
+  bubble.appendChild(textarea);
+
+  const controls = document.createElement('div');
+  controls.className = 'edit-controls';
+
+  const saveBtn = document.createElement('button');
+  saveBtn.type = 'button';
+  saveBtn.className = 'unban-btn';
+  saveBtn.textContent = 'Speichern';
+  saveBtn.addEventListener('click', () => {
+    const newText = textarea.value.trim();
+    if (newText && newText !== msg.text) {
+      socket.emit('editMessage', { messageId: msg.id, newText });
+    } else {
+      bubble.innerHTML = '';
+      renderTextWithMentions(bubble, msg.text);
+    }
+  });
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.className = 'unban-btn';
+  cancelBtn.textContent = 'Abbrechen';
+  cancelBtn.addEventListener('click', () => {
+    bubble.innerHTML = '';
+    renderTextWithMentions(bubble, msg.text);
+  });
+
+  controls.appendChild(saveBtn);
+  controls.appendChild(cancelBtn);
+  bubble.appendChild(controls);
+  textarea.focus();
+  textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+}
+
+socket.on('messageEdited', ({ messageId, text, editedAt }) => {
+  const target = messagesEl.querySelector(`[data-id="${CSS.escape(messageId)}"]`);
+  if (!target) return;
+  const bubble = target.querySelector('.bubble');
+  if (bubble) {
+    bubble.innerHTML = '';
+    renderTextWithMentions(bubble, text);
+  }
+  const meta = target.querySelector('.msg-meta');
+  if (meta && !meta.querySelector('.edited-tag')) {
+    const editedTag = document.createElement('span');
+    editedTag.className = 'edited-tag';
+    editedTag.textContent = '(bearbeitet)';
+    meta.appendChild(editedTag);
+  }
 });
 
 function renderPinned(pinned) {
@@ -808,6 +945,7 @@ function renderUserList(container, list, allowActions) {
 }
 
 socket.on('users', (list) => {
+  currentRoomUsersList = list;
   renderUserList(userListEl, list, true);
   onlineCountEl.textContent = list.length;
   onlineCountMobileEl.textContent = list.length;
@@ -961,6 +1099,30 @@ function sendText() {
 
 sendBtn.addEventListener('click', sendText);
 textInput.addEventListener('keydown', (e) => {
+  if (mentionActive && !mentionDropdown.classList.contains('hidden')) {
+    const items = mentionDropdown.querySelectorAll('.mention-item');
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      mentionIndex = Math.min(mentionIndex + 1, items.length - 1);
+      updateMentionHighlight(items);
+      return;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      mentionIndex = Math.max(mentionIndex - 1, 0);
+      updateMentionHighlight(items);
+      return;
+    }
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      items[mentionIndex]?.click();
+      return;
+    }
+    if (e.key === 'Escape') {
+      closeMentionDropdown();
+      return;
+    }
+  }
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
     sendText();
@@ -972,7 +1134,70 @@ textInput.addEventListener('input', () => {
   socket.emit('typing', true);
   clearTimeout(typingTimeout);
   typingTimeout = setTimeout(() => socket.emit('typing', false), 1200);
+  handleMentionDetection();
 });
+
+// --- @Erwähnung: Autovervollständigung -------------------------------------------
+function handleMentionDetection() {
+  const value = textInput.value;
+  const cursorPos = textInput.selectionStart;
+  const uptoCursor = value.slice(0, cursorPos);
+  const match = uptoCursor.match(/(^|\s)@([\p{L}\p{N}_-]*)$/u);
+  if (!match) {
+    closeMentionDropdown();
+    return;
+  }
+  mentionStart = cursorPos - match[2].length - 1;
+  const query = match[2].toLowerCase();
+  const matches = currentRoomUsersList
+    .filter((u) => u.name !== myName && u.name.toLowerCase().startsWith(query))
+    .slice(0, 6);
+  if (!matches.length) {
+    closeMentionDropdown();
+    return;
+  }
+  mentionActive = true;
+  mentionIndex = 0;
+  renderMentionDropdown(matches);
+}
+
+function renderMentionDropdown(matches) {
+  mentionDropdown.innerHTML = '';
+  matches.forEach((u) => {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'mention-item';
+    item.appendChild(renderAvatar(u.color, u.avatar, u.photo));
+    const label = document.createElement('span');
+    label.textContent = u.name;
+    item.appendChild(label);
+    item.addEventListener('click', () => selectMention(u.name));
+    mentionDropdown.appendChild(item);
+  });
+  updateMentionHighlight(mentionDropdown.querySelectorAll('.mention-item'));
+  mentionDropdown.classList.remove('hidden');
+}
+
+function updateMentionHighlight(items) {
+  items.forEach((item, i) => item.classList.toggle('active', i === mentionIndex));
+}
+
+function closeMentionDropdown() {
+  mentionActive = false;
+  mentionDropdown.classList.add('hidden');
+}
+
+function selectMention(name) {
+  const value = textInput.value;
+  const cursorPos = textInput.selectionStart;
+  const before = value.slice(0, mentionStart);
+  const after = value.slice(cursorPos);
+  textInput.value = `${before}@${name} ${after}`;
+  const newPos = before.length + name.length + 2;
+  textInput.selectionStart = textInput.selectionEnd = newPos;
+  closeMentionDropdown();
+  textInput.focus();
+}
 
 async function uploadFile(file) {
   if (!file || !file.type.startsWith('image/')) return;
@@ -1244,15 +1469,50 @@ function renderApprovedList() {
   });
 }
 
+function renderPendingResetsList() {
+  pendingResetsListEl.innerHTML = '';
+  if (!pendingResetsList.length) {
+    pendingResetsEmptyEl.classList.remove('hidden');
+    return;
+  }
+  pendingResetsEmptyEl.classList.add('hidden');
+  pendingResetsList.forEach(({ name }) => {
+    const li = document.createElement('li');
+    const label = document.createElement('span');
+    label.textContent = name;
+    li.appendChild(label);
+
+    const actions = document.createElement('span');
+    actions.style.display = 'flex';
+    actions.style.gap = '6px';
+
+    const approveBtn = document.createElement('button');
+    approveBtn.className = 'unban-btn';
+    approveBtn.textContent = '✓ Genehmigen';
+    approveBtn.addEventListener('click', () => socket.emit('admin:approveReset', { name }));
+    actions.appendChild(approveBtn);
+
+    const rejectBtn = document.createElement('button');
+    rejectBtn.className = 'unban-btn';
+    rejectBtn.textContent = '✗ Ablehnen';
+    rejectBtn.addEventListener('click', () => socket.emit('admin:rejectReset', { name }));
+    actions.appendChild(rejectBtn);
+
+    li.appendChild(actions);
+    pendingResetsListEl.appendChild(li);
+  });
+}
+
 function updateAdminBadge() {
+  const total = pendingRequestsList.length + pendingResetsList.length;
   let badge = adminPanelToggle.querySelector('.admin-badge');
-  if (pendingRequestsList.length > 0) {
+  if (total > 0) {
     if (!badge) {
       badge = document.createElement('span');
       badge.className = 'admin-badge';
       adminPanelToggle.appendChild(badge);
     }
-    badge.textContent = pendingRequestsList.length > 9 ? '9+' : String(pendingRequestsList.length);
+    badge.textContent = total > 9 ? '9+' : String(total);
   } else if (badge) {
     badge.remove();
   }
@@ -1270,7 +1530,20 @@ function notifyPendingRequests(count) {
   };
 }
 
+function notifyPendingResets(count) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const notif = new Notification(`🔔 ${count} neue Passwort-Reset-Anfrage${count > 1 ? 'n' : ''} · Hausfunk`, {
+    body: 'Bitte im Admin-Panel prüfen und freigeben.',
+  });
+  notif.onclick = () => {
+    window.focus();
+    adminOverlay.classList.remove('hidden');
+    notif.close();
+  };
+}
+
 let lastPendingCount = 0;
+let lastPendingResetCount = 0;
 
 socket.on('pendingRequests', (list) => {
   const newList = list || [];
@@ -1280,6 +1553,17 @@ socket.on('pendingRequests', (list) => {
   lastPendingCount = newList.length;
   pendingRequestsList = newList;
   renderPendingList();
+  updateAdminBadge();
+});
+
+socket.on('pendingResets', (list) => {
+  const newList = list || [];
+  if (myRole === 'admin' && newList.length > lastPendingResetCount) {
+    notifyPendingResets(newList.length);
+  }
+  lastPendingResetCount = newList.length;
+  pendingResetsList = newList;
+  renderPendingResetsList();
   updateAdminBadge();
 });
 

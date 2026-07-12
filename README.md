@@ -214,12 +214,61 @@ Passend zu deinem bestehenden Muster (wie beim network-dashboard auf CT 112):
   aufnehmen)
 - Löschen/Kürzen von `data/messages.json` (Inhalt auf `[]` setzen) leert den Verlauf
 
+## Als App installieren (PWA) & echte Push-Benachrichtigungen
+
+Hausfunk lässt sich wie eine echte App installieren:
+
+- **Android/Desktop-Chrome:** Browser-Menü → „App installieren" bzw. „Hausfunk installieren"
+- **iPhone/iPad (Safari):** Teilen-Symbol → „Zum Home-Bildschirm"
+
+Nach der Installation und einmaliger Erlaubnis für Benachrichtigungen kommen
+**echte Push-Benachrichtigungen** an – auch wenn der Tab oder sogar der ganze
+Browser geschlossen ist. Das funktioniert über einen Service Worker
+(`public/sw.js`) und die Push-API des Browsers:
+
+- Ein Push wird nur an Namen geschickt, die gerade **nicht** mit einem
+  laufenden Chat-Fenster verbunden sind (wer aktiv im Chat ist, bekommt die
+  Nachricht ohnehin sofort live, kein doppeltes Piepsen)
+- Die dafür nötigen VAPID-Schlüssel erzeugt der Server beim allerersten Start
+  automatisch selbst (`data/vapid-keys.json`, wie das Zertifikat frueher) –
+  kein manuelles Setup nötig
+- Abos liegen in `data/push-subscriptions.json`, ungültig gewordene (z. B.
+  Browser-Daten gelöscht) werden automatisch beim nächsten Zustellversuch
+  entfernt
+
+## Nachrichten bearbeiten
+
+Eigene Text-Nachrichten lassen sich innerhalb der 5-Minuten-Frist bearbeiten
+(✏️-Symbol, wie beim Löschen) – DOM kann jede Text-Nachricht jederzeit
+bearbeiten. Bearbeitete Nachrichten zeigen einen kleinen „(bearbeitet)"-Hinweis.
+Bilder und Sprachnachrichten lassen sich nicht bearbeiten, nur löschen.
+
+## @Erwähnung mit Autovervollständigung
+
+Tippt man `@` gefolgt von ein paar Buchstaben, erscheint eine Dropdown-Liste
+mit passenden Namen aus dem aktuellen Kanal (Pfeiltasten zum Navigieren,
+Enter/Tab zum Übernehmen, Escape zum Schließen).
+
+## Login-Absicherung & Passwort-Reset
+
+- **Rate-Limiting:** Nach 5 falschen Passwort-Versuchen für denselben Namen
+  (egal ob DOM oder ein geschütztes Konto) ist dieser Name 5 Minuten lang
+  gesperrt, auch für den richtigen Nutzer – Schutz gegen automatisiertes
+  Passwort-Raten. Der Zähler lebt nur im Arbeitsspeicher und setzt sich bei
+  einem Server-Neustart zurück.
+- **Passwort vergessen:** Link unterhalb des Passwortfelds auf der
+  Login-Seite. Das alte Passwort funktioniert weiter, bis DOM die
+  Reset-Anfrage im Admin-Panel (🛡 → „Passwort-Reset-Anfragen") genehmigt hat
+  – so kann niemand durch eine bloße Reset-Anfrage ein fremdes Konto
+  übernehmen.
+
 ## Grenzen (bewusst einfach gehalten)
 
-- Keine Zwei-Faktor-Authentifizierung, keine Passwort-Wiederherstellung –
-  vergisst jemand sein Passwort, muss DOM den Schutz entfernen (🛡-Panel →
-  „Geschützte Konten" → „Schutz entfernen"), danach kann sich die Person mit
-  einem neuen Passwort erneut anmelden (löst wieder eine Konto-Anfrage aus).
+- Keine Zwei-Faktor-Authentifizierung.
+- **Push-Benachrichtigungen unter iOS:** funktionieren nur, wenn Hausfunk
+  vorher per „Zum Home-Bildschirm" installiert wurde (Safaris Einschränkung,
+  nicht Hausfunks) – reines Browser-Tab-Nutzen auf dem iPhone reicht dafür
+  nicht aus. Auf Android/Desktop reicht die normale Website.
 - Direktnachrichten zwischen einzelnen Personen gibt es nicht, nur die
   gemeinsamen Kanäle.
 - Passwörter sind gehasht (SHA-256, ungesalzen) – für den Familiengebrauch im
