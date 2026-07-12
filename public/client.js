@@ -1224,9 +1224,43 @@ function renderApprovedList() {
   });
 }
 
+function updateAdminBadge() {
+  let badge = adminPanelToggle.querySelector('.admin-badge');
+  if (pendingRequestsList.length > 0) {
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'admin-badge';
+      adminPanelToggle.appendChild(badge);
+    }
+    badge.textContent = pendingRequestsList.length > 9 ? '9+' : String(pendingRequestsList.length);
+  } else if (badge) {
+    badge.remove();
+  }
+}
+
+function notifyPendingRequests(count) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const notif = new Notification(`🔔 ${count} neue Konto-Anfrage${count > 1 ? 'n' : ''} · Hausfunk`, {
+    body: 'Bitte im Admin-Panel prüfen und freigeben.',
+  });
+  notif.onclick = () => {
+    window.focus();
+    adminOverlay.classList.remove('hidden');
+    notif.close();
+  };
+}
+
+let lastPendingCount = 0;
+
 socket.on('pendingRequests', (list) => {
-  pendingRequestsList = list || [];
+  const newList = list || [];
+  if (myRole === 'admin' && newList.length > lastPendingCount) {
+    notifyPendingRequests(newList.length);
+  }
+  lastPendingCount = newList.length;
+  pendingRequestsList = newList;
   renderPendingList();
+  updateAdminBadge();
 });
 
 socket.on('approvedAccounts', (list) => {
