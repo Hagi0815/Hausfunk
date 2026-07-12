@@ -193,7 +193,7 @@ function startSharingLocation() {
       alert(`Standort konnte nicht ermittelt werden: ${err.message}`);
       stopSharingLocation();
     },
-    { enableHighAccuracy: false, maximumAge: 30000, timeout: 15000 },
+    { enableHighAccuracy: true, maximumAge: 30000, timeout: 20000 },
   );
   locationSharing = true;
   updateLocationToggleLabel();
@@ -1614,7 +1614,7 @@ function renderLocationsList() {
     return;
   }
   locationsEmptyEl.classList.add('hidden');
-  locationsList.forEach(({ name, lat, lng, ts }) => {
+  locationsList.forEach(({ name, lat, lng, ts, accuracy }) => {
     const li = document.createElement('li');
 
     const infoWrap = document.createElement('span');
@@ -1624,7 +1624,8 @@ function renderLocationsList() {
     infoWrap.appendChild(label);
     const timeLabel = document.createElement('span');
     timeLabel.className = 'user-room-label';
-    timeLabel.textContent = timeAgo(ts);
+    const accuracyText = accuracy ? ` · ±${Math.round(accuracy)}m` : '';
+    timeLabel.textContent = `${timeAgo(ts)}${accuracyText}`;
     infoWrap.appendChild(timeLabel);
     li.appendChild(infoWrap);
 
