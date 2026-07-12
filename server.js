@@ -402,7 +402,11 @@ async function main() {
 
     socket.on('join', (payload) => {
       const raw = typeof payload === 'string' ? { name: payload } : (payload || {});
-      const name = (raw.name || 'Gast').toString().trim().slice(0, 24) || 'Gast';
+      const name = (raw.name || '').toString().trim().slice(0, 24);
+      if (!name) {
+        socket.emit('joinError', 'Bitte einen Namen eingeben.');
+        return;
+      }
       const nameKey = name.toLowerCase();
       const providedPassword = (raw.password || '').toString();
 
@@ -425,13 +429,30 @@ async function main() {
       } else if (protectedUsers[nameKey]) {
         const account = protectedUsers[nameKey];
         if (account.status === 'pending') {
-          socket.emit('joinError', 'Dieser Name wartet noch auf Freigabe durch den Admin.');
+          socket.emit('joinError', 'Dein Konto wartet noch auf Freigabe durch den Admin.');
           return;
         }
-        if (hashPassword(providedPassword) !== account.passwordHash) {
+        if (!providedPassword || hashPassword(providedPassword) !== account.passwordHash) {
           socket.emit('joinError', 'Falsches Passwort.');
           return;
         }
+      } else {
+        // Komplett neuer Name: Passwort ist Pflicht, wird automatisch als
+        // Konto-Anfrage angelegt und muss vom Admin freigegeben werden.
+        if (!providedPassword) {
+          socket.emit('joinError', 'Bitte ein Passwort für deinen neuen Namen vergeben.');
+          return;
+        }
+        protectedUsers[nameKey] = {
+          displayName: name,
+          passwordHash: hashPassword(providedPassword),
+          status: 'pending',
+        };
+        saveProtectedUsers();
+        socket.emit('registerPending', name);
+        io.emit('protectedNames', getProtectedNamesPublic());
+        broadcastToAdmins('pendingRequests', getPendingList());
+        return;
       }
 
       const isPhoto = raw.avatarType === 'photo';
@@ -470,40 +491,6 @@ async function main() {
       broadcastRoomUsers(roomId);
       broadcastGlobalUsers();
       socket.to(roomId).emit('system', `${name} ist beigetreten`);
-    });
-
-    // --- Konto-Anfrage (Name + Passwort, wartet auf Admin-Freigabe) -------------
-    socket.on('requestAccount', (payload) => {
-      const name = ((payload && payload.name) || '').toString().trim().slice(0, 24);
-      const password = ((payload && payload.password) || '').toString();
-      if (!name || !password) {
-        socket.emit('registerError', 'Name und Passwort werden benötigt.');
-        return;
-      }
-      const key = name.toLowerCase();
-      if (key === ADMIN_NAME_KEY) {
-        socket.emit('registerError', 'Dieser Name ist reserviert.');
-        return;
-      }
-      if (bannedNames.includes(key)) {
-        socket.emit('registerError', 'Dieser Name ist gesperrt.');
-        return;
-      }
-      if (protectedUsers[key]) {
-        socket.emit('registerError', protectedUsers[key].status === 'approved'
-          ? 'Dieser Name ist bereits geschützt vergeben.'
-          : 'Für diesen Namen liegt bereits eine Anfrage vor.');
-        return;
-      }
-      protectedUsers[key] = {
-        displayName: name,
-        passwordHash: hashPassword(password),
-        status: 'pending',
-      };
-      saveProtectedUsers();
-      socket.emit('registerPending', name);
-      io.emit('protectedNames', getProtectedNamesPublic());
-      broadcastToAdmins('pendingRequests', getPendingList());
     });
 
     socket.on('switchRoom', (payload) => {

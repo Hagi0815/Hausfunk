@@ -41,8 +41,6 @@ const roomListEl = document.getElementById('room-list');
 const roomTitleEl = document.getElementById('room-title');
 const adminPasswordRow = document.getElementById('auth-password-row');
 const adminPasswordInput = document.getElementById('auth-password-input');
-const registerToggleRow = document.getElementById('register-toggle-row');
-const registerCheckbox = document.getElementById('register-checkbox');
 const joinInfoEl = document.getElementById('join-info');
 const pendingListEl = document.getElementById('pending-list');
 const pendingEmptyEl = document.getElementById('pending-empty');
@@ -346,26 +344,20 @@ avatarFileInput.addEventListener('change', async () => {
 });
 
 // Passwortfeld/Registrierungs-Option abhaengig vom eingegebenen Namen steuern:
-// - Name "DOM" oder ein bereits genehmigtes geschuetztes Konto -> Passwort noetig
-// - Neuer, noch nicht geschuetzter Name -> Option, ihn per Passwort zu schuetzen
-// - Name mit offener Anfrage -> weder Passwortfeld noch erneute Registrierung
+// Kleiner Hinweis, falls fuer den eingegebenen Namen schon eine Anfrage
+// offen ist (rein informativ, das Passwortfeld ist jetzt immer sichtbar
+// und wird fuer jeden Namen benoetigt -- der Server entscheidet, ob es ein
+// Login ist oder eine neue Konto-Anfrage ausloest).
 function updateNameFieldUI() {
   const key = nameInput.value.trim().toLowerCase();
-  const isAdmin = key === 'dom';
   const protectedEntry = protectedNamesList.find((p) => p.name.toLowerCase() === key);
-
-  const needsPassword = isAdmin || (protectedEntry && protectedEntry.status === 'approved');
-  adminPasswordRow.classList.toggle('hidden', !needsPassword);
-
-  const canRegister = Boolean(key) && !isAdmin && !protectedEntry;
-  registerToggleRow.classList.toggle('hidden', !canRegister);
-  if (!canRegister) registerCheckbox.checked = false;
-  if (canRegister && registerCheckbox.checked) {
-    adminPasswordRow.classList.remove('hidden');
+  if (protectedEntry && protectedEntry.status === 'pending') {
+    joinInfoEl.textContent = 'Für diesen Namen liegt bereits eine Anfrage vor – warte auf Freigabe durch den Admin.';
+    joinInfoEl.classList.remove('hidden');
+  } else {
+    joinInfoEl.classList.add('hidden');
   }
 }
-
-registerCheckbox.addEventListener('change', updateNameFieldUI);
 
 // Falls fuer den eingegebenen Namen schon ein Profilbild gespeichert ist,
 // automatisch vorschlagen (aendert nichts, wenn der Name noch nicht bekannt ist).
@@ -407,24 +399,16 @@ function renderAvatar(color, avatar, photo) {
 function join() {
   const name = nameInput.value.trim();
   if (!name) { nameInput.focus(); return; }
-  const key = name.toLowerCase();
-  const isAdmin = key === 'dom';
-  const protectedEntry = protectedNamesList.find((p) => p.name.toLowerCase() === key);
   const password = adminPasswordInput.value;
+  if (!password) {
+    joinErrorEl.textContent = 'Bitte ein Passwort eingeben (für neue Namen frei wählbar, sonst dein bestehendes).';
+    joinErrorEl.classList.remove('hidden');
+    adminPasswordInput.focus();
+    return;
+  }
 
   joinErrorEl.classList.add('hidden');
   joinInfoEl.classList.add('hidden');
-
-  const wantsRegister = registerCheckbox.checked && !isAdmin && !protectedEntry;
-  if (wantsRegister) {
-    if (!password) {
-      joinErrorEl.textContent = 'Bitte ein Passwort für die Konto-Anfrage eingeben.';
-      joinErrorEl.classList.remove('hidden');
-      return;
-    }
-    socket.emit('requestAccount', { name, password });
-    return;
-  }
 
   myName = name;
   socket.emit('join', {

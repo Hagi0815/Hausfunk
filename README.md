@@ -47,23 +47,23 @@ heraus-tabbt).
   kann grundsätzlich jeder ein Bild unter einem beliebigen Namen hochladen –
   für den Familiengebrauch unkritisch, aber gut zu wissen
 
-## Konto-Anfragen (weitere passwortgeschützte Namen)
+## Zugang (verpflichtende Konto-Freigabe für neue Namen)
 
-Über „DOM" hinaus kann jede Person selbst einen **eigenen geschützten Namen**
-beantragen:
+Es gibt **keinen anonymen Zugang mehr**. Beim Betreten müssen immer ein Name
+**und** ein Passwort eingegeben werden:
 
-- Beim Betreten den gewünschten Namen eingeben, die Checkbox „Diesen Namen mit
-  Passwort schützen (Konto-Anfrage an Admin)" aktivieren, ein Passwort
-  eingeben und auf „Kanal betreten" klicken
-- Die Anfrage geht an DOM und muss im Admin-Panel (🛡) unter „Ausstehende
-  Konto-Anfragen" genehmigt werden, bevor der Name nutzbar ist
-- Bis zur Genehmigung kann sich niemand mit diesem Namen anmelden (auch nicht
-  mit dem richtigen Passwort) – so wird verhindert, dass sich jemand einen
-  Namen "vormerkt", ohne dass der Admin zugestimmt hat
-- Nach der Genehmigung braucht dieser Name **immer** das Passwort, um sich
-  anzumelden – ganz wie bei DOM, nur ohne die Admin-Rechte
+- **Bekannter, bereits genehmigter Name:** das zugehörige Passwort muss
+  stimmen, sonst „Falsches Passwort".
+- **Komplett neuer Name:** das selbst gewählte Passwort wird automatisch als
+  **Konto-Anfrage** hinterlegt (Status „wartet auf Freigabe") – kein Beitritt,
+  bis DOM das im Admin-Panel (🛡 → „Ausstehende Konto-Anfragen") genehmigt hat.
+  Ein erneuter Versuch mit demselben Namen zeigt so lange „Dein Konto wartet
+  noch auf Freigabe durch den Admin."
+- Nach der Genehmigung braucht dieser Name ab sofort **immer** das Passwort,
+  um sich anzumelden – ganz wie bei DOM, nur ohne die Admin-Rechte.
 - Im Admin-Panel unter „Geschützte Konten" kann DOM den Schutz jederzeit
-  wieder entfernen (der Name wird dann wieder ganz normal/offen)
+  wieder entfernen (der Name ist dann wieder komplett frei – wer ihn zuerst
+  mit einem neuen Passwort verwendet, startet automatisch eine neue Anfrage).
 
 Passwörter werden **gehasht** (SHA-256) in `data/protected-users.json`
 gespeichert, nie im Klartext.
@@ -208,12 +208,14 @@ Passend zu deinem bestehenden Muster (wie beim network-dashboard auf CT 112):
 
 ## Grenzen (bewusst einfach gehalten)
 
-- Kein Passwortschutz – jeder im LAN kann sich mit einem beliebigen Namen anmelden.
-  Für ein privates Heimnetz meist ausreichend; bei Bedarf lässt sich vor `server.js`
-  leicht ein einfacher Zugriffscode ergänzen.
-- Ein einzelner gemeinsamer Kanal, keine Gruppen/Direktnachrichten.
-- Keine Nachrichten-Bearbeitung/-Löschung durch Nutzer (nur serverseitig über die
-  JSON-Datei).
+- Keine Zwei-Faktor-Authentifizierung, keine Passwort-Wiederherstellung –
+  vergisst jemand sein Passwort, muss DOM den Schutz entfernen (🛡-Panel →
+  „Geschützte Konten" → „Schutz entfernen"), danach kann sich die Person mit
+  einem neuen Passwort erneut anmelden (löst wieder eine Konto-Anfrage aus).
+- Direktnachrichten zwischen einzelnen Personen gibt es nicht, nur die
+  gemeinsamen Kanäle.
+- Passwörter sind gehasht (SHA-256, ungesalzen) – für den Familiengebrauch im
+  eigenen Heimnetz ausreichend, aber kein Ersatz für ein Hochsicherheitssystem.
 
-Diese Punkte lassen sich bei Bedarf nachrüsten – einfach sagen, was als Nächstes
-dazukommen soll (z. B. mehrere Räume, Zugriffscode, Nachrichten löschen).
+Weitere Ideen sind jederzeit möglich – einfach sagen, was als Nächstes
+dazukommen soll.
