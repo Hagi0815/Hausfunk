@@ -1083,6 +1083,7 @@ html, body {
   }
   .sidebar.open { transform: translateX(0); }
   .sidebar-toggle { display: flex; }
+  #search-toggle { display: none; }
   .messages { padding: 18px; }
   .msg { max-width: 85%; }
   .input-bar { padding: 12px; }
