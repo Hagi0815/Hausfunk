@@ -64,6 +64,7 @@ let currentRoom = null;
 let unreadCounts = {}; // roomId -> Anzahl ungelesener Nachrichten
 let myRole = 'user';
 let hasJoined = false;
+let lastJoinPassword = ''; // nur im Speicher (RAM), fuer automatisches Re-Login nach Verbindungsabbruch
 let bannedNamesList = [];
 let protectedNamesList = []; // [{ name, status: 'pending'|'approved' }]
 let pendingRequestsList = [];
@@ -461,6 +462,7 @@ function join() {
   joinInfoEl.classList.add('hidden');
 
   myName = name;
+  lastJoinPassword = password; // nur im Speicher, fuer automatisches Re-Login nach Verbindungsabbruch
   requestNotificationPermission(); // direkt im Klick, nicht erst nach Server-Antwort -- sonst blockt Android Chrome den Prompt
   unlockAudio();
   socket.emit('join', {
@@ -471,6 +473,20 @@ function join() {
 joinBtn.addEventListener('click', join);
 nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
 adminPasswordInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
+
+// Bei jeder (Wieder-)Verbindung automatisch neu anmelden -- Socket.IO baut die
+// Verbindung nach kurzen Netzwerkaussetzern (WLAN-Wechsel, Handy kurz offline
+// etc.) selbststaendig neu auf, dabei aber mit einer neuen, noch nicht
+// angemeldeten Verbindung server-seitig. Ohne diesen Re-Join wuerde man optisch
+// weiter im Chat sitzen, aber keine neuen Ereignisse (Nachrichten, Online-Liste,
+// Konto-Anfragen) mehr bekommen, bis man die Seite manuell neu laedt.
+socket.on('connect', () => {
+  if (hasJoined && myName) {
+    socket.emit('join', {
+      name: myName, avatarType: myAvatarType, avatarValue: myAvatarValue, password: lastJoinPassword,
+    });
+  }
+});
 
 socket.on('registerPending', (name) => {
   joinInfoEl.textContent = `Anfrage für „${name}" wurde gesendet. Bitte auf Freigabe durch den Admin warten.`;
