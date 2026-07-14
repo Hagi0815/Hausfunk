@@ -35,6 +35,9 @@ const themeToggleBtn = document.getElementById('theme-toggle');
 const logoutBtn = document.getElementById('logout-btn');
 const galleryToggleBtn = document.getElementById('gallery-toggle');
 const galleryOverlay = document.getElementById('gallery-overlay');
+const avatarLightbox = document.getElementById('avatar-lightbox');
+const avatarLightboxImg = document.getElementById('avatar-lightbox-img');
+const avatarLightboxClose = document.getElementById('avatar-lightbox-close');
 const galleryGrid = document.getElementById('gallery-grid');
 const galleryCloseBtn = document.getElementById('gallery-close');
 const micBtn = document.getElementById('mic-btn');
@@ -339,8 +342,12 @@ function updateAvatarPreview() {
     img.alt = '';
     avatarPreviewEl.appendChild(img);
     avatarPreviewEl.classList.remove('avatar-preview-empty');
+    avatarPreviewEl.classList.add('avatar-clickable');
+    avatarPreviewEl.onclick = () => openAvatarLightbox(myAvatarValue);
   } else {
     avatarPreviewEl.classList.add('avatar-preview-empty');
+    avatarPreviewEl.classList.remove('avatar-clickable');
+    avatarPreviewEl.onclick = null;
   }
 }
 updateAvatarPreview();
@@ -416,6 +423,22 @@ socket.on('protectedNames', (list) => {
   updateNameFieldUI();
 });
 
+function openAvatarLightbox(src) {
+  avatarLightboxImg.src = src;
+  avatarLightbox.classList.remove('hidden');
+}
+function closeAvatarLightbox() {
+  avatarLightbox.classList.add('hidden');
+  avatarLightboxImg.src = '';
+}
+avatarLightboxClose.addEventListener('click', closeAvatarLightbox);
+avatarLightbox.addEventListener('click', (e) => {
+  if (e.target === avatarLightbox) closeAvatarLightbox();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !avatarLightbox.classList.contains('hidden')) closeAvatarLightbox();
+});
+
 function renderAvatar(color, avatar, photo) {
   const el = document.createElement('span');
   el.className = 'avatar';
@@ -425,6 +448,11 @@ function renderAvatar(color, avatar, photo) {
     img.src = photo;
     img.alt = '';
     el.appendChild(img);
+    el.classList.add('avatar-clickable');
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openAvatarLightbox(photo);
+    });
   } else {
     // Kein eigenes Foto vorhanden -- neutraler gruener Platzhalter statt Icon
     el.classList.add('avatar-placeholder');
