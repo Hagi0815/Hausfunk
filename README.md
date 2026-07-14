@@ -31,14 +31,15 @@ PORT=4000 npm start
 
 ## Profilbilder
 
-Beim Betreten kann entweder eines von 12 vorgefertigten Avatar-Bildern
-gewählt oder über „📷 Eigenes Bild“ ein echtes Foto hochgeladen werden
-(JPG/PNG/WebP, max. 5 MB). Jede Person kann ihr Bild jederzeit ändern, einfach
-beim nächsten Betreten ein anderes auswählen. Da es keine Benutzerkonten
-gibt, wird das gewählte Bild an den eingegebenen Namen gebunden: tippt man
-später denselben Namen erneut ein, wird das zuletzt gewählte Bild automatisch
-vorgeschlagen (Vorschau aktualisiert sich, sobald man aus dem Namensfeld
-heraus-tabbt).
+Es gibt nur eine Möglichkeit für ein Profilbild: über „📷 Eigenes Bild“ ein
+echtes Foto hochladen (JPG/PNG/WebP, max. 5 MB) – keine vorgefertigten
+Icons/Bilder zur Auswahl. Ohne eigenes Foto wird ein neutraler grüner
+Kreis angezeigt, kein Platzhalter-Icon. Jede Person kann ihr Bild jederzeit
+ändern, einfach beim nächsten Betreten ein neues hochladen. Da es keine
+Benutzerkonten gibt, wird das Bild an den eingegebenen Namen gebunden: tippt
+man später denselben Namen erneut ein, wird das zuletzt hochgeladene Bild
+automatisch vorgeschlagen (Vorschau aktualisiert sich, sobald man aus dem
+Namensfeld heraus-tabbt).
 
 - Zuordnung liegt in `data/avatars.json` (Name → Bild-URL), Bilder selbst unter
   `uploads/avatars/`

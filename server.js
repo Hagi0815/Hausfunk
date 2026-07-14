@@ -570,8 +570,7 @@ async function main() {
   function completeJoin(socket, { name, role, avatarType, avatarValue }) {
     const isPhoto = avatarType === 'photo';
     let avatar = (avatarValue || '').toString().trim().slice(0, 300) || null;
-    const isValidPhotoPath = avatar
-      && (avatar.startsWith('/uploads/avatars/') || avatar.startsWith('/avatar-presets/'));
+    const isValidPhotoPath = avatar && avatar.startsWith('/uploads/avatars/');
     if (isPhoto && !isValidPhotoPath) avatar = null;
     if (!isPhoto) avatar = avatar ? avatar.slice(0, 8) : null;
     const roomId = DEFAULT_ROOM;
@@ -735,8 +734,8 @@ async function main() {
       completeJoin(socket, {
         name: session.name,
         role: session.role,
-        avatarType: 'photo',
-        avatarValue: avatarUrl || '/avatar-presets/avatar-1.png',
+        avatarType: avatarUrl ? 'photo' : 'none',
+        avatarValue: avatarUrl || null,
       });
     });
 

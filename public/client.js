@@ -31,7 +31,6 @@ const searchCloseBtn = document.getElementById('search-close');
 const pinnedBar = document.getElementById('pinned-bar');
 const pinnedTextEl = document.getElementById('pinned-text');
 const pinnedUnpinBtn = document.getElementById('pinned-unpin');
-const avatarListEl = document.getElementById('avatar-list');
 const themeToggleBtn = document.getElementById('theme-toggle');
 const logoutBtn = document.getElementById('logout-btn');
 const galleryToggleBtn = document.getElementById('gallery-toggle');
@@ -80,9 +79,8 @@ let mentionIndex = 0;
 const DELETE_WINDOW_MS = 5 * 60 * 1000; // muss zum Server-Wert passen
 let currentPinned = null;
 
-const AVATAR_PRESET_LIST = Array.from({ length: 12 }, (_, i) => `/avatar-presets/avatar-${i + 1}.png`);
-let myAvatarType = 'photo'; // ab jetzt immer 'photo' -- sowohl Presets als auch eigene Uploads
-let myAvatarValue = AVATAR_PRESET_LIST[Math.floor(Math.random() * AVATAR_PRESET_LIST.length)];
+let myAvatarType = 'none'; // 'none' | 'photo' -- ohne eigenes Foto gibt's keinen Icon-/Bild-Avatar mehr
+let myAvatarValue = null;
 let avatarMap = {}; // name (lowercase) -> gespeicherte Foto-URL
 
 const avatarPreviewEl = document.getElementById('avatar-preview');
@@ -332,39 +330,19 @@ themeToggleBtn.addEventListener('click', () => {
   applyTheme(currentTheme);
 });
 
-// --- Avatar-Auswahl auf der Login-Seite ------------------------------------------
+// --- Avatar-Vorschau auf der Login-Seite (nur eigenes Foto oder gruener Platzhalter) ---
 function updateAvatarPreview() {
   avatarPreviewEl.innerHTML = '';
-  const img = document.createElement('img');
-  img.src = myAvatarValue;
-  img.alt = '';
-  avatarPreviewEl.appendChild(img);
-}
-
-function selectPresetAvatar(url) {
-  myAvatarType = 'photo';
-  myAvatarValue = url;
-  avatarListEl.querySelectorAll('.avatar-option').forEach((b) => {
-    b.classList.toggle('selected', b.dataset.url === url);
-  });
-  updateAvatarPreview();
-}
-
-function buildAvatarPicker() {
-  AVATAR_PRESET_LIST.forEach((url) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.dataset.url = url;
-    btn.className = `avatar-option${url === myAvatarValue ? ' selected' : ''}`;
+  if (myAvatarType === 'photo' && myAvatarValue) {
     const img = document.createElement('img');
-    img.src = url;
+    img.src = myAvatarValue;
     img.alt = '';
-    btn.appendChild(img);
-    btn.addEventListener('click', () => selectPresetAvatar(url));
-    avatarListEl.appendChild(btn);
-  });
+    avatarPreviewEl.appendChild(img);
+    avatarPreviewEl.classList.remove('avatar-preview-empty');
+  } else {
+    avatarPreviewEl.classList.add('avatar-preview-empty');
+  }
 }
-buildAvatarPicker();
 updateAvatarPreview();
 
 avatarUploadBtn.addEventListener('click', () => {
@@ -393,7 +371,6 @@ avatarFileInput.addEventListener('change', async () => {
     if (data.url) {
       myAvatarType = 'photo';
       myAvatarValue = data.url;
-      avatarListEl.querySelectorAll('.avatar-option').forEach((b) => b.classList.remove('selected'));
       updateAvatarPreview();
     }
   } catch (err) {
@@ -426,7 +403,6 @@ nameInput.addEventListener('blur', () => {
   if (key && avatarMap[key]) {
     myAvatarType = 'photo';
     myAvatarValue = avatarMap[key];
-    avatarListEl.querySelectorAll('.avatar-option').forEach((b) => b.classList.remove('selected'));
     updateAvatarPreview();
   }
 });
@@ -450,7 +426,8 @@ function renderAvatar(color, avatar, photo) {
     img.alt = '';
     el.appendChild(img);
   } else {
-    el.textContent = avatar || '🙂';
+    // Kein eigenes Foto vorhanden -- neutraler gruener Platzhalter statt Icon
+    el.classList.add('avatar-placeholder');
   }
   return el;
 }

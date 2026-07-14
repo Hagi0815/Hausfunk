@@ -47,6 +47,7 @@
   height: 100%;
   object-fit: cover;
 }
+.avatar-placeholder { background: #5FAE6B; }
 
 .admin-only { display: none; }
 .is-admin .admin-only { display: inline-flex; }
@@ -237,6 +238,7 @@ html, body {
   flex: none;
 }
 .avatar-preview img { width: 100%; height: 100%; object-fit: cover; }
+.avatar-preview-empty { background: #5FAE6B; }
 .avatar-upload-btn {
   background: var(--panel-alt);
   border: 1px solid var(--border);
@@ -247,31 +249,6 @@ html, body {
   cursor: pointer;
 }
 .avatar-upload-btn:hover { border-color: var(--accent-dim); color: var(--accent); }
-.avatar-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.avatar-option {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 1.5px solid var(--border);
-  background: var(--panel-alt);
-  padding: 0;
-  overflow: hidden;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
-}
-.avatar-option img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.avatar-option:hover { border-color: var(--accent-dim); }
-.avatar-option.selected {
-  border-color: var(--accent);
-  background: var(--accent-dim);
-}
 
 #name-input {
   width: 100%;
