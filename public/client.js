@@ -34,9 +34,6 @@ const pinnedUnpinBtn = document.getElementById('pinned-unpin');
 const avatarListEl = document.getElementById('avatar-list');
 const themeToggleBtn = document.getElementById('theme-toggle');
 const logoutBtn = document.getElementById('logout-btn');
-const locationToggleBtn = document.getElementById('location-toggle');
-const locationsListEl = document.getElementById('locations-list');
-const locationsEmptyEl = document.getElementById('locations-empty');
 const galleryToggleBtn = document.getElementById('gallery-toggle');
 const galleryOverlay = document.getElementById('gallery-overlay');
 const galleryGrid = document.getElementById('gallery-grid');
@@ -76,9 +73,6 @@ let pendingRequestsList = [];
 let approvedAccountsList = [];
 let pendingResetsList = [];
 let currentRoomUsersList = [];
-let locationsList = [];
-let locationSharing = false;
-let locationWatchId = null;
 let mentionActive = false;
 let mentionStart = -1;
 let mentionIndex = 0;
@@ -86,9 +80,9 @@ let mentionIndex = 0;
 const DELETE_WINDOW_MS = 5 * 60 * 1000; // muss zum Server-Wert passen
 let currentPinned = null;
 
-const AVATAR_LIST = ['🦊', '🐱', '🐶', '🐻', '🦁', '🐨', '🐼', '🐸', '🦄', '🐧', '🐢', '🦉', '🐝', '🐙', '🦋', '🐳'];
-let myAvatarType = 'emoji'; // 'emoji' | 'photo'
-let myAvatarValue = AVATAR_LIST[Math.floor(Math.random() * AVATAR_LIST.length)];
+const AVATAR_PRESET_LIST = Array.from({ length: 12 }, (_, i) => `/avatar-presets/avatar-${i + 1}.png`);
+let myAvatarType = 'photo'; // ab jetzt immer 'photo' -- sowohl Presets als auch eigene Uploads
+let myAvatarValue = AVATAR_PRESET_LIST[Math.floor(Math.random() * AVATAR_PRESET_LIST.length)];
 let avatarMap = {}; // name (lowercase) -> gespeicherte Foto-URL
 
 const avatarPreviewEl = document.getElementById('avatar-preview');
@@ -168,50 +162,6 @@ logoutBtn.addEventListener('click', () => {
   localStorage.removeItem('hausfunk-session-token');
   localStorage.removeItem('hausfunk-session-name');
   window.location.reload();
-});
-
-// --- Standort-Freigabe (freiwillig, nur der Admin sieht sie) ------------------
-function updateLocationToggleLabel() {
-  locationToggleBtn.textContent = locationSharing ? '📍 Standort aus' : '📍 Standort teilen';
-}
-
-function startSharingLocation() {
-  if (!('geolocation' in navigator)) {
-    alert('Dein Browser unterstützt keine Standortfreigabe.');
-    return;
-  }
-  if (!confirm('Standort mit dem Admin teilen? Er bleibt sichtbar, bis du es hier wieder ausschaltest oder die Seite verlässt.')) return;
-  locationWatchId = navigator.geolocation.watchPosition(
-    (pos) => {
-      socket.emit('shareLocation', {
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude,
-        accuracy: pos.coords.accuracy,
-      });
-    },
-    (err) => {
-      alert(`Standort konnte nicht ermittelt werden: ${err.message}`);
-      stopSharingLocation();
-    },
-    { enableHighAccuracy: true, maximumAge: 30000, timeout: 20000 },
-  );
-  locationSharing = true;
-  updateLocationToggleLabel();
-}
-
-function stopSharingLocation() {
-  if (locationWatchId !== null) {
-    navigator.geolocation.clearWatch(locationWatchId);
-    locationWatchId = null;
-  }
-  locationSharing = false;
-  updateLocationToggleLabel();
-  socket.emit('stopSharingLocation');
-}
-
-locationToggleBtn.addEventListener('click', () => {
-  if (locationSharing) stopSharingLocation();
-  else startSharingLocation();
 });
 
 // --- @Erwähnungen ---------------------------------------------------------------
@@ -385,33 +335,32 @@ themeToggleBtn.addEventListener('click', () => {
 // --- Avatar-Auswahl auf der Login-Seite ------------------------------------------
 function updateAvatarPreview() {
   avatarPreviewEl.innerHTML = '';
-  if (myAvatarType === 'photo') {
-    const img = document.createElement('img');
-    img.src = myAvatarValue;
-    img.alt = '';
-    avatarPreviewEl.appendChild(img);
-  } else {
-    avatarPreviewEl.textContent = myAvatarValue;
-  }
+  const img = document.createElement('img');
+  img.src = myAvatarValue;
+  img.alt = '';
+  avatarPreviewEl.appendChild(img);
 }
 
-function selectEmojiAvatar(emoji) {
-  myAvatarType = 'emoji';
-  myAvatarValue = emoji;
+function selectPresetAvatar(url) {
+  myAvatarType = 'photo';
+  myAvatarValue = url;
   avatarListEl.querySelectorAll('.avatar-option').forEach((b) => {
-    b.classList.toggle('selected', b.dataset.emoji === emoji);
+    b.classList.toggle('selected', b.dataset.url === url);
   });
   updateAvatarPreview();
 }
 
 function buildAvatarPicker() {
-  AVATAR_LIST.forEach((emoji) => {
+  AVATAR_PRESET_LIST.forEach((url) => {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.textContent = emoji;
-    btn.dataset.emoji = emoji;
-    btn.className = `avatar-option${emoji === myAvatarValue ? ' selected' : ''}`;
-    btn.addEventListener('click', () => selectEmojiAvatar(emoji));
+    btn.dataset.url = url;
+    btn.className = `avatar-option${url === myAvatarValue ? ' selected' : ''}`;
+    const img = document.createElement('img');
+    img.src = url;
+    img.alt = '';
+    btn.appendChild(img);
+    btn.addEventListener('click', () => selectPresetAvatar(url));
     avatarListEl.appendChild(btn);
   });
 }
@@ -1405,6 +1354,10 @@ function openGallery() {
     galleryGrid.appendChild(empty);
   } else {
     images.forEach((img) => {
+      const msgEl = img.closest('.msg');
+      const thumbWrap = document.createElement('div');
+      thumbWrap.className = 'gallery-thumb-wrap';
+
       const thumbBtn = document.createElement('button');
       thumbBtn.className = 'gallery-thumb';
       thumbBtn.type = 'button';
@@ -1414,7 +1367,6 @@ function openGallery() {
       thumbImg.alt = img.alt || 'Geteiltes Bild';
       thumbBtn.appendChild(thumbImg);
       thumbBtn.addEventListener('click', () => {
-        const msgEl = img.closest('.msg');
         closeGallery();
         if (msgEl) {
           msgEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1422,7 +1374,25 @@ function openGallery() {
           setTimeout(() => msgEl.classList.remove('highlight'), 1200);
         }
       });
-      galleryGrid.appendChild(thumbBtn);
+      thumbWrap.appendChild(thumbBtn);
+
+      if (myRole === 'admin' && msgEl && msgEl.dataset.id) {
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'gallery-delete-btn';
+        deleteBtn.type = 'button';
+        deleteBtn.title = 'Bild löschen';
+        deleteBtn.textContent = '🗑';
+        deleteBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (confirm('Dieses Bild wirklich löschen?')) {
+            socket.emit('deleteMessage', { messageId: msgEl.dataset.id });
+            thumbWrap.remove();
+          }
+        });
+        thumbWrap.appendChild(deleteBtn);
+      }
+
+      galleryGrid.appendChild(thumbWrap);
     });
   }
   galleryOverlay.classList.remove('hidden');
@@ -1597,54 +1567,6 @@ function renderApprovedList() {
     approvedListEl.appendChild(li);
   });
 }
-
-function timeAgo(ts) {
-  const diffSec = Math.max(0, Math.floor((Date.now() - ts) / 1000));
-  if (diffSec < 60) return 'gerade eben';
-  const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `vor ${diffMin} Min.`;
-  const diffH = Math.floor(diffMin / 60);
-  return `vor ${diffH} Std.`;
-}
-
-function renderLocationsList() {
-  locationsListEl.innerHTML = '';
-  if (!locationsList.length) {
-    locationsEmptyEl.classList.remove('hidden');
-    return;
-  }
-  locationsEmptyEl.classList.add('hidden');
-  locationsList.forEach(({ name, lat, lng, ts, accuracy }) => {
-    const li = document.createElement('li');
-
-    const infoWrap = document.createElement('span');
-    infoWrap.className = 'user-list-name-wrap';
-    const label = document.createElement('span');
-    label.textContent = name;
-    infoWrap.appendChild(label);
-    const timeLabel = document.createElement('span');
-    timeLabel.className = 'user-room-label';
-    const accuracyText = accuracy ? ` · ±${Math.round(accuracy)}m` : '';
-    timeLabel.textContent = `${timeAgo(ts)}${accuracyText}`;
-    infoWrap.appendChild(timeLabel);
-    li.appendChild(infoWrap);
-
-    const link = document.createElement('a');
-    link.href = `https://www.google.com/maps?q=${lat},${lng}`;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    link.className = 'unban-btn';
-    link.textContent = '🗺️ Karte';
-    li.appendChild(link);
-
-    locationsListEl.appendChild(li);
-  });
-}
-
-socket.on('locationsUpdate', (list) => {
-  locationsList = list || [];
-  renderLocationsList();
-});
 
 function renderPendingResetsList() {
   pendingResetsListEl.innerHTML = '';

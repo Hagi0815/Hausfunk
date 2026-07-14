@@ -31,10 +31,12 @@ PORT=4000 npm start
 
 ## Profilbilder
 
-Beim Betreten kann entweder ein Emoji-Symbol gewählt oder über „📷 Eigenes Bild“
-ein echtes Foto hochgeladen werden (JPG/PNG/WebP, max. 5 MB). Da es keine
-Benutzerkonten gibt, wird das Bild an den eingegebenen Namen gebunden: tippt man
-später denselben Namen erneut ein, wird das gespeicherte Bild automatisch
+Beim Betreten kann entweder eines von 12 vorgefertigten Avatar-Bildern
+gewählt oder über „📷 Eigenes Bild“ ein echtes Foto hochgeladen werden
+(JPG/PNG/WebP, max. 5 MB). Jede Person kann ihr Bild jederzeit ändern, einfach
+beim nächsten Betreten ein anderes auswählen. Da es keine Benutzerkonten
+gibt, wird das gewählte Bild an den eingegebenen Namen gebunden: tippt man
+später denselben Namen erneut ein, wird das zuletzt gewählte Bild automatisch
 vorgeschlagen (Vorschau aktualisiert sich, sobald man aus dem Namensfeld
 heraus-tabbt).
 
@@ -279,19 +281,6 @@ sondern man ist automatisch wieder im Kanal.
   Reset-Anfrage im Admin-Panel (🛡 → „Passwort-Reset-Anfragen") genehmigt hat
   – so kann niemand durch eine bloße Reset-Anfrage ein fremdes Konto
   übernehmen.
-
-## Standort-Freigabe (freiwillig, nur für DOM sichtbar)
-
-Unten in der Sidebar kann jede Person „📍 Standort teilen" aktivieren:
-
-- Der Browser fragt einmalig nach Standort-Erlaubnis (Geolocation-API)
-- Danach sieht **nur DOM** im Admin-Panel (🛡 → „Standorte") den Namen, wann
-  zuletzt aktualisiert wurde, und einen Link „🗺️ Karte" (öffnet Google Maps)
-- Standortdaten liegen **nur im Arbeitsspeicher** des Servers, nie in einer
-  Datei – sie verschwinden automatisch, sobald die Person „📍 Standort aus"
-  klickt, die Verbindung trennt (Tab schließt, Seite verlässt) oder der
-  Server neu startet
-- Andere Nutzer (außer DOM) sehen nie, wer seinen Standort teilt oder wo
 
 ## Grenzen (bewusst einfach gehalten)
 

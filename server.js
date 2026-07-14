@@ -509,14 +509,6 @@ async function main() {
   // --- Online-Nutzer & Farben -------------------------------------------------
   const onlineUsers = new Map(); // socket.id -> { name, color, avatar, photo, role, room }
 
-  // --- Standort-Freigabe (freiwillig, nur fuer Admin sichtbar) ---------------
-  // Bewusst NUR im Arbeitsspeicher (kein data/*.json) -- Standortdaten sollen
-  // nicht dauerhaft auf der Platte liegen bleiben, sondern spaetestens beim
-  // Serverneustart verschwinden.
-  const sharedLocations = new Map(); // name.toLowerCase() -> { name, lat, lng, accuracy, ts }
-  function getLocationsList() {
-    return [...sharedLocations.values()];
-  }
   const COLORS = ['#E8A33D', '#3E7C77', '#C9614A', '#6C8EBF', '#9B7EDE', '#5FAE6B', '#D9B24C'];
 
   function colorForName(name) {
@@ -578,9 +570,22 @@ async function main() {
   function completeJoin(socket, { name, role, avatarType, avatarValue }) {
     const isPhoto = avatarType === 'photo';
     let avatar = (avatarValue || '').toString().trim().slice(0, 300) || null;
-    if (isPhoto && (!avatar || !avatar.startsWith('/uploads/avatars/'))) avatar = null;
+    const isValidPhotoPath = avatar
+      && (avatar.startsWith('/uploads/avatars/') || avatar.startsWith('/avatar-presets/'));
+    if (isPhoto && !isValidPhotoPath) avatar = null;
     if (!isPhoto) avatar = avatar ? avatar.slice(0, 8) : null;
     const roomId = DEFAULT_ROOM;
+
+    // Gewaehltes Bild (Preset oder eigener Upload) fuer den naechsten Login
+    // unter diesem Namen merken, damit es automatisch vorgeschlagen wird.
+    if (isPhoto && avatar) {
+      const nameKey = name.toLowerCase();
+      if (avatarsByName[nameKey] !== avatar) {
+        avatarsByName[nameKey] = avatar;
+        saveAvatars(avatarsByName);
+        io.emit('avatarMap', avatarsByName);
+      }
+    }
 
     socket.data.name = name;
     socket.data.color = colorForName(name);
@@ -607,7 +612,6 @@ async function main() {
       socket.emit('pendingRequests', getPendingList());
       socket.emit('approvedAccounts', getApprovedList());
       socket.emit('pendingResets', getPendingResetsList());
-      socket.emit('locationsUpdate', getLocationsList());
     }
     broadcastRoomUsers(roomId);
     broadcastGlobalUsers();
@@ -731,8 +735,8 @@ async function main() {
       completeJoin(socket, {
         name: session.name,
         role: session.role,
-        avatarType: avatarUrl ? 'photo' : 'emoji',
-        avatarValue: avatarUrl || '🙂',
+        avatarType: 'photo',
+        avatarValue: avatarUrl || '/avatar-presets/avatar-1.png',
       });
     });
 
@@ -849,25 +853,6 @@ async function main() {
     });
 
     // --- Standort-Freigabe (freiwillig, nur DOM sieht das) -----------------------
-    socket.on('shareLocation', (payload) => {
-      if (!socket.data.name || !payload) return;
-      const lat = Number(payload.lat);
-      const lng = Number(payload.lng);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-      const accuracy = Number.isFinite(Number(payload.accuracy)) ? Number(payload.accuracy) : null;
-      sharedLocations.set(socket.data.name.toLowerCase(), {
-        name: socket.data.name, lat, lng, accuracy, ts: Date.now(),
-      });
-      broadcastToAdmins('locationsUpdate', getLocationsList());
-    });
-
-    socket.on('stopSharingLocation', () => {
-      if (!socket.data.name) return;
-      if (sharedLocations.delete(socket.data.name.toLowerCase())) {
-        broadcastToAdmins('locationsUpdate', getLocationsList());
-      }
-    });
-
     socket.on('reaction', (payload) => {
       if (!socket.data.name || !socket.data.room || !payload) return;
       const roomId = socket.data.room;
@@ -1154,9 +1139,6 @@ async function main() {
       const name = socket.data.name;
       const room = socket.data.room;
       onlineUsers.delete(socket.id);
-      if (name && sharedLocations.delete(name.toLowerCase())) {
-        broadcastToAdmins('locationsUpdate', getLocationsList());
-      }
       if (room) {
         broadcastRoomUsers(room);
         if (name) io.to(room).emit('system', `${name} hat den Kanal verlassen`);
