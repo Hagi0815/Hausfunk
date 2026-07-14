@@ -96,6 +96,13 @@
       </div>
 
       <div id="messages" class="messages"></div>
+      <div id="checklist-view" class="checklist-view hidden">
+        <div class="checklist-header-row">
+          <span id="checklist-count" class="checklist-count"></span>
+          <button id="checklist-clear-done" class="unban-btn">Erledigte löschen</button>
+        </div>
+        <ul id="checklist-items" class="checklist-items"></ul>
+      </div>
       <div id="typing-indicator" class="typing"></div>
 
       <div id="reply-preview" class="reply-preview hidden">
@@ -109,6 +116,15 @@
       <div class="input-bar-wrapper">
         <div id="emoji-picker" class="emoji-picker hidden"></div>
         <div id="mention-dropdown" class="mention-dropdown hidden"></div>
+        <div id="poll-form" class="poll-form hidden">
+          <input id="poll-question-input" type="text" placeholder="Frage (z. B. Pizza oder Döner?)" maxlength="200" />
+          <div id="poll-options-list" class="poll-options-list"></div>
+          <button id="poll-add-option-btn" type="button" class="unban-btn">+ Option</button>
+          <div class="poll-form-actions">
+            <button id="poll-cancel-btn" type="button" class="unban-btn">Abbrechen</button>
+            <button id="poll-submit-btn" type="button" class="unban-btn">Umfrage erstellen</button>
+          </div>
+        </div>
         <div class="input-bar">
           <button id="image-btn" title="Bild senden" aria-label="Bild senden">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -119,6 +135,7 @@
           </button>
           <input id="file-input" type="file" accept="image/*" hidden />
           <button id="mic-btn" title="Sprachnachricht (gedrückt halten)" aria-label="Sprachnachricht aufnehmen">🎙️</button>
+          <button id="poll-btn" title="Umfrage erstellen" aria-label="Umfrage erstellen">📊</button>
           <button id="emoji-btn" title="Emoji einfügen" aria-label="Emoji einfügen">🙂</button>
           <textarea id="text-input" rows="1" placeholder="Nachricht schreiben..." autocomplete="off"></textarea>
           <button id="send-btn" title="Senden" aria-label="Senden">SENDEN</button>

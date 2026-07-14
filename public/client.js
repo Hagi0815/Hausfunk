@@ -5,6 +5,10 @@ const chatScreen = document.getElementById('chat-screen');
 const nameInput = document.getElementById('name-input');
 const joinBtn = document.getElementById('join-btn');
 const messagesEl = document.getElementById('messages');
+const checklistViewEl = document.getElementById('checklist-view');
+const checklistItemsEl = document.getElementById('checklist-items');
+const checklistCountEl = document.getElementById('checklist-count');
+const checklistClearDoneBtn = document.getElementById('checklist-clear-done');
 const userListEl = document.getElementById('user-list');
 const textInput = document.getElementById('text-input');
 const sendBtn = document.getElementById('send-btn');
@@ -22,6 +26,13 @@ const replyPreviewSender = document.getElementById('reply-preview-sender');
 const replyPreviewText = document.getElementById('reply-preview-text');
 const replyCancelBtn = document.getElementById('reply-cancel');
 const emojiBtn = document.getElementById('emoji-btn');
+const pollBtn = document.getElementById('poll-btn');
+const pollForm = document.getElementById('poll-form');
+const pollQuestionInput = document.getElementById('poll-question-input');
+const pollOptionsList = document.getElementById('poll-options-list');
+const pollAddOptionBtn = document.getElementById('poll-add-option-btn');
+const pollCancelBtn = document.getElementById('poll-cancel-btn');
+const pollSubmitBtn = document.getElementById('poll-submit-btn');
 const emojiPicker = document.getElementById('emoji-picker');
 const mentionDropdown = document.getElementById('mention-dropdown');
 const searchToggleBtn = document.getElementById('search-toggle');
@@ -64,6 +75,7 @@ const bannedEmptyEl = document.getElementById('banned-empty');
 
 let rooms = [];
 let currentRoom = null;
+let currentRoomType = 'chat';
 let unreadCounts = {}; // roomId -> Anzahl ungelesener Nachrichten
 let myRole = 'user';
 let hasJoined = false;
@@ -643,6 +655,71 @@ function renderReactions(container, reactions) {
   });
 }
 
+function buildPollBlock(msg) {
+  const block = document.createElement('div');
+  block.className = 'poll-block';
+
+  const question = document.createElement('div');
+  question.className = 'poll-question';
+  question.textContent = msg.question;
+  block.appendChild(question);
+
+  msg.options.forEach((optionText, index) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'poll-option-btn';
+
+    const fill = document.createElement('span');
+    fill.className = 'poll-option-fill';
+    btn.appendChild(fill);
+
+    const label = document.createElement('span');
+    label.className = 'poll-option-label';
+    label.textContent = optionText;
+    btn.appendChild(label);
+
+    const count = document.createElement('span');
+    count.className = 'poll-option-count';
+    btn.appendChild(count);
+
+    btn.addEventListener('click', () => {
+      socket.emit('pollVote', { messageId: msg.id, optionIndex: index });
+    });
+    block.appendChild(btn);
+  });
+
+  const total = document.createElement('div');
+  total.className = 'poll-total';
+  block.appendChild(total);
+
+  updatePollDisplay(block, msg.options, msg.votes || {});
+  return block;
+}
+
+function updatePollDisplay(block, options, votes) {
+  const voteValues = Object.values(votes);
+  const totalVotes = voteValues.length;
+  const myKey = myName.toLowerCase();
+  const myVote = Object.prototype.hasOwnProperty.call(votes, myKey) ? votes[myKey] : null;
+  const counts = options.map((_, i) => voteValues.filter((v) => v === i).length);
+
+  block.querySelectorAll('.poll-option-btn').forEach((btn, i) => {
+    const pct = totalVotes ? Math.round((counts[i] / totalVotes) * 100) : 0;
+    btn.querySelector('.poll-option-fill').style.width = `${pct}%`;
+    btn.querySelector('.poll-option-count').textContent = totalVotes ? `${counts[i]} · ${pct}%` : '0';
+    btn.classList.toggle('voted', myVote === i);
+  });
+  const totalEl = block.querySelector('.poll-total');
+  if (totalEl) totalEl.textContent = `${totalVotes} Stimme${totalVotes === 1 ? '' : 'n'}`;
+}
+
+socket.on('pollUpdate', ({ messageId, votes }) => {
+  const target = messagesEl.querySelector(`[data-id="${CSS.escape(messageId)}"] .poll-block`);
+  if (!target) return;
+  const options = [...target.querySelectorAll('.poll-option-label')].map((el) => el.textContent);
+  updatePollDisplay(target, options, votes);
+});
+
 function renderMessage(msg) {
   maybeRenderDateDivider(msg.ts);
 
@@ -723,6 +800,8 @@ function renderMessage(msg) {
       durLabel.textContent = formatDuration(msg.duration);
       bubble.appendChild(durLabel);
     }
+  } else if (msg.type === 'poll') {
+    bubble.appendChild(buildPollBlock(msg));
   }
 
   wrap.appendChild(bubble);
@@ -914,7 +993,7 @@ socket.on('messageEdited', ({ messageId, text, editedAt }) => {
 
 function renderPinned(pinned) {
   currentPinned = pinned;
-  if (!pinned) {
+  if (!pinned || currentRoomType === 'checklist') {
     pinnedBar.classList.add('hidden');
     return;
   }
@@ -1048,7 +1127,7 @@ function renderRoomList() {
     btn.className = `room-toggle-btn${r.id === currentRoom ? ' active' : ''}`;
 
     const label = document.createElement('span');
-    label.textContent = `# ${r.label}`;
+    label.textContent = r.type === 'checklist' ? `🛒 ${r.label}` : `# ${r.label}`;
     btn.appendChild(label);
 
     const count = unreadCounts[r.id] || 0;
@@ -1079,6 +1158,17 @@ function renderRoomList() {
       });
       li.appendChild(renameBtn);
 
+      const typeBtn = document.createElement('button');
+      typeBtn.className = 'room-admin-btn';
+      typeBtn.textContent = r.type === 'checklist' ? '💬' : '🛒';
+      typeBtn.title = r.type === 'checklist' ? 'Als normalen Chat festlegen' : 'Als Checkliste festlegen';
+      typeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const newType = r.type === 'checklist' ? 'chat' : 'checklist';
+        socket.emit('admin:setRoomType', { roomId: r.id, type: newType });
+      });
+      li.appendChild(typeBtn);
+
       const deleteBtn = document.createElement('button');
       deleteBtn.className = 'room-admin-btn';
       deleteBtn.textContent = '🗑';
@@ -1108,7 +1198,8 @@ function renderRoomList() {
     addBtn.addEventListener('click', () => {
       const label = prompt('Name des neuen Kanals:');
       if (label && label.trim()) {
-        socket.emit('admin:createRoom', { label: label.trim() });
+        const asChecklist = confirm('Als Checkliste anlegen (z. B. für Einkaufslisten)?\nAbbrechen = normaler Chat-Kanal.');
+        socket.emit('admin:createRoom', { label: label.trim(), type: asChecklist ? 'checklist' : 'chat' });
       }
     });
     addLi.appendChild(addBtn);
@@ -1119,6 +1210,12 @@ function renderRoomList() {
 socket.on('rooms', (list) => {
   rooms = list;
   renderRoomList();
+  const active = rooms.find((r) => r.id === currentRoom);
+  const newType = active && active.type === 'checklist' ? 'checklist' : 'chat';
+  if (currentRoom && newType !== currentRoomType) {
+    currentRoomType = newType;
+    updateRoomTypeUI();
+  }
 });
 
 socket.on('unreadCounts', (counts) => {
@@ -1150,10 +1247,12 @@ socket.on('roomChanged', (roomId) => {
     document.addEventListener('touchstart', unlockAudio, { once: true });
   }
   currentRoom = roomId;
-  unreadCounts[roomId] = 0;
   const room = rooms.find((r) => r.id === roomId);
+  currentRoomType = room && room.type === 'checklist' ? 'checklist' : 'chat';
+  unreadCounts[roomId] = 0;
   roomTitleEl.textContent = `# ${room ? room.label : roomId}`;
   renderRoomList();
+  updateRoomTypeUI();
   // Lokalen Zustand fuer den neuen Kanal zuruecksetzen
   lastDateKey = null;
   cancelReply();
@@ -1162,6 +1261,70 @@ socket.on('roomChanged', (roomId) => {
   applySearchFilter('');
   closeGallery();
   sidebar.classList.remove('open');
+});
+
+function updateRoomTypeUI() {
+  const isChecklist = currentRoomType === 'checklist';
+  messagesEl.classList.toggle('hidden', isChecklist);
+  checklistViewEl.classList.toggle('hidden', !isChecklist);
+  if (isChecklist) pinnedBar.classList.add('hidden');
+  searchToggleBtn.classList.toggle('hidden', isChecklist);
+  imageBtn.classList.toggle('hidden', isChecklist);
+  micBtn.classList.toggle('hidden', isChecklist);
+  pollBtn.classList.toggle('hidden', isChecklist);
+  emojiBtn.classList.toggle('hidden', isChecklist);
+  textInput.placeholder = isChecklist ? 'Eintrag hinzufügen...' : 'Nachricht schreiben...';
+}
+
+function renderChecklist(items) {
+  checklistItemsEl.innerHTML = '';
+  const sorted = [...items].sort((a, b) => {
+    if (a.done !== b.done) return a.done ? 1 : -1;
+    return a.ts - b.ts;
+  });
+  sorted.forEach((item) => {
+    const li = document.createElement('li');
+    li.className = `checklist-item${item.done ? ' done' : ''}`;
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = item.done;
+    checkbox.addEventListener('change', () => socket.emit('checklist:toggle', { itemId: item.id }));
+    li.appendChild(checkbox);
+
+    const textSpan = document.createElement('span');
+    textSpan.className = 'checklist-text';
+    textSpan.textContent = item.text;
+    li.appendChild(textSpan);
+
+    const meta = document.createElement('span');
+    meta.className = 'checklist-meta';
+    meta.textContent = item.addedBy;
+    li.appendChild(meta);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'checklist-remove-btn';
+    removeBtn.type = 'button';
+    removeBtn.textContent = '✕';
+    removeBtn.title = 'Eintrag entfernen';
+    removeBtn.addEventListener('click', () => socket.emit('checklist:remove', { itemId: item.id }));
+    li.appendChild(removeBtn);
+
+    checklistItemsEl.appendChild(li);
+  });
+  const doneCount = items.filter((i) => i.done).length;
+  checklistCountEl.textContent = items.length
+    ? `${items.length - doneCount} offen · ${doneCount} erledigt`
+    : 'Noch keine Einträge';
+}
+
+socket.on('checklistUpdate', ({ roomId, items }) => {
+  if (roomId !== currentRoom) return;
+  renderChecklist(items || []);
+});
+
+checklistClearDoneBtn.addEventListener('click', () => {
+  socket.emit('checklist:clearDone');
 });
 
 socket.on('typing', ({ name, isTyping }) => {
@@ -1173,11 +1336,15 @@ socket.on('typing', ({ name, isTyping }) => {
 function sendText() {
   const text = textInput.value.trim();
   if (!text) return;
-  socket.emit('message', { type: 'text', text, replyTo: replyingTo });
+  if (currentRoomType === 'checklist') {
+    socket.emit('checklist:add', { text });
+  } else {
+    socket.emit('message', { type: 'text', text, replyTo: replyingTo });
+    cancelReply();
+  }
   textInput.value = '';
   textInput.style.height = 'auto';
   socket.emit('typing', false);
-  cancelReply();
 }
 
 sendBtn.addEventListener('click', sendText);
@@ -1345,6 +1512,68 @@ emojiBtn.addEventListener('click', (e) => {
 document.addEventListener('click', (e) => {
   if (!emojiPicker.classList.contains('hidden') && !emojiPicker.contains(e.target) && e.target !== emojiBtn) {
     emojiPicker.classList.add('hidden');
+  }
+});
+
+// --- Umfragen im Chat --------------------------------------------------------------
+function addPollOptionRow(value) {
+  if (pollOptionsList.children.length >= 6) return;
+  const row = document.createElement('div');
+  row.className = 'poll-option-row';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.placeholder = `Option ${pollOptionsList.children.length + 1}`;
+  input.maxLength = 80;
+  input.value = value || '';
+  row.appendChild(input);
+  if (pollOptionsList.children.length >= 2) {
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'poll-option-remove';
+    removeBtn.textContent = '✕';
+    removeBtn.addEventListener('click', () => row.remove());
+    row.appendChild(removeBtn);
+  }
+  pollOptionsList.appendChild(row);
+}
+
+function resetPollForm() {
+  pollQuestionInput.value = '';
+  pollOptionsList.innerHTML = '';
+  addPollOptionRow();
+  addPollOptionRow();
+}
+
+function openPollForm() {
+  resetPollForm();
+  pollForm.classList.remove('hidden');
+  pollQuestionInput.focus();
+}
+function closePollForm() {
+  pollForm.classList.add('hidden');
+}
+
+pollBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (pollForm.classList.contains('hidden')) openPollForm();
+  else closePollForm();
+});
+pollAddOptionBtn.addEventListener('click', () => addPollOptionRow());
+pollCancelBtn.addEventListener('click', closePollForm);
+pollSubmitBtn.addEventListener('click', () => {
+  const question = pollQuestionInput.value.trim();
+  const options = [...pollOptionsList.querySelectorAll('input')]
+    .map((inp) => inp.value.trim())
+    .filter(Boolean);
+  if (!question) { pollQuestionInput.focus(); return; }
+  if (options.length < 2) { alert('Bitte mindestens 2 Optionen ausfüllen.'); return; }
+  socket.emit('message', { type: 'poll', question, options, replyTo: replyingTo });
+  cancelReply();
+  closePollForm();
+});
+document.addEventListener('click', (e) => {
+  if (!pollForm.classList.contains('hidden') && !pollForm.contains(e.target) && e.target !== pollBtn) {
+    closePollForm();
   }
 });
 

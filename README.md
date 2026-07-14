@@ -283,6 +283,28 @@ sondern man ist automatisch wieder im Kanal.
   – so kann niemand durch eine bloße Reset-Anfrage ein fremdes Konto
   übernehmen.
 
+## Checklisten-Kanäle
+
+Kanäle können statt normalem Chat auch eine **geteilte Checkliste** sein –
+„Einkaufsliste" ist das direkt so eingerichtet. In so einem Kanal:
+
+- ersetzt das Textfeld unten den Chat: Eintippen + Enter fügt einen Listenpunkt hinzu
+- jeder kann Punkte abhaken (☑), wieder entfernen (✕), oder mit „Erledigte löschen" aufräumen
+- erledigte Punkte bleiben durchgestrichen sichtbar, bis sie gelöscht werden – nichts geht in einer Nachrichtenflut unter
+- Bild-/Sprachnachrichten-Buttons sind in Checklisten-Kanälen ausgeblendet, da dort nicht sinnvoll
+
+DOM kann jeden Kanal per 🛒/💬-Symbol neben dem Kanalnamen zwischen „Chat" und
+„Checkliste" umschalten (auch nachträglich, Verlauf bleibt jeweils erhalten),
+und beim Anlegen eines neuen Kanals gleich als Checkliste festlegen.
+
+## Umfragen im Chat
+
+Über das 📊-Symbol in der Nachrichtenleiste (nur in normalen Chat-Kanälen,
+nicht in Checklisten) lässt sich eine Umfrage mit 2–6 Optionen erstellen.
+Jeder kann durch Klick auf eine Option abstimmen – die Balken aktualisieren
+sich live für alle im Kanal. Eine Stimme lässt sich jederzeit ändern (die
+vorherige wird automatisch ersetzt, keine Doppelabstimmung möglich).
+
 ## Grenzen (bewusst einfach gehalten)
 
 - Keine Zwei-Faktor-Authentifizierung.

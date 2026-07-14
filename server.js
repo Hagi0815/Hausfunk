@@ -46,9 +46,9 @@ function hashPassword(password) {
 // Beim allerersten Start werden diese drei als Ausgangspunkt angelegt, damit
 // bestehende Installationen ihre bisherigen Kanaele unveraendert behalten.
 const DEFAULT_ROOMS = [
-  { id: 'familie', label: 'Familie' },
-  { id: 'technik', label: 'Technik' },
-  { id: 'einkaufsliste', label: 'Einkaufsliste' },
+  { id: 'familie', label: 'Familie', type: 'chat' },
+  { id: 'technik', label: 'Technik', type: 'chat' },
+  { id: 'einkaufsliste', label: 'Einkaufsliste', type: 'checklist' },
 ];
 
 // --- Ordner sicherstellen ----------------------------------------------------
@@ -86,7 +86,9 @@ function loadRoomsConfig() {
   }
   try {
     const parsed = JSON.parse(fs.readFileSync(ROOMS_CONFIG_FILE, 'utf-8'));
-    if (Array.isArray(parsed) && parsed.length) return parsed;
+    if (Array.isArray(parsed) && parsed.length) {
+      return parsed.map((r) => ({ type: 'chat', ...r }));
+    }
   } catch (err) {
     // fällt durch auf Default
   }
@@ -347,6 +349,9 @@ function roomMessagesFile(roomId) {
 function roomPinnedFile(roomId) {
   return path.join(roomDir(roomId), 'pinned.json');
 }
+function roomChecklistFile(roomId) {
+  return path.join(roomDir(roomId), 'checklist.json');
+}
 
 // --- Alten (vor Kanaelen bestehenden) Verlauf einmalig in den Standard-Kanal
 //     uebernehmen, damit kein bestehender Chat verloren geht. ------------------
@@ -373,13 +378,17 @@ function loadRoom(roomId) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   const mFile = roomMessagesFile(roomId);
   const pFile = roomPinnedFile(roomId);
+  const cFile = roomChecklistFile(roomId);
   if (!fs.existsSync(mFile)) fs.writeFileSync(mFile, '[]');
   if (!fs.existsSync(pFile)) fs.writeFileSync(pFile, 'null');
+  if (!fs.existsSync(cFile)) fs.writeFileSync(cFile, '[]');
   let messages = [];
   let pinned = null;
+  let checklist = [];
   try { messages = JSON.parse(fs.readFileSync(mFile, 'utf-8')); } catch (err) { messages = []; }
   try { pinned = JSON.parse(fs.readFileSync(pFile, 'utf-8')); } catch (err) { pinned = null; }
-  return { messages, pinned };
+  try { checklist = JSON.parse(fs.readFileSync(cFile, 'utf-8')); } catch (err) { checklist = []; }
+  return { messages, pinned, checklist };
 }
 
 function saveRoomMessages(roomId) {
@@ -390,6 +399,10 @@ function saveRoomMessages(roomId) {
 function saveRoomPinned(roomId) {
   const state = roomState.get(roomId);
   fs.writeFileSync(roomPinnedFile(roomId), JSON.stringify(state.pinned));
+}
+function saveRoomChecklist(roomId) {
+  const state = roomState.get(roomId);
+  fs.writeFileSync(roomChecklistFile(roomId), JSON.stringify(state.checklist, null, 2));
 }
 
 ROOMS.forEach((r) => roomState.set(r.id, loadRoom(r.id)));
@@ -605,6 +618,7 @@ async function main() {
     socket.emit('roomChanged', roomId);
     socket.emit('history', state.messages.slice(-MAX_SEND));
     socket.emit('pinnedUpdate', state.pinned);
+    socket.emit('checklistUpdate', { roomId, items: state.checklist });
     socket.emit('unreadCounts', computeUnreadCounts(name, roomId));
     if (role === 'admin') {
       socket.emit('bannedList', bannedNames);
@@ -791,6 +805,7 @@ async function main() {
       socket.emit('roomChanged', roomId);
       socket.emit('history', state.messages.slice(-MAX_SEND));
       socket.emit('pinnedUpdate', state.pinned);
+      socket.emit('checklistUpdate', { roomId, items: state.checklist });
       socket.emit('unreadCounts', computeUnreadCounts(socket.data.name, roomId));
       broadcastRoomUsers(oldRoom);
       broadcastRoomUsers(roomId);
@@ -843,7 +858,35 @@ async function main() {
         io.to(roomId).emit('message', msg);
         io.except(roomId).emit('roomActivity', { roomId });
         notifyPushForMessage(roomId, msg);
+      } else if (payload.type === 'poll') {
+        const question = (payload.question || '').toString().slice(0, 200).trim();
+        const options = Array.isArray(payload.options)
+          ? payload.options.map((o) => (o || '').toString().slice(0, 80).trim()).filter(Boolean).slice(0, 6)
+          : [];
+        if (!question || options.length < 2) return;
+        const msg = {
+          id: makeId(), type: 'poll', sender: name, color, avatar, photo, role, ts: Date.now(),
+          question, options, votes: {}, reactions: {}, replyTo,
+        };
+        state.messages.push(msg);
+        saveRoomMessages(roomId);
+        io.to(roomId).emit('message', msg);
+        io.except(roomId).emit('roomActivity', { roomId });
+        notifyPushForMessage(roomId, msg);
       }
+    });
+
+    socket.on('pollVote', (payload) => {
+      if (!socket.data.name || !socket.data.room || !payload) return;
+      const roomId = socket.data.room;
+      const state = roomState.get(roomId);
+      const msg = state.messages.find((m) => m.id === payload.messageId);
+      if (!msg || msg.deleted || msg.type !== 'poll') return;
+      const optionIndex = Number(payload.optionIndex);
+      if (!Number.isInteger(optionIndex) || optionIndex < 0 || optionIndex >= msg.options.length) return;
+      msg.votes[socket.data.name.toLowerCase()] = optionIndex;
+      saveRoomMessages(roomId);
+      io.to(roomId).emit('pollUpdate', { messageId: msg.id, votes: msg.votes });
     });
 
     socket.on('subscribePush', (payload) => {
@@ -884,6 +927,9 @@ async function main() {
       delete msg.text;
       delete msg.url;
       delete msg.duration;
+      delete msg.question;
+      delete msg.options;
+      delete msg.votes;
       msg.reactions = {};
       saveRoomMessages(roomId);
       io.to(roomId).emit('messageDeleted', { messageId: msg.id });
@@ -952,8 +998,9 @@ async function main() {
       if (socket.data.role !== 'admin' || !payload) return;
       const label = (payload.label || '').toString().trim().slice(0, 40);
       if (!label) return;
+      const type = payload.type === 'checklist' ? 'checklist' : 'chat';
       const id = slugifyRoomId(label);
-      ROOMS.push({ id, label });
+      ROOMS.push({ id, label, type });
       saveRoomsConfig();
       roomState.set(id, loadRoom(id));
       io.emit('rooms', ROOMS);
@@ -966,6 +1013,17 @@ async function main() {
       const label = (payload.label || '').toString().trim().slice(0, 40);
       if (!label) return;
       room.label = label;
+      saveRoomsConfig();
+      io.emit('rooms', ROOMS);
+    });
+
+    socket.on('admin:setRoomType', (payload) => {
+      if (socket.data.role !== 'admin' || !payload) return;
+      const room = ROOMS.find((r) => r.id === payload.roomId);
+      if (!room) return;
+      const type = payload.type === 'checklist' ? 'checklist' : 'chat';
+      if (room.type === type) return;
+      room.type = type;
       saveRoomsConfig();
       io.emit('rooms', ROOMS);
     });
@@ -992,11 +1050,62 @@ async function main() {
         s.emit('roomChanged', fallbackRoom);
         s.emit('history', state.messages.slice(-MAX_SEND));
         s.emit('pinnedUpdate', state.pinned);
+        s.emit('checklistUpdate', { roomId: fallbackRoom, items: state.checklist });
         s.emit('unreadCounts', computeUnreadCounts(entry.name, fallbackRoom));
       }
       broadcastRoomUsers(fallbackRoom);
       broadcastGlobalUsers();
       io.emit('rooms', ROOMS);
+    });
+
+    // --- Checkliste (fuer Kanaele vom Typ "checklist", z.B. Einkaufsliste) -------
+    socket.on('checklist:add', (payload) => {
+      if (!socket.data.name || !socket.data.room || !payload) return;
+      const roomId = socket.data.room;
+      const room = ROOMS.find((r) => r.id === roomId);
+      if (!room || room.type !== 'checklist') return;
+      const text = (payload.text || '').toString().slice(0, 200).trim();
+      if (!text) return;
+      const state = roomState.get(roomId);
+      const item = {
+        id: makeId(), text, done: false, addedBy: socket.data.name, ts: Date.now(),
+      };
+      state.checklist.push(item);
+      saveRoomChecklist(roomId);
+      io.to(roomId).emit('checklistUpdate', { roomId, items: state.checklist });
+    });
+
+    socket.on('checklist:toggle', (payload) => {
+      if (!socket.data.name || !socket.data.room || !payload) return;
+      const roomId = socket.data.room;
+      const state = roomState.get(roomId);
+      const item = state.checklist.find((it) => it.id === payload.itemId);
+      if (!item) return;
+      item.done = !item.done;
+      saveRoomChecklist(roomId);
+      io.to(roomId).emit('checklistUpdate', { roomId, items: state.checklist });
+    });
+
+    socket.on('checklist:remove', (payload) => {
+      if (!socket.data.name || !socket.data.room || !payload) return;
+      const roomId = socket.data.room;
+      const state = roomState.get(roomId);
+      const before = state.checklist.length;
+      state.checklist = state.checklist.filter((it) => it.id !== payload.itemId);
+      if (state.checklist.length === before) return;
+      saveRoomChecklist(roomId);
+      io.to(roomId).emit('checklistUpdate', { roomId, items: state.checklist });
+    });
+
+    socket.on('checklist:clearDone', () => {
+      if (!socket.data.name || !socket.data.room) return;
+      const roomId = socket.data.room;
+      const state = roomState.get(roomId);
+      const before = state.checklist.length;
+      state.checklist = state.checklist.filter((it) => !it.done);
+      if (state.checklist.length === before) return;
+      saveRoomChecklist(roomId);
+      io.to(roomId).emit('checklistUpdate', { roomId, items: state.checklist });
     });
 
     // --- Admin: Nutzer sperren/entsperren ----------------------------------------

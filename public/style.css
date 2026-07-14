@@ -611,6 +611,81 @@ html, body {
 .messages.searching .date-divider { display: none; }
 .msg.search-hidden { display: none; }
 
+.checklist-view {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.checklist-view.hidden { display: none; }
+.checklist-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.checklist-count {
+  font-family: var(--font-display);
+  font-size: 12px;
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+}
+.checklist-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.checklist-item input[type="checkbox"] {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.checklist-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  color: var(--text);
+  word-break: break-word;
+}
+.checklist-item.done .checklist-text {
+  text-decoration: line-through;
+  color: var(--text-dim);
+}
+.checklist-meta {
+  flex: none;
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.checklist-remove-btn {
+  flex: none;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 4px;
+}
+.checklist-remove-btn:hover { color: #e0685f; }
+
 .search-bar {
   display: flex;
   align-items: center;
@@ -961,6 +1036,105 @@ html, body {
   text-align: left;
 }
 .mention-item:hover, .mention-item.active { background: var(--panel-alt); }
+
+.poll-form {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 20px;
+  width: min(320px, 85vw);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.poll-form.hidden { display: none; }
+.poll-form input[type="text"] {
+  width: 100%;
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 14px;
+  padding: 8px 10px;
+  outline: none;
+  box-sizing: border-box;
+}
+.poll-form input[type="text"]:focus { border-color: var(--accent); }
+.poll-options-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.poll-option-row {
+  display: flex;
+  gap: 6px;
+}
+.poll-option-row input { flex: 1; }
+.poll-option-remove {
+  flex: none;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 13px;
+}
+.poll-option-remove:hover { color: #e0685f; }
+.poll-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.poll-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 200px;
+}
+.poll-question {
+  font-weight: 600;
+  color: var(--text);
+}
+.poll-option-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  overflow: hidden;
+  text-align: left;
+}
+.poll-option-btn.voted { border-color: var(--accent); }
+.poll-option-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--accent-dim);
+  z-index: 0;
+  transition: width 0.3s ease;
+}
+.poll-option-label, .poll-option-count {
+  position: relative;
+  z-index: 1;
+}
+.poll-total {
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: var(--text-dim);
+}
 
 .chat-image {
   max-width: 280px;
