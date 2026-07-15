@@ -72,6 +72,8 @@ const joinErrorEl = document.getElementById('join-error');
 const forgotPasswordBtn = document.getElementById('forgot-password-btn');
 const pendingResetsListEl = document.getElementById('pending-resets-list');
 const pendingResetsEmptyEl = document.getElementById('pending-resets-empty');
+const presenceLogListEl = document.getElementById('presence-log-list');
+const presenceLogEmptyEl = document.getElementById('presence-log-empty');
 const adminPanelToggle = document.getElementById('admin-panel-toggle');
 const adminOverlay = document.getElementById('admin-overlay');
 const adminOverlayClose = document.getElementById('admin-overlay-close');
@@ -491,6 +493,16 @@ function join() {
   joinErrorEl.classList.add('hidden');
   joinInfoEl.classList.add('hidden');
 
+  // Zur Sicherheit hier nochmal pruefen (nicht nur beim "blur" auf das Namensfeld,
+  // das z.B. beim direkten Enter-Druecken nicht immer zuverlaessig auslöst) --
+  // damit ein zuvor gespeichertes Profilbild garantiert verwendet wird.
+  const nameKey = name.toLowerCase();
+  if (avatarMap[nameKey] && myAvatarValue !== avatarMap[nameKey]) {
+    myAvatarType = 'photo';
+    myAvatarValue = avatarMap[nameKey];
+    updateAvatarPreview();
+  }
+
   myName = name;
   lastJoinPassword = password; // nur im Speicher, fuer automatisches Re-Login nach Verbindungsabbruch
   requestNotificationPermission(); // direkt im Klick, nicht erst nach Server-Antwort -- sonst blockt Android Chrome den Prompt
@@ -670,6 +682,9 @@ function buildPollBlock(msg) {
   block.appendChild(question);
 
   msg.options.forEach((optionText, index) => {
+    const optionWrap = document.createElement('div');
+    optionWrap.className = 'poll-option-wrap';
+
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'poll-option-btn';
@@ -690,7 +705,13 @@ function buildPollBlock(msg) {
     btn.addEventListener('click', () => {
       socket.emit('pollVote', { messageId: msg.id, optionIndex: index });
     });
-    block.appendChild(btn);
+    optionWrap.appendChild(btn);
+
+    const voters = document.createElement('div');
+    voters.className = 'poll-option-voters';
+    optionWrap.appendChild(voters);
+
+    block.appendChild(optionWrap);
   });
 
   const total = document.createElement('div');
@@ -702,17 +723,22 @@ function buildPollBlock(msg) {
 }
 
 function updatePollDisplay(block, options, votes) {
-  const voteValues = Object.values(votes);
-  const totalVotes = voteValues.length;
+  const voteEntries = Object.values(votes || {});
+  const totalVotes = voteEntries.length;
   const myKey = myName.toLowerCase();
-  const myVote = Object.prototype.hasOwnProperty.call(votes, myKey) ? votes[myKey] : null;
-  const counts = options.map((_, i) => voteValues.filter((v) => v === i).length);
+  const myVote = Object.prototype.hasOwnProperty.call(votes || {}, myKey) ? votes[myKey].optionIndex : null;
+  const counts = options.map((_, i) => voteEntries.filter((v) => v.optionIndex === i).length);
+  const votersByOption = options.map((_, i) => voteEntries.filter((v) => v.optionIndex === i).map((v) => v.name));
 
-  block.querySelectorAll('.poll-option-btn').forEach((btn, i) => {
+  block.querySelectorAll('.poll-option-wrap').forEach((wrap, i) => {
+    const btn = wrap.querySelector('.poll-option-btn');
     const pct = totalVotes ? Math.round((counts[i] / totalVotes) * 100) : 0;
     btn.querySelector('.poll-option-fill').style.width = `${pct}%`;
     btn.querySelector('.poll-option-count').textContent = totalVotes ? `${counts[i]} · ${pct}%` : '0';
     btn.classList.toggle('voted', myVote === i);
+
+    const votersEl = wrap.querySelector('.poll-option-voters');
+    votersEl.textContent = votersByOption[i].join(', ');
   });
   const totalEl = block.querySelector('.poll-total');
   if (totalEl) totalEl.textContent = `${totalVotes} Stimme${totalVotes === 1 ? '' : 'n'}`;
@@ -1913,6 +1939,53 @@ function renderPendingResetsList() {
     pendingResetsListEl.appendChild(li);
   });
 }
+
+function timeAgo(ts) {
+  const diffSec = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+  if (diffSec < 60) return 'gerade eben';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `vor ${diffMin} Min.`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `vor ${diffH} Std.`;
+  const diffD = Math.floor(diffH / 24);
+  return `vor ${diffD} Tag${diffD === 1 ? '' : 'en'}`;
+}
+
+function formatDateTime(ts) {
+  return new Date(ts).toLocaleString('de-DE', {
+    day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+  });
+}
+
+function renderPresenceLog(list) {
+  presenceLogListEl.innerHTML = '';
+  if (!list.length) {
+    presenceLogEmptyEl.classList.remove('hidden');
+    return;
+  }
+  presenceLogEmptyEl.classList.add('hidden');
+  [...list].reverse().slice(0, 100).forEach((entry) => {
+    const li = document.createElement('li');
+    li.className = 'presence-log-item';
+
+    const label = document.createElement('span');
+    label.className = 'presence-log-name';
+    label.textContent = `${entry.event === 'online' ? '🟢' : '⚪'} ${entry.name}`;
+    li.appendChild(label);
+
+    const timeLabel = document.createElement('span');
+    timeLabel.className = 'presence-log-time';
+    timeLabel.title = formatDateTime(entry.ts);
+    timeLabel.textContent = timeAgo(entry.ts);
+    li.appendChild(timeLabel);
+
+    presenceLogListEl.appendChild(li);
+  });
+}
+
+socket.on('presenceLog', (list) => {
+  renderPresenceLog(list || []);
+});
 
 function updateAdminBadge() {
   const total = pendingRequestsList.length + pendingResetsList.length;

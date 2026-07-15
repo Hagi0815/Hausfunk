@@ -316,8 +316,19 @@ Anlegen eines neuen Kanals gleich mit Panel anlegen.
 Über das 📊-Symbol in der Nachrichtenleiste (nur in normalen Chat-Kanälen,
 nicht in Checklisten) lässt sich eine Umfrage mit 2–6 Optionen erstellen.
 Jeder kann durch Klick auf eine Option abstimmen – die Balken aktualisieren
-sich live für alle im Kanal. Eine Stimme lässt sich jederzeit ändern (die
+sich live für alle im Kanal, und unter jeder Option stehen die Namen derer,
+die dafür gestimmt haben. Eine Stimme lässt sich jederzeit ändern (die
 vorherige wird automatisch ersetzt, keine Doppelabstimmung möglich).
+
+## Online-Verlauf (nur für DOM)
+
+Im Admin-Panel (🛡) zeigt „Online-Verlauf" die letzten Anmeldungen und
+Abmeldungen aller Namen (🟢 online / ⚪ offline), neueste zuerst, mit
+relativer Zeit (z. B. „vor 5 Min.", volles Datum beim Draufhalten). Es werden
+die letzten 300 Ereignisse dauerhaft in `data/presence-log.json` gespeichert.
+Kurze Verbindungsaussetzer (z. B. kurzzeitig schlechtes WLAN) erzeugen dabei
+ein knappes Offline/Online-Pärchen, auch wenn die Person durchgehend in der
+App war.
 
 ## Grenzen (bewusst einfach gehalten)
 

@@ -23,6 +23,8 @@ const ADMIN_CONFIG_FILE = path.join(DATA_DIR, 'admin-config.json');
 const VAPID_FILE = path.join(DATA_DIR, 'vapid-keys.json');
 const PUSH_SUBS_FILE = path.join(DATA_DIR, 'push-subscriptions.json');
 const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
+const PRESENCE_LOG_FILE = path.join(DATA_DIR, 'presence-log.json');
+const PRESENCE_LOG_MAX = 300; // wie viele Ereignisse dauerhaft aufgehoben werden
 const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 Tage "angemeldet bleiben"
 const MAX_HISTORY = 500;   // wie viele Nachrichten pro Kanal dauerhaft behalten werden
 const MAX_SEND = 200;      // wie viele beim Beitritt/Wechsel an den Client geschickt werden
@@ -63,6 +65,7 @@ if (!fs.existsSync(ADMIN_CONFIG_FILE)) {
 }
 if (!fs.existsSync(PUSH_SUBS_FILE)) fs.writeFileSync(PUSH_SUBS_FILE, '{}');
 if (!fs.existsSync(SESSIONS_FILE)) fs.writeFileSync(SESSIONS_FILE, '{}');
+if (!fs.existsSync(PRESENCE_LOG_FILE)) fs.writeFileSync(PRESENCE_LOG_FILE, '[]');
 if (!fs.existsSync(PROTECTED_USERS_FILE)) fs.writeFileSync(PROTECTED_USERS_FILE, '{}');
 
 // --- Profilbilder (persistent pro Name, keine Benutzerkonten noetig) --------
@@ -262,6 +265,19 @@ function createSession(name, role) {
   saveSessions();
   return token;
 }
+
+// --- Online-Verlauf (fuer den Admin: wer war wann online/offline) ----------
+function loadPresenceLog() {
+  try {
+    return JSON.parse(fs.readFileSync(PRESENCE_LOG_FILE, 'utf-8'));
+  } catch (err) {
+    return [];
+  }
+}
+function savePresenceLog() {
+  fs.writeFileSync(PRESENCE_LOG_FILE, JSON.stringify(presenceLog, null, 2));
+}
+let presenceLog = loadPresenceLog();
 // { "<name-lower>": { displayName, passwordHash, status: 'pending'|'approved' } }
 function loadProtectedUsers() {
   try {
@@ -559,6 +575,15 @@ async function main() {
     }
   }
 
+  function logPresenceEvent(name, event) {
+    presenceLog.push({ name, event, ts: Date.now() });
+    if (presenceLog.length > PRESENCE_LOG_MAX) {
+      presenceLog = presenceLog.slice(-PRESENCE_LOG_MAX);
+    }
+    savePresenceLog();
+    broadcastToAdmins('presenceLog', presenceLog);
+  }
+
   function notifyPushForMessage(roomId, msg) {
     const connectedNames = new Set([...onlineUsers.values()].map((u) => u.name.toLowerCase()));
     const room = ROOMS.find((r) => r.id === roomId);
@@ -636,10 +661,12 @@ async function main() {
       socket.emit('pendingRequests', getPendingList());
       socket.emit('approvedAccounts', getApprovedList());
       socket.emit('pendingResets', getPendingResetsList());
+      socket.emit('presenceLog', presenceLog);
     }
     broadcastRoomUsers(roomId);
     broadcastGlobalUsers();
     socket.to(roomId).emit('system', `${name} ist beigetreten`);
+    logPresenceEvent(name, 'online');
 
     const token = createSession(name, role);
     socket.data.sessionToken = token;
@@ -895,7 +922,7 @@ async function main() {
       if (!msg || msg.deleted || msg.type !== 'poll') return;
       const optionIndex = Number(payload.optionIndex);
       if (!Number.isInteger(optionIndex) || optionIndex < 0 || optionIndex >= msg.options.length) return;
-      msg.votes[socket.data.name.toLowerCase()] = optionIndex;
+      msg.votes[socket.data.name.toLowerCase()] = { optionIndex, name: socket.data.name };
       saveRoomMessages(roomId);
       io.to(roomId).emit('pollUpdate', { messageId: msg.id, votes: msg.votes });
     });
@@ -1297,6 +1324,7 @@ async function main() {
       const name = socket.data.name;
       const room = socket.data.room;
       onlineUsers.delete(socket.id);
+      if (name) logPresenceEvent(name, 'offline');
       if (room) {
         broadcastRoomUsers(room);
         if (name) io.to(room).emit('system', `${name} hat den Kanal verlassen`);
