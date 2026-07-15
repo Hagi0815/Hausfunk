@@ -619,12 +619,12 @@ async function main() {
         + '&current=temperature_2m,weather_code'
         + '&hourly=temperature_2m,weather_code'
         + '&daily=temperature_2m_max,temperature_2m_min,weather_code'
-        + '&timezone=Europe%2FBerlin&forecast_days=1';
+        + '&timezone=Europe%2FBerlin&forecast_days=2';
       const res = await fetch(url);
       if (!res.ok) throw new Error(`Open-Meteo Status ${res.status}`);
       const data = await res.json();
 
-      const nowHour = new Date().getHours();
+      const now = new Date();
       const hourlyTimes = (data.hourly && data.hourly.time) || [];
       const hourly = hourlyTimes
         .map((time, i) => ({
@@ -632,7 +632,7 @@ async function main() {
           temp: data.hourly.temperature_2m[i],
           code: data.hourly.weather_code[i],
         }))
-        .filter((h) => new Date(h.time).getHours() >= nowHour)
+        .filter((h) => new Date(h.time) >= now)
         .filter((_, i) => i % 3 === 0)
         .slice(0, 6);
 
