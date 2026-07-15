@@ -75,6 +75,21 @@ html, body {
 
 .hidden { display: none !important; }
 
+/* Fuer Datei-Eingabefelder: visuell versteckt statt per "hidden"-Attribut --
+   in manchen Browsern loesen technisch "hidden" gesetzte Datei-Felder das
+   change-Ereignis nach programmatischem Klick nicht zuverlaessig aus. */
+.visually-hidden-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .screen { height: 100vh; height: 100dvh; width: 100vw; }
 
 /* ---------- Login ---------- */
