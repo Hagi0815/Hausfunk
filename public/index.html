@@ -82,64 +82,78 @@
         <button id="search-toggle" class="header-icon-btn" aria-label="Suche">🔍</button>
       </header>
 
-      <div id="search-bar" class="search-bar hidden">
-        <input id="search-input" type="text" placeholder="Suche nach Text oder Namen..." autocomplete="off" />
-        <button id="search-close" aria-label="Suche schließen">✕</button>
-      </div>
+      <div class="chat-body">
+        <div class="chat-column">
+          <div id="search-bar" class="search-bar hidden">
+            <input id="search-input" type="text" placeholder="Suche nach Text oder Namen..." autocomplete="off" />
+            <button id="search-close" aria-label="Suche schließen">✕</button>
+          </div>
 
-      <div id="pinned-bar" class="pinned-bar hidden">
-        <div class="pinned-content">
-          <span class="pinned-label">📌 Angepinnt</span>
-          <span id="pinned-text" class="pinned-text"></span>
-        </div>
-        <button id="pinned-unpin" aria-label="Lösen">✕</button>
-      </div>
+          <div id="pinned-bar" class="pinned-bar hidden">
+            <div class="pinned-content">
+              <span class="pinned-label">📌 Angepinnt</span>
+              <span id="pinned-text" class="pinned-text"></span>
+            </div>
+            <button id="pinned-unpin" aria-label="Lösen">✕</button>
+          </div>
 
-      <div id="messages" class="messages"></div>
-      <div id="checklist-view" class="checklist-view hidden">
-        <div class="checklist-header-row">
-          <span id="checklist-count" class="checklist-count"></span>
-          <button id="checklist-clear-done" class="unban-btn">Erledigte löschen</button>
-        </div>
-        <ul id="checklist-items" class="checklist-items"></ul>
-      </div>
-      <div id="typing-indicator" class="typing"></div>
+          <div id="messages" class="messages"></div>
+          <div id="typing-indicator" class="typing"></div>
 
-      <div id="reply-preview" class="reply-preview hidden">
-        <div class="reply-preview-content">
-          <span class="reply-label">Antwort an <span id="reply-preview-sender"></span></span>
-          <span id="reply-preview-text" class="reply-preview-text"></span>
-        </div>
-        <button id="reply-cancel" aria-label="Antwort abbrechen">✕</button>
-      </div>
+          <div id="reply-preview" class="reply-preview hidden">
+            <div class="reply-preview-content">
+              <span class="reply-label">Antwort an <span id="reply-preview-sender"></span></span>
+              <span id="reply-preview-text" class="reply-preview-text"></span>
+            </div>
+            <button id="reply-cancel" aria-label="Antwort abbrechen">✕</button>
+          </div>
 
-      <div class="input-bar-wrapper">
-        <div id="emoji-picker" class="emoji-picker hidden"></div>
-        <div id="mention-dropdown" class="mention-dropdown hidden"></div>
-        <div id="poll-form" class="poll-form hidden">
-          <input id="poll-question-input" type="text" placeholder="Frage (z. B. Pizza oder Döner?)" maxlength="200" />
-          <div id="poll-options-list" class="poll-options-list"></div>
-          <button id="poll-add-option-btn" type="button" class="unban-btn">+ Option</button>
-          <div class="poll-form-actions">
-            <button id="poll-cancel-btn" type="button" class="unban-btn">Abbrechen</button>
-            <button id="poll-submit-btn" type="button" class="unban-btn">Umfrage erstellen</button>
+          <div class="input-bar-wrapper">
+            <div id="emoji-picker" class="emoji-picker hidden"></div>
+            <div id="mention-dropdown" class="mention-dropdown hidden"></div>
+            <div id="poll-form" class="poll-form hidden">
+              <input id="poll-question-input" type="text" placeholder="Frage (z. B. Pizza oder Döner?)" maxlength="200" />
+              <div id="poll-options-list" class="poll-options-list"></div>
+              <button id="poll-add-option-btn" type="button" class="unban-btn">+ Option</button>
+              <div class="poll-form-actions">
+                <button id="poll-cancel-btn" type="button" class="unban-btn">Abbrechen</button>
+                <button id="poll-submit-btn" type="button" class="unban-btn">Umfrage erstellen</button>
+              </div>
+            </div>
+            <div class="input-bar">
+              <button id="image-btn" title="Bild senden" aria-label="Bild senden">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <rect x="3" y="5" width="18" height="14" rx="2"/>
+                  <circle cx="8.5" cy="9.5" r="1.5"/>
+                  <path d="M21 15l-5-5-9 9"/>
+                </svg>
+              </button>
+              <input id="file-input" type="file" accept="image/*" hidden />
+              <button id="mic-btn" title="Sprachnachricht (gedrückt halten)" aria-label="Sprachnachricht aufnehmen">🎙️</button>
+              <button id="poll-btn" title="Umfrage erstellen" aria-label="Umfrage erstellen">📊</button>
+              <button id="emoji-btn" title="Emoji einfügen" aria-label="Emoji einfügen">🙂</button>
+              <textarea id="text-input" rows="1" placeholder="Nachricht schreiben..." autocomplete="off"></textarea>
+              <button id="send-btn" title="Senden" aria-label="Senden">SENDEN</button>
+            </div>
           </div>
         </div>
-        <div class="input-bar">
-          <button id="image-btn" title="Bild senden" aria-label="Bild senden">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8">
-              <rect x="3" y="5" width="18" height="14" rx="2"/>
-              <circle cx="8.5" cy="9.5" r="1.5"/>
-              <path d="M21 15l-5-5-9 9"/>
-            </svg>
-          </button>
-          <input id="file-input" type="file" accept="image/*" hidden />
-          <button id="mic-btn" title="Sprachnachricht (gedrückt halten)" aria-label="Sprachnachricht aufnehmen">🎙️</button>
-          <button id="poll-btn" title="Umfrage erstellen" aria-label="Umfrage erstellen">📊</button>
-          <button id="emoji-btn" title="Emoji einfügen" aria-label="Emoji einfügen">🙂</button>
-          <textarea id="text-input" rows="1" placeholder="Nachricht schreiben..." autocomplete="off"></textarea>
-          <button id="send-btn" title="Senden" aria-label="Senden">SENDEN</button>
-        </div>
+
+        <aside id="checklist-panel" class="checklist-panel hidden">
+          <div class="checklist-panel-header">
+            <span>🛒 Einkaufsliste</span>
+            <span id="checklist-count" class="checklist-count"></span>
+          </div>
+          <div class="checklist-add-form">
+            <input id="checklist-category-input" list="checklist-category-options" placeholder="Rubrik (z. B. Obst)" maxlength="60" />
+            <datalist id="checklist-category-options"></datalist>
+            <div class="checklist-add-row">
+              <input id="checklist-item-input" type="text" placeholder="Artikel hinzufügen..." maxlength="200" />
+              <button id="checklist-add-btn" type="button">+</button>
+            </div>
+          </div>
+          <button id="checklist-clear-done" class="unban-btn checklist-clear-btn">Erledigte löschen</button>
+          <div id="checklist-groups" class="checklist-groups"></div>
+        </aside>
       </div>
     </main>
   </div>

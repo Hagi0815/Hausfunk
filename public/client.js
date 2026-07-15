@@ -5,10 +5,14 @@ const chatScreen = document.getElementById('chat-screen');
 const nameInput = document.getElementById('name-input');
 const joinBtn = document.getElementById('join-btn');
 const messagesEl = document.getElementById('messages');
-const checklistViewEl = document.getElementById('checklist-view');
-const checklistItemsEl = document.getElementById('checklist-items');
+const checklistPanelEl = document.getElementById('checklist-panel');
+const checklistGroupsEl = document.getElementById('checklist-groups');
 const checklistCountEl = document.getElementById('checklist-count');
 const checklistClearDoneBtn = document.getElementById('checklist-clear-done');
+const checklistCategoryInput = document.getElementById('checklist-category-input');
+const checklistCategoryOptions = document.getElementById('checklist-category-options');
+const checklistItemInput = document.getElementById('checklist-item-input');
+const checklistAddBtn = document.getElementById('checklist-add-btn');
 const userListEl = document.getElementById('user-list');
 const textInput = document.getElementById('text-input');
 const sendBtn = document.getElementById('send-btn');
@@ -993,7 +997,7 @@ socket.on('messageEdited', ({ messageId, text, editedAt }) => {
 
 function renderPinned(pinned) {
   currentPinned = pinned;
-  if (!pinned || currentRoomType === 'checklist') {
+  if (!pinned) {
     pinnedBar.classList.add('hidden');
     return;
   }
@@ -1265,53 +1269,81 @@ socket.on('roomChanged', (roomId) => {
 
 function updateRoomTypeUI() {
   const isChecklist = currentRoomType === 'checklist';
-  messagesEl.classList.toggle('hidden', isChecklist);
-  checklistViewEl.classList.toggle('hidden', !isChecklist);
-  if (isChecklist) pinnedBar.classList.add('hidden');
-  searchToggleBtn.classList.toggle('hidden', isChecklist);
-  imageBtn.classList.toggle('hidden', isChecklist);
-  micBtn.classList.toggle('hidden', isChecklist);
-  pollBtn.classList.toggle('hidden', isChecklist);
-  emojiBtn.classList.toggle('hidden', isChecklist);
-  textInput.placeholder = isChecklist ? 'Eintrag hinzufügen...' : 'Nachricht schreiben...';
+  checklistPanelEl.classList.toggle('hidden', !isChecklist);
 }
 
 function renderChecklist(items) {
-  checklistItemsEl.innerHTML = '';
-  const sorted = [...items].sort((a, b) => {
-    if (a.done !== b.done) return a.done ? 1 : -1;
-    return a.ts - b.ts;
+  checklistGroupsEl.innerHTML = '';
+
+  // Rubriken fuer die Autovervollstaendigung sammeln (alphabetisch)
+  const categories = [...new Set(items.map((i) => i.category || 'Sonstiges'))].sort((a, b) => a.localeCompare(b, 'de'));
+  checklistCategoryOptions.innerHTML = '';
+  categories.forEach((cat) => {
+    const opt = document.createElement('option');
+    opt.value = cat;
+    checklistCategoryOptions.appendChild(opt);
   });
-  sorted.forEach((item) => {
-    const li = document.createElement('li');
-    li.className = `checklist-item${item.done ? ' done' : ''}`;
 
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.checked = item.done;
-    checkbox.addEventListener('change', () => socket.emit('checklist:toggle', { itemId: item.id }));
-    li.appendChild(checkbox);
-
-    const textSpan = document.createElement('span');
-    textSpan.className = 'checklist-text';
-    textSpan.textContent = item.text;
-    li.appendChild(textSpan);
-
-    const meta = document.createElement('span');
-    meta.className = 'checklist-meta';
-    meta.textContent = item.addedBy;
-    li.appendChild(meta);
-
-    const removeBtn = document.createElement('button');
-    removeBtn.className = 'checklist-remove-btn';
-    removeBtn.type = 'button';
-    removeBtn.textContent = '✕';
-    removeBtn.title = 'Eintrag entfernen';
-    removeBtn.addEventListener('click', () => socket.emit('checklist:remove', { itemId: item.id }));
-    li.appendChild(removeBtn);
-
-    checklistItemsEl.appendChild(li);
+  // Eintraege nach Rubrik gruppieren
+  const groups = new Map();
+  items.forEach((item) => {
+    const cat = item.category || 'Sonstiges';
+    if (!groups.has(cat)) groups.set(cat, []);
+    groups.get(cat).push(item);
   });
+
+  [...groups.keys()].sort((a, b) => a.localeCompare(b, 'de')).forEach((cat) => {
+    const groupItems = groups.get(cat).sort((a, b) => {
+      if (a.done !== b.done) return a.done ? 1 : -1;
+      return a.ts - b.ts;
+    });
+
+    const groupEl = document.createElement('div');
+    groupEl.className = 'checklist-group';
+
+    const heading = document.createElement('div');
+    heading.className = 'checklist-group-heading';
+    heading.textContent = cat;
+    groupEl.appendChild(heading);
+
+    const list = document.createElement('ul');
+    list.className = 'checklist-items';
+
+    groupItems.forEach((item) => {
+      const li = document.createElement('li');
+      li.className = `checklist-item${item.done ? ' done' : ''}`;
+
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = item.done;
+      checkbox.addEventListener('change', () => socket.emit('checklist:toggle', { itemId: item.id }));
+      li.appendChild(checkbox);
+
+      const textSpan = document.createElement('span');
+      textSpan.className = 'checklist-text';
+      textSpan.textContent = item.text;
+      li.appendChild(textSpan);
+
+      const meta = document.createElement('span');
+      meta.className = 'checklist-meta';
+      meta.textContent = item.addedBy;
+      li.appendChild(meta);
+
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'checklist-remove-btn';
+      removeBtn.type = 'button';
+      removeBtn.textContent = '✕';
+      removeBtn.title = 'Eintrag entfernen';
+      removeBtn.addEventListener('click', () => socket.emit('checklist:remove', { itemId: item.id }));
+      li.appendChild(removeBtn);
+
+      list.appendChild(li);
+    });
+
+    groupEl.appendChild(list);
+    checklistGroupsEl.appendChild(groupEl);
+  });
+
   const doneCount = items.filter((i) => i.done).length;
   checklistCountEl.textContent = items.length
     ? `${items.length - doneCount} offen · ${doneCount} erledigt`
@@ -1327,6 +1359,22 @@ checklistClearDoneBtn.addEventListener('click', () => {
   socket.emit('checklist:clearDone');
 });
 
+function addChecklistItem() {
+  const text = checklistItemInput.value.trim();
+  if (!text) { checklistItemInput.focus(); return; }
+  const category = checklistCategoryInput.value.trim();
+  socket.emit('checklist:add', { text, category });
+  checklistItemInput.value = '';
+  checklistItemInput.focus();
+}
+checklistAddBtn.addEventListener('click', addChecklistItem);
+checklistItemInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); addChecklistItem(); }
+});
+checklistCategoryInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); checklistItemInput.focus(); }
+});
+
 socket.on('typing', ({ name, isTyping }) => {
   if (name === myName) return;
   if (isTyping) typingUsers.add(name); else typingUsers.delete(name);
@@ -1336,12 +1384,8 @@ socket.on('typing', ({ name, isTyping }) => {
 function sendText() {
   const text = textInput.value.trim();
   if (!text) return;
-  if (currentRoomType === 'checklist') {
-    socket.emit('checklist:add', { text });
-  } else {
-    socket.emit('message', { type: 'text', text, replyTo: replyingTo });
-    cancelReply();
-  }
+  socket.emit('message', { type: 'text', text, replyTo: replyingTo });
+  cancelReply();
   textInput.value = '';
   textInput.style.height = 'auto';
   socket.emit('typing', false);

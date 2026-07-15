@@ -1066,9 +1066,10 @@ async function main() {
       if (!room || room.type !== 'checklist') return;
       const text = (payload.text || '').toString().slice(0, 200).trim();
       if (!text) return;
+      const category = (payload.category || '').toString().slice(0, 60).trim() || 'Sonstiges';
       const state = roomState.get(roomId);
       const item = {
-        id: makeId(), text, done: false, addedBy: socket.data.name, ts: Date.now(),
+        id: makeId(), text, category, done: false, addedBy: socket.data.name, ts: Date.now(),
       };
       state.checklist.push(item);
       saveRoomChecklist(roomId);

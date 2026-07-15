@@ -285,17 +285,26 @@ sondern man ist automatisch wieder im Kanal.
 
 ## Checklisten-Kanäle
 
-Kanäle können statt normalem Chat auch eine **geteilte Checkliste** sein –
+Kanäle können zusätzlich eine **Einkaufsliste als Seitenpanel** bekommen –
 „Einkaufsliste" ist das direkt so eingerichtet. In so einem Kanal:
 
-- ersetzt das Textfeld unten den Chat: Eintippen + Enter fügt einen Listenpunkt hinzu
-- jeder kann Punkte abhaken (☑), wieder entfernen (✕), oder mit „Erledigte löschen" aufräumen
-- erledigte Punkte bleiben durchgestrichen sichtbar, bis sie gelöscht werden – nichts geht in einer Nachrichtenflut unter
-- Bild-/Sprachnachrichten-Buttons sind in Checklisten-Kanälen ausgeblendet, da dort nicht sinnvoll
+- teilt sich das Fenster: links weiterhin der ganz normale Chat (Bilder,
+  Sprachnachrichten, Umfragen – alles wie gewohnt nutzbar), rechts ein festes
+  Panel mit der Liste
+- Einträge werden im Panel über ein eigenes kleines Formular hinzugefügt
+  (Rubrik + Artikel + „+"), nicht über das Chat-Textfeld
+- **Rubriken sind frei wählbar** – einfach einen Namen eintippen (z. B. „Obst &
+  Gemüse", „Getränke"); bereits verwendete Rubriken werden beim Tippen als
+  Vorschlag angeboten, ein neuer Name legt sofort eine neue Rubrik an
+- jeder kann Punkte abhaken (☑), wieder entfernen (✕), oder mit „Erledigte
+  löschen" aufräumen – erledigte Punkte bleiben durchgestrichen sichtbar, bis
+  sie gelöscht werden
+- auf schmalen Bildschirmen (Handy) rutscht das Panel unter den Chat statt
+  daneben
 
-DOM kann jeden Kanal per 🛒/💬-Symbol neben dem Kanalnamen zwischen „Chat" und
-„Checkliste" umschalten (auch nachträglich, Verlauf bleibt jeweils erhalten),
-und beim Anlegen eines neuen Kanals gleich als Checkliste festlegen.
+DOM kann jeden Kanal per 🛒/💬-Symbol neben dem Kanalnamen das Panel dazu-
+oder wegschalten (auch nachträglich, nichts geht dabei verloren), und beim
+Anlegen eines neuen Kanals gleich mit Panel anlegen.
 
 ## Umfragen im Chat
 
