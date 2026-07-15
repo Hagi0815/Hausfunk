@@ -43,6 +43,12 @@ const pollSubmitBtn = document.getElementById('poll-submit-btn');
 const emojiPicker = document.getElementById('emoji-picker');
 const mentionDropdown = document.getElementById('mention-dropdown');
 const searchToggleBtn = document.getElementById('search-toggle');
+const weatherToggleBtn = document.getElementById('weather-toggle');
+const weatherCurrentEl = document.getElementById('weather-current');
+const weatherPopover = document.getElementById('weather-popover');
+const weatherPopoverCurrentEl = document.getElementById('weather-popover-current');
+const weatherPopoverHourlyEl = document.getElementById('weather-popover-hourly');
+const weatherPopoverUpdatedEl = document.getElementById('weather-popover-updated');
 const searchBar = document.getElementById('search-bar');
 const searchInput = document.getElementById('search-input');
 const searchCloseBtn = document.getElementById('search-close');
@@ -1340,6 +1346,93 @@ function getItemIcon(text) {
   const match = SORTED_ITEM_ICON_MAP.find(([keyword]) => lower.includes(keyword));
   return match ? match[1] : '🛒';
 }
+
+// --- Wetter im Header (Open-Meteo, Serverstandort) --------------------------
+// WMO-Wettercodes -> Icon + kurze Beschreibung
+const WEATHER_CODE_MAP = {
+  0: ['☀️', 'Klarer Himmel'],
+  1: ['🌤️', 'Überwiegend klar'],
+  2: ['⛅', 'Teilweise bewölkt'],
+  3: ['☁️', 'Bedeckt'],
+  45: ['🌫️', 'Nebel'],
+  48: ['🌫️', 'Reifnebel'],
+  51: ['🌦️', 'Leichter Nieselregen'],
+  53: ['🌦️', 'Nieselregen'],
+  55: ['🌧️', 'Starker Nieselregen'],
+  56: ['🌧️', 'Gefrierender Niesel'],
+  57: ['🌧️', 'Gefrierender Niesel'],
+  61: ['🌦️', 'Leichter Regen'],
+  63: ['🌧️', 'Regen'],
+  65: ['🌧️', 'Starker Regen'],
+  66: ['🌧️', 'Gefrierender Regen'],
+  67: ['🌧️', 'Gefrierender Regen'],
+  71: ['🌨️', 'Leichter Schneefall'],
+  73: ['❄️', 'Schneefall'],
+  75: ['❄️', 'Starker Schneefall'],
+  77: ['🌨️', 'Schneekörner'],
+  80: ['🌦️', 'Regenschauer'],
+  81: ['🌧️', 'Regenschauer'],
+  82: ['⛈️', 'Heftiger Regenschauer'],
+  85: ['🌨️', 'Schneeschauer'],
+  86: ['❄️', 'Schneeschauer'],
+  95: ['⛈️', 'Gewitter'],
+  96: ['⛈️', 'Gewitter mit Hagel'],
+  99: ['⛈️', 'Gewitter mit Hagel'],
+};
+function weatherIcon(code) {
+  return (WEATHER_CODE_MAP[code] || ['🌡️', 'Unbekannt'])[0];
+}
+function weatherLabel(code) {
+  return (WEATHER_CODE_MAP[code] || ['🌡️', 'Unbekannt'])[1];
+}
+function formatTemp(t) {
+  return t === null || t === undefined ? '–' : `${Math.round(t)}°`;
+}
+
+let lastWeatherData = null;
+
+function renderWeather(data) {
+  lastWeatherData = data;
+  weatherCurrentEl.textContent = `${weatherIcon(data.current.code)} ${formatTemp(data.current.temp)}`;
+  weatherToggleBtn.title = weatherLabel(data.current.code);
+
+  weatherPopoverCurrentEl.textContent =
+    `${weatherIcon(data.current.code)} ${weatherLabel(data.current.code)}, ${formatTemp(data.current.temp)} `
+    + `· Heute ${formatTemp(data.daily.max)} / ${formatTemp(data.daily.min)}`;
+
+  weatherPopoverHourlyEl.innerHTML = '';
+  data.hourly.forEach((h) => {
+    const hourEl = document.createElement('div');
+    hourEl.className = 'weather-hour';
+    const time = document.createElement('span');
+    time.textContent = new Date(h.time).toLocaleTimeString('de-DE', { hour: '2-digit' });
+    hourEl.appendChild(time);
+    const icon = document.createElement('span');
+    icon.className = 'weather-hour-icon';
+    icon.textContent = weatherIcon(h.code);
+    hourEl.appendChild(icon);
+    const temp = document.createElement('span');
+    temp.className = 'weather-hour-temp';
+    temp.textContent = formatTemp(h.temp);
+    hourEl.appendChild(temp);
+    weatherPopoverHourlyEl.appendChild(hourEl);
+  });
+
+  weatherPopoverUpdatedEl.textContent = `Aktualisiert ${formatTime(data.updatedAt)}`;
+}
+
+socket.on('weatherUpdate', renderWeather);
+
+weatherToggleBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (!lastWeatherData) return;
+  weatherPopover.classList.toggle('hidden');
+});
+document.addEventListener('click', (e) => {
+  if (!weatherPopover.classList.contains('hidden') && !weatherPopover.contains(e.target) && e.target !== weatherToggleBtn) {
+    weatherPopover.classList.add('hidden');
+  }
+});
 
 function renderChecklist(items, categories) {
   checklistGroupsEl.innerHTML = '';

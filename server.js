@@ -25,6 +25,12 @@ const PUSH_SUBS_FILE = path.join(DATA_DIR, 'push-subscriptions.json');
 const SESSIONS_FILE = path.join(DATA_DIR, 'sessions.json');
 const PRESENCE_LOG_FILE = path.join(DATA_DIR, 'presence-log.json');
 const PRESENCE_LOG_MAX = 300; // wie viele Ereignisse dauerhaft aufgehoben werden
+
+// --- Wetter (Open-Meteo, kein API-Key noetig) -------------------------------
+// Koordinaten des Serverstandorts -- bei Bedarf hier anpassen.
+const WEATHER_LAT = process.env.HAUSFUNK_WEATHER_LAT || '51.31';
+const WEATHER_LON = process.env.HAUSFUNK_WEATHER_LON || '8.06';
+const WEATHER_REFRESH_MS = 30 * 60 * 1000; // alle 30 Minuten neu abrufen
 const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 Tage "angemeldet bleiben"
 const MAX_HISTORY = 500;   // wie viele Nachrichten pro Kanal dauerhaft behalten werden
 const MAX_SEND = 200;      // wie viele beim Beitritt/Wechsel an den Client geschickt werden
@@ -584,6 +590,53 @@ async function main() {
     broadcastToAdmins('presenceLog', presenceLog);
   }
 
+  // --- Wetter fuer den Serverstandort abrufen und an alle verteilen -----------
+  let weatherCache = null;
+
+  async function fetchWeather() {
+    try {
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${WEATHER_LAT}&longitude=${WEATHER_LON}`
+        + '&current=temperature_2m,weather_code'
+        + '&hourly=temperature_2m,weather_code'
+        + '&daily=temperature_2m_max,temperature_2m_min,weather_code'
+        + '&timezone=Europe%2FBerlin&forecast_days=1';
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Open-Meteo Status ${res.status}`);
+      const data = await res.json();
+
+      const nowHour = new Date().getHours();
+      const hourlyTimes = (data.hourly && data.hourly.time) || [];
+      const hourly = hourlyTimes
+        .map((time, i) => ({
+          time,
+          temp: data.hourly.temperature_2m[i],
+          code: data.hourly.weather_code[i],
+        }))
+        .filter((h) => new Date(h.time).getHours() >= nowHour)
+        .filter((_, i) => i % 3 === 0)
+        .slice(0, 6);
+
+      weatherCache = {
+        current: {
+          temp: data.current ? data.current.temperature_2m : null,
+          code: data.current ? data.current.weather_code : null,
+        },
+        daily: {
+          max: data.daily ? data.daily.temperature_2m_max[0] : null,
+          min: data.daily ? data.daily.temperature_2m_min[0] : null,
+          code: data.daily ? data.daily.weather_code[0] : null,
+        },
+        hourly,
+        updatedAt: Date.now(),
+      };
+      io.emit('weatherUpdate', weatherCache);
+    } catch (err) {
+      console.error('Wetter konnte nicht abgerufen werden:', err.message);
+    }
+  }
+  fetchWeather();
+  setInterval(fetchWeather, WEATHER_REFRESH_MS);
+
   function notifyPushForMessage(roomId, msg) {
     const connectedNames = new Set([...onlineUsers.values()].map((u) => u.name.toLowerCase()));
     const room = ROOMS.find((r) => r.id === roomId);
@@ -680,6 +733,7 @@ async function main() {
     socket.emit('globalUsers', [...onlineUsers.values()]);
     socket.emit('avatarMap', avatarsByName);
     socket.emit('protectedNames', getProtectedNamesPublic());
+    if (weatherCache) socket.emit('weatherUpdate', weatherCache);
 
     socket.on('join', (payload) => {
       const raw = typeof payload === 'string' ? { name: payload } : (payload || {});

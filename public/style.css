@@ -608,9 +608,63 @@ html, body {
   line-height: 1;
   cursor: pointer;
   padding: 0;
-  margin-left: auto;
 }
 .header-icon-btn:hover { border-color: var(--accent-dim); color: var(--accent); }
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.weather-btn {
+  width: auto;
+  padding: 0 10px;
+  font-size: 13px;
+  gap: 4px;
+  font-family: var(--font-display);
+}
+
+.weather-popover {
+  position: absolute;
+  top: 52px;
+  right: 16px;
+  width: min(260px, 85vw);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+  z-index: 60;
+}
+.weather-popover.hidden { display: none; }
+.weather-popover-current {
+  font-size: 15px;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+.weather-popover-hourly {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+}
+.weather-hour {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.weather-hour .weather-hour-icon { font-size: 16px; }
+.weather-hour .weather-hour-temp { color: var(--text); font-weight: 600; }
+.weather-popover-updated {
+  margin-top: 10px;
+  font-family: var(--font-display);
+  font-size: 10px;
+  color: var(--text-dim);
+  text-align: right;
+}
 
 .messages {
   flex: 1;

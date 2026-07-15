@@ -343,6 +343,23 @@ zusammengesetzt). Kurze Verbindungsaussetzer (z. B. kurzzeitig schlechtes
 WLAN) erzeugen dabei eine kurze, eigene Sitzung, auch wenn die Person
 gefühlt durchgehend in der App war.
 
+## Wetter im Header
+
+Rechts im Header (neben der Lupe) zeigt ein kleines Symbol das aktuelle
+Wetter am Serverstandort (Standard: Freienohl-Koordinaten, über
+`HAUSFUNK_WEATHER_LAT`/`HAUSFUNK_WEATHER_LON` in `ecosystem.config.js`
+anpassbar). Ein Klick öffnet ein kleines Popover mit:
+
+- Wetterlage in Worten + aktueller Temperatur
+- Tages-Höchst-/Tiefstwert
+- Vorhersage für die kommenden Stunden (alle 3 Stunden)
+
+Die Daten kommen von [Open-Meteo](https://open-meteo.com/) (kostenlos, kein
+API-Key nötig – dieselbe Quelle wie im Network-Dashboard), werden alle 30
+Minuten serverseitig abgerufen und an alle verbundenen Geräte verteilt.
+Schlägt der Abruf mal fehl (z. B. kein Internetzugang gerade), bleibt einfach
+der letzte bekannte Stand stehen bzw. „…", bis der nächste Versuch klappt.
+
 ## Grenzen (bewusst einfach gehalten)
 
 - Keine Zwei-Faktor-Authentifizierung.
