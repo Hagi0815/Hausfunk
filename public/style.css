@@ -739,9 +739,9 @@ html, body {
 }
 #checklist-add-category-btn:hover { border-color: var(--accent-dim); color: var(--accent); }
 .checklist-add-row { display: flex; gap: 6px; }
-.checklist-add-row input { flex: 1; }
-.checklist-amount-input { flex: 0 0 70px !important; }
-.checklist-unit-input { flex: 0 0 90px !important; }
+.checklist-add-row input { flex: 1; min-width: 0; }
+.checklist-amount-input { flex: 1 1 0 !important; min-width: 0; }
+.checklist-unit-input { flex: 1.3 1 0 !important; min-width: 0; }
 #checklist-add-btn {
   flex: none;
   width: 34px;
@@ -815,6 +815,7 @@ html, body {
 .checklist-edit-row { display: flex; gap: 6px; }
 .checklist-edit-row input {
   flex: 1;
+  min-width: 0;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -825,7 +826,7 @@ html, body {
   box-sizing: border-box;
 }
 .checklist-edit-row input:focus { border-color: var(--accent); }
-.checklist-edit-amount, .checklist-edit-unit { flex: 0 0 70px !important; }
+.checklist-edit-amount, .checklist-edit-unit { flex: 1 1 0 !important; min-width: 0; }
 .checklist-item input[type="checkbox"] {
   flex: none;
   width: 17px;
