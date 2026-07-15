@@ -283,16 +283,17 @@ sondern man ist automatisch wieder im Kanal.
   – so kann niemand durch eine bloße Reset-Anfrage ein fremdes Konto
   übernehmen.
 
-## Checklisten-Kanäle
+## Einkaufsliste (eigener Bereich, unabhängig von Kanälen)
 
-Kanäle können zusätzlich eine **Einkaufsliste als Seitenpanel** bekommen –
-„Einkaufsliste" ist das direkt so eingerichtet. In so einem Kanal:
+Die Einkaufsliste ist **kein Kanal und kein Kanaltyp** mehr, sondern ein
+eigener, immer erreichbarer Bereich – „🛒 Einkaufsliste" steht als eigener
+Button unterhalb der Kanalliste in der Sidebar, für jeden sichtbar. Ein Klick
+darauf ersetzt die Chat-Ansicht durch die Liste; ein Klick auf einen Kanal
+bringt wieder zurück zum Chat. Die Liste ist überall gleich – sie hängt an
+keinem bestimmten Kanal und wird nirgends im Chatverlauf mit angezeigt.
 
-- teilt sich das Fenster: links weiterhin der ganz normale Chat (Bilder,
-  Sprachnachrichten, Umfragen – alles wie gewohnt nutzbar), rechts ein festes
-  Panel mit der Liste
-- Einträge werden im Panel über ein eigenes kleines Formular hinzugefügt
-  (Rubrik + Menge + Einheit + Artikel + „+"), nicht über das Chat-Textfeld
+- Einträge werden über ein eigenes kleines Formular hinzugefügt (Rubrik +
+  Menge + Einheit + Artikel + „+")
 - **Menge und Einheit sind optional** – z. B. „2" + „kg" + „Bananen" ergibt
   „2 kg Bananen" in der Liste; Einheit hat eine Vorschlagsliste (Stk, kg, g,
   l, ml, Packung, Dose, Flasche, Bund, Becher), es kann aber auch frei
@@ -309,16 +310,16 @@ Kanäle können zusätzlich eine **Einkaufsliste als Seitenpanel** bekommen –
   Vorschlag angeboten. Über das ✕ neben einer Rubrik-Überschrift lässt sie
   sich entfernen (vorhandene Artikel wandern dann nach „Sonstiges", nichts
   geht verloren)
-- jeder kann Punkte abhaken (☑), **bearbeiten (✏️, ändert Artikelname/Menge/
-  Einheit nachträglich)**, wieder entfernen (✕), oder mit „Erledigte löschen"
+- jeder kann Punkte abhaken (☑), bearbeiten (✏️, ändert Artikelname/Menge/
+  Einheit nachträglich), wieder entfernen (✕), oder mit „Erledigte löschen"
   aufräumen – erledigte Punkte bleiben durchgestrichen sichtbar, bis sie
   gelöscht werden
-- auf schmalen Bildschirmen (Handy) rutscht das Panel unter den Chat statt
-  daneben
 
-DOM kann jeden Kanal per 🛒/💬-Symbol neben dem Kanalnamen das Panel dazu-
-oder wegschalten (auch nachträglich, nichts geht dabei verloren), und beim
-Anlegen eines neuen Kanals gleich mit Panel anlegen.
+Technisch liegt die Liste in `data/shopping-list.json` und
+`data/shopping-list-categories.json`, komplett unabhängig von
+`data/rooms/*`. Wer vorher schon eine kanalgebundene Einkaufsliste hatte,
+bekommt deren Inhalt beim ersten Start automatisch in den neuen, eigenen
+Bereich übernommen – nichts geht verloren.
 
 ## Umfragen im Chat
 

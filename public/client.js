@@ -5,6 +5,8 @@ const chatScreen = document.getElementById('chat-screen');
 const nameInput = document.getElementById('name-input');
 const joinBtn = document.getElementById('join-btn');
 const messagesEl = document.getElementById('messages');
+const chatColumnEl = document.getElementById('chat-column');
+const shoppingNavBtn = document.getElementById('shopping-nav-btn');
 const checklistPanelEl = document.getElementById('checklist-panel');
 const checklistGroupsEl = document.getElementById('checklist-groups');
 const checklistCountEl = document.getElementById('checklist-count');
@@ -90,7 +92,7 @@ const bannedEmptyEl = document.getElementById('banned-empty');
 
 let rooms = [];
 let currentRoom = null;
-let currentRoomType = 'chat';
+let viewMode = 'chat'; // 'chat' | 'shopping' -- Einkaufsliste ist ein eigener Bereich, kein Kanaltyp
 let lastChecklistItems = [];
 let lastChecklistCategories = [];
 let unreadCounts = {}; // roomId -> Anzahl ungelesener Nachrichten
@@ -1165,14 +1167,14 @@ function renderRoomList() {
     li.className = 'room-list-item';
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = `room-toggle-btn${r.id === currentRoom ? ' active' : ''}`;
+    btn.className = `room-toggle-btn${r.id === currentRoom && viewMode === 'chat' ? ' active' : ''}`;
 
     const label = document.createElement('span');
-    label.textContent = r.type === 'checklist' ? `🛒 ${r.label}` : `# ${r.label}`;
+    label.textContent = `# ${r.label}`;
     btn.appendChild(label);
 
     const count = unreadCounts[r.id] || 0;
-    if (count > 0 && r.id !== currentRoom) {
+    if (count > 0 && !(r.id === currentRoom && viewMode === 'chat')) {
       const badge = document.createElement('span');
       badge.className = 'room-badge';
       badge.textContent = count > 99 ? '99+' : String(count);
@@ -1180,7 +1182,7 @@ function renderRoomList() {
     }
 
     btn.addEventListener('click', () => {
-      if (r.id === currentRoom) return;
+      if (r.id === currentRoom && viewMode === 'chat') return;
       socket.emit('switchRoom', { roomId: r.id });
     });
     li.appendChild(btn);
@@ -1198,17 +1200,6 @@ function renderRoomList() {
         }
       });
       li.appendChild(renameBtn);
-
-      const typeBtn = document.createElement('button');
-      typeBtn.className = 'room-admin-btn';
-      typeBtn.textContent = r.type === 'checklist' ? '💬' : '🛒';
-      typeBtn.title = r.type === 'checklist' ? 'Als normalen Chat festlegen' : 'Als Checkliste festlegen';
-      typeBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const newType = r.type === 'checklist' ? 'chat' : 'checklist';
-        socket.emit('admin:setRoomType', { roomId: r.id, type: newType });
-      });
-      li.appendChild(typeBtn);
 
       const deleteBtn = document.createElement('button');
       deleteBtn.className = 'room-admin-btn';
@@ -1239,24 +1230,19 @@ function renderRoomList() {
     addBtn.addEventListener('click', () => {
       const label = prompt('Name des neuen Kanals:');
       if (label && label.trim()) {
-        const asChecklist = confirm('Als Checkliste anlegen (z. B. für Einkaufslisten)?\nAbbrechen = normaler Chat-Kanal.');
-        socket.emit('admin:createRoom', { label: label.trim(), type: asChecklist ? 'checklist' : 'chat' });
+        socket.emit('admin:createRoom', { label: label.trim() });
       }
     });
     addLi.appendChild(addBtn);
     roomListEl.appendChild(addLi);
   }
+
+  shoppingNavBtn.classList.toggle('active', viewMode === 'shopping');
 }
 
 socket.on('rooms', (list) => {
   rooms = list;
   renderRoomList();
-  const active = rooms.find((r) => r.id === currentRoom);
-  const newType = active && active.type === 'checklist' ? 'checklist' : 'chat';
-  if (currentRoom && newType !== currentRoomType) {
-    currentRoomType = newType;
-    updateRoomTypeUI();
-  }
 });
 
 socket.on('unreadCounts', (counts) => {
@@ -1288,12 +1274,12 @@ socket.on('roomChanged', (roomId) => {
     document.addEventListener('touchstart', unlockAudio, { once: true });
   }
   currentRoom = roomId;
+  viewMode = 'chat'; // ein Kanal-Klick zeigt immer den Chat, nie die Einkaufsliste
   const room = rooms.find((r) => r.id === roomId);
-  currentRoomType = room && room.type === 'checklist' ? 'checklist' : 'chat';
   unreadCounts[roomId] = 0;
   roomTitleEl.textContent = `# ${room ? room.label : roomId}`;
   renderRoomList();
-  updateRoomTypeUI();
+  updateViewModeUI();
   // Lokalen Zustand fuer den neuen Kanal zuruecksetzen
   lastDateKey = null;
   cancelReply();
@@ -1304,10 +1290,24 @@ socket.on('roomChanged', (roomId) => {
   sidebar.classList.remove('open');
 });
 
-function updateRoomTypeUI() {
-  const isChecklist = currentRoomType === 'checklist';
-  checklistPanelEl.classList.toggle('hidden', !isChecklist);
+function updateViewModeUI() {
+  const isShopping = viewMode === 'shopping';
+  chatColumnEl.classList.toggle('hidden', isShopping);
+  checklistPanelEl.classList.toggle('hidden', !isShopping);
+  if (isShopping) {
+    roomTitleEl.textContent = '🛒 Einkaufsliste';
+  } else {
+    const room = rooms.find((r) => r.id === currentRoom);
+    roomTitleEl.textContent = `# ${room ? room.label : currentRoom}`;
+  }
 }
+
+shoppingNavBtn.addEventListener('click', () => {
+  viewMode = 'shopping';
+  renderRoomList();
+  updateViewModeUI();
+  sidebar.classList.remove('open');
+});
 
 // --- Passendes Icon zum Artikel (einfache Stichwort-Erkennung) --------------
 const ITEM_ICON_MAP = [
@@ -1622,8 +1622,7 @@ function renderChecklist(items, categories) {
     : 'Noch keine Einträge';
 }
 
-socket.on('checklistUpdate', ({ roomId, items, categories }) => {
-  if (roomId !== currentRoom) return;
+socket.on('shoppingListUpdate', ({ items, categories }) => {
   renderChecklist(items || [], categories || []);
 });
 

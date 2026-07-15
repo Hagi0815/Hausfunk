@@ -17,6 +17,8 @@ const AVATAR_DIR = path.join(UPLOAD_DIR, 'avatars');
 const AVATARS_FILE = path.join(DATA_DIR, 'avatars.json');
 const READ_STATE_FILE = path.join(DATA_DIR, 'read-state.json');
 const ROOMS_CONFIG_FILE = path.join(DATA_DIR, 'rooms-config.json');
+const SHOPPING_LIST_FILE = path.join(DATA_DIR, 'shopping-list.json');
+const SHOPPING_CATEGORIES_FILE = path.join(DATA_DIR, 'shopping-list-categories.json');
 const BANNED_FILE = path.join(DATA_DIR, 'banned.json');
 const PROTECTED_USERS_FILE = path.join(DATA_DIR, 'protected-users.json');
 const ADMIN_CONFIG_FILE = path.join(DATA_DIR, 'admin-config.json');
@@ -54,9 +56,9 @@ function hashPassword(password) {
 // Beim allerersten Start werden diese drei als Ausgangspunkt angelegt, damit
 // bestehende Installationen ihre bisherigen Kanaele unveraendert behalten.
 const DEFAULT_ROOMS = [
-  { id: 'familie', label: 'Familie', type: 'chat' },
-  { id: 'technik', label: 'Technik', type: 'chat' },
-  { id: 'einkaufsliste', label: 'Einkaufsliste', type: 'checklist' },
+  { id: 'familie', label: 'Familie' },
+  { id: 'technik', label: 'Technik' },
+  { id: 'einkaufsliste', label: 'Einkaufsliste' },
 ];
 
 // --- Ordner sicherstellen ----------------------------------------------------
@@ -96,7 +98,8 @@ function loadRoomsConfig() {
   try {
     const parsed = JSON.parse(fs.readFileSync(ROOMS_CONFIG_FILE, 'utf-8'));
     if (Array.isArray(parsed) && parsed.length) {
-      return parsed.map((r) => ({ type: 'chat', ...r }));
+      // "type" stammt evtl. noch aus einer frueheren Version -- wird nicht mehr genutzt
+      return parsed.map(({ type, ...rest }) => rest);
     }
   } catch (err) {
     // fällt durch auf Default
@@ -371,12 +374,6 @@ function roomMessagesFile(roomId) {
 function roomPinnedFile(roomId) {
   return path.join(roomDir(roomId), 'pinned.json');
 }
-function roomChecklistFile(roomId) {
-  return path.join(roomDir(roomId), 'checklist.json');
-}
-function roomChecklistCategoriesFile(roomId) {
-  return path.join(roomDir(roomId), 'checklist-categories.json');
-}
 
 // --- Alten (vor Kanaelen bestehenden) Verlauf einmalig in den Standard-Kanal
 //     uebernehmen, damit kein bestehender Chat verloren geht. ------------------
@@ -395,6 +392,45 @@ function migrateLegacyData() {
 }
 migrateLegacyData();
 
+// --- Einkaufsliste: eigenstaendig, an KEINEN Kanal gebunden -----------------
+// Falls von einer frueheren Version noch eine kanalgebundene Einkaufsliste
+// existiert (data/rooms/einkaufsliste/checklist*.json), einmalig uebernehmen.
+function migrateLegacyShoppingList() {
+  const legacyItemsFile = path.join(ROOMS_DIR, 'einkaufsliste', 'checklist.json');
+  const legacyCatsFile = path.join(ROOMS_DIR, 'einkaufsliste', 'checklist-categories.json');
+  if (fs.existsSync(legacyItemsFile) && !fs.existsSync(SHOPPING_LIST_FILE)) {
+    fs.copyFileSync(legacyItemsFile, SHOPPING_LIST_FILE);
+    console.log('Bestehende Einkaufsliste aus dem alten Kanal-System uebernommen.');
+  }
+  if (fs.existsSync(legacyCatsFile) && !fs.existsSync(SHOPPING_CATEGORIES_FILE)) {
+    fs.copyFileSync(legacyCatsFile, SHOPPING_CATEGORIES_FILE);
+  }
+}
+migrateLegacyShoppingList();
+
+function loadShoppingList() {
+  try {
+    return JSON.parse(fs.readFileSync(SHOPPING_LIST_FILE, 'utf-8'));
+  } catch (err) {
+    return [];
+  }
+}
+function saveShoppingList() {
+  fs.writeFileSync(SHOPPING_LIST_FILE, JSON.stringify(shoppingItems, null, 2));
+}
+function loadShoppingCategories() {
+  try {
+    return JSON.parse(fs.readFileSync(SHOPPING_CATEGORIES_FILE, 'utf-8'));
+  } catch (err) {
+    return [];
+  }
+}
+function saveShoppingCategories() {
+  fs.writeFileSync(SHOPPING_CATEGORIES_FILE, JSON.stringify(shoppingCategories, null, 2));
+}
+let shoppingItems = loadShoppingList();
+let shoppingCategories = loadShoppingCategories();
+
 // --- Zustand pro Kanal laden/speichern ---------------------------------------
 const roomState = new Map(); // roomId -> { messages: [...], pinned: {...}|null }
 
@@ -403,21 +439,13 @@ function loadRoom(roomId) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   const mFile = roomMessagesFile(roomId);
   const pFile = roomPinnedFile(roomId);
-  const cFile = roomChecklistFile(roomId);
-  const catFile = roomChecklistCategoriesFile(roomId);
   if (!fs.existsSync(mFile)) fs.writeFileSync(mFile, '[]');
   if (!fs.existsSync(pFile)) fs.writeFileSync(pFile, 'null');
-  if (!fs.existsSync(cFile)) fs.writeFileSync(cFile, '[]');
-  if (!fs.existsSync(catFile)) fs.writeFileSync(catFile, '[]');
   let messages = [];
   let pinned = null;
-  let checklist = [];
-  let checklistCategories = [];
   try { messages = JSON.parse(fs.readFileSync(mFile, 'utf-8')); } catch (err) { messages = []; }
   try { pinned = JSON.parse(fs.readFileSync(pFile, 'utf-8')); } catch (err) { pinned = null; }
-  try { checklist = JSON.parse(fs.readFileSync(cFile, 'utf-8')); } catch (err) { checklist = []; }
-  try { checklistCategories = JSON.parse(fs.readFileSync(catFile, 'utf-8')); } catch (err) { checklistCategories = []; }
-  return { messages, pinned, checklist, checklistCategories };
+  return { messages, pinned };
 }
 
 function saveRoomMessages(roomId) {
@@ -428,14 +456,6 @@ function saveRoomMessages(roomId) {
 function saveRoomPinned(roomId) {
   const state = roomState.get(roomId);
   fs.writeFileSync(roomPinnedFile(roomId), JSON.stringify(state.pinned));
-}
-function saveRoomChecklist(roomId) {
-  const state = roomState.get(roomId);
-  fs.writeFileSync(roomChecklistFile(roomId), JSON.stringify(state.checklist, null, 2));
-}
-function saveRoomChecklistCategories(roomId) {
-  const state = roomState.get(roomId);
-  fs.writeFileSync(roomChecklistCategoriesFile(roomId), JSON.stringify(state.checklistCategories, null, 2));
 }
 
 ROOMS.forEach((r) => roomState.set(r.id, loadRoom(r.id)));
@@ -707,7 +727,6 @@ async function main() {
     socket.emit('roomChanged', roomId);
     socket.emit('history', state.messages.slice(-MAX_SEND));
     socket.emit('pinnedUpdate', state.pinned);
-    socket.emit('checklistUpdate', { roomId, items: state.checklist, categories: state.checklistCategories });
     socket.emit('unreadCounts', computeUnreadCounts(name, roomId));
     if (role === 'admin') {
       socket.emit('bannedList', bannedNames);
@@ -734,6 +753,7 @@ async function main() {
     socket.emit('avatarMap', avatarsByName);
     socket.emit('protectedNames', getProtectedNamesPublic());
     if (weatherCache) socket.emit('weatherUpdate', weatherCache);
+    socket.emit('shoppingListUpdate', { items: shoppingItems, categories: shoppingCategories });
 
     socket.on('join', (payload) => {
       const raw = typeof payload === 'string' ? { name: payload } : (payload || {});
@@ -897,7 +917,6 @@ async function main() {
       socket.emit('roomChanged', roomId);
       socket.emit('history', state.messages.slice(-MAX_SEND));
       socket.emit('pinnedUpdate', state.pinned);
-      socket.emit('checklistUpdate', { roomId, items: state.checklist, categories: state.checklistCategories });
       socket.emit('unreadCounts', computeUnreadCounts(socket.data.name, roomId));
       broadcastRoomUsers(oldRoom);
       broadcastRoomUsers(roomId);
@@ -1090,9 +1109,8 @@ async function main() {
       if (socket.data.role !== 'admin' || !payload) return;
       const label = (payload.label || '').toString().trim().slice(0, 40);
       if (!label) return;
-      const type = payload.type === 'checklist' ? 'checklist' : 'chat';
       const id = slugifyRoomId(label);
-      ROOMS.push({ id, label, type });
+      ROOMS.push({ id, label });
       saveRoomsConfig();
       roomState.set(id, loadRoom(id));
       io.emit('rooms', ROOMS);
@@ -1105,17 +1123,6 @@ async function main() {
       const label = (payload.label || '').toString().trim().slice(0, 40);
       if (!label) return;
       room.label = label;
-      saveRoomsConfig();
-      io.emit('rooms', ROOMS);
-    });
-
-    socket.on('admin:setRoomType', (payload) => {
-      if (socket.data.role !== 'admin' || !payload) return;
-      const room = ROOMS.find((r) => r.id === payload.roomId);
-      if (!room) return;
-      const type = payload.type === 'checklist' ? 'checklist' : 'chat';
-      if (room.type === type) return;
-      room.type = type;
       saveRoomsConfig();
       io.emit('rooms', ROOMS);
     });
@@ -1142,7 +1149,6 @@ async function main() {
         s.emit('roomChanged', fallbackRoom);
         s.emit('history', state.messages.slice(-MAX_SEND));
         s.emit('pinnedUpdate', state.pinned);
-        s.emit('checklistUpdate', { roomId: fallbackRoom, items: state.checklist, categories: state.checklistCategories });
         s.emit('unreadCounts', computeUnreadCounts(entry.name, fallbackRoom));
       }
       broadcastRoomUsers(fallbackRoom);
@@ -1150,110 +1156,96 @@ async function main() {
       io.emit('rooms', ROOMS);
     });
 
-    // --- Checkliste (fuer Kanaele vom Typ "checklist", z.B. Einkaufsliste) -------
+    // --- Einkaufsliste (eigenstaendig, an keinen Kanal gebunden) ----------------
+    function broadcastShoppingList() {
+      io.emit('shoppingListUpdate', { items: shoppingItems, categories: shoppingCategories });
+    }
+
     socket.on('checklist:add', (payload) => {
-      if (!socket.data.name || !socket.data.room || !payload) return;
-      const roomId = socket.data.room;
-      const room = ROOMS.find((r) => r.id === roomId);
-      if (!room || room.type !== 'checklist') return;
+      if (!socket.data.name || !payload) return;
       const text = (payload.text || '').toString().slice(0, 200).trim();
       if (!text) return;
       const category = (payload.category || '').toString().slice(0, 60).trim() || 'Sonstiges';
       const amount = (payload.amount || '').toString().slice(0, 20).trim();
       const unit = (payload.unit || '').toString().slice(0, 20).trim();
-      const state = roomState.get(roomId);
       const item = {
         id: makeId(), text, category, amount, unit, done: false, addedBy: socket.data.name, ts: Date.now(),
       };
-      state.checklist.push(item);
-      saveRoomChecklist(roomId);
-      if (!state.checklistCategories.some((c) => c.toLowerCase() === category.toLowerCase())) {
-        state.checklistCategories.push(category);
-        saveRoomChecklistCategories(roomId);
+      shoppingItems.push(item);
+      saveShoppingList();
+      if (!shoppingCategories.some((c) => c.toLowerCase() === category.toLowerCase())) {
+        shoppingCategories.push(category);
+        saveShoppingCategories();
       }
-      io.to(roomId).emit('checklistUpdate', { roomId, items: state.checklist, categories: state.checklistCategories });
+      broadcastShoppingList();
     });
 
     socket.on('checklist:addCategory', (payload) => {
-      if (!socket.data.name || !socket.data.room || !payload) return;
-      const roomId = socket.data.room;
-      const room = ROOMS.find((r) => r.id === roomId);
-      if (!room || room.type !== 'checklist') return;
+      if (!socket.data.name || !payload) return;
       const category = (payload.category || '').toString().slice(0, 60).trim();
       if (!category) return;
-      const state = roomState.get(roomId);
-      if (state.checklistCategories.some((c) => c.toLowerCase() === category.toLowerCase())) return;
-      state.checklistCategories.push(category);
-      saveRoomChecklistCategories(roomId);
-      io.to(roomId).emit('checklistUpdate', { roomId, items: state.checklist, categories: state.checklistCategories });
+      if (shoppingCategories.some((c) => c.toLowerCase() === category.toLowerCase())) return;
+      shoppingCategories.push(category);
+      saveShoppingCategories();
+      broadcastShoppingList();
     });
 
     socket.on('checklist:removeCategory', (payload) => {
-      if (!socket.data.name || !socket.data.room || !payload) return;
-      const roomId = socket.data.room;
+      if (!socket.data.name || !payload) return;
       const category = (payload.category || '').toString();
-      const state = roomState.get(roomId);
-      const before = state.checklistCategories.length;
-      state.checklistCategories = state.checklistCategories.filter((c) => c.toLowerCase() !== category.toLowerCase());
-      if (state.checklistCategories.length === before) return;
+      const before = shoppingCategories.length;
+      shoppingCategories = shoppingCategories.filter((c) => c.toLowerCase() !== category.toLowerCase());
+      if (shoppingCategories.length === before) return;
       // Vorhandene Eintraege dieser Rubrik nach "Sonstiges" verschieben statt zu loeschen
-      state.checklist.forEach((it) => {
+      shoppingItems.forEach((it) => {
         if (it.category && it.category.toLowerCase() === category.toLowerCase()) it.category = 'Sonstiges';
       });
-      if (!state.checklistCategories.some((c) => c.toLowerCase() === 'sonstiges') && state.checklist.some((it) => it.category === 'Sonstiges')) {
-        state.checklistCategories.push('Sonstiges');
+      if (!shoppingCategories.some((c) => c.toLowerCase() === 'sonstiges') && shoppingItems.some((it) => it.category === 'Sonstiges')) {
+        shoppingCategories.push('Sonstiges');
       }
-      saveRoomChecklistCategories(roomId);
-      saveRoomChecklist(roomId);
-      io.to(roomId).emit('checklistUpdate', { roomId, items: state.checklist, categories: state.checklistCategories });
+      saveShoppingCategories();
+      saveShoppingList();
+      broadcastShoppingList();
     });
 
     socket.on('checklist:edit', (payload) => {
-      if (!socket.data.name || !socket.data.room || !payload) return;
-      const roomId = socket.data.room;
-      const state = roomState.get(roomId);
-      const item = state.checklist.find((it) => it.id === payload.itemId);
+      if (!socket.data.name || !payload) return;
+      const item = shoppingItems.find((it) => it.id === payload.itemId);
       if (!item) return;
       const text = (payload.text || '').toString().slice(0, 200).trim();
       if (!text) return;
       item.text = text;
       item.amount = (payload.amount || '').toString().slice(0, 20).trim();
       item.unit = (payload.unit || '').toString().slice(0, 20).trim();
-      saveRoomChecklist(roomId);
-      io.to(roomId).emit('checklistUpdate', { roomId, items: state.checklist, categories: state.checklistCategories });
+      saveShoppingList();
+      broadcastShoppingList();
     });
 
     socket.on('checklist:toggle', (payload) => {
-      if (!socket.data.name || !socket.data.room || !payload) return;
-      const roomId = socket.data.room;
-      const state = roomState.get(roomId);
-      const item = state.checklist.find((it) => it.id === payload.itemId);
+      if (!socket.data.name || !payload) return;
+      const item = shoppingItems.find((it) => it.id === payload.itemId);
       if (!item) return;
       item.done = !item.done;
-      saveRoomChecklist(roomId);
-      io.to(roomId).emit('checklistUpdate', { roomId, items: state.checklist, categories: state.checklistCategories });
+      saveShoppingList();
+      broadcastShoppingList();
     });
 
     socket.on('checklist:remove', (payload) => {
-      if (!socket.data.name || !socket.data.room || !payload) return;
-      const roomId = socket.data.room;
-      const state = roomState.get(roomId);
-      const before = state.checklist.length;
-      state.checklist = state.checklist.filter((it) => it.id !== payload.itemId);
-      if (state.checklist.length === before) return;
-      saveRoomChecklist(roomId);
-      io.to(roomId).emit('checklistUpdate', { roomId, items: state.checklist, categories: state.checklistCategories });
+      if (!socket.data.name || !payload) return;
+      const before = shoppingItems.length;
+      shoppingItems = shoppingItems.filter((it) => it.id !== payload.itemId);
+      if (shoppingItems.length === before) return;
+      saveShoppingList();
+      broadcastShoppingList();
     });
 
     socket.on('checklist:clearDone', () => {
-      if (!socket.data.name || !socket.data.room) return;
-      const roomId = socket.data.room;
-      const state = roomState.get(roomId);
-      const before = state.checklist.length;
-      state.checklist = state.checklist.filter((it) => !it.done);
-      if (state.checklist.length === before) return;
-      saveRoomChecklist(roomId);
-      io.to(roomId).emit('checklistUpdate', { roomId, items: state.checklist, categories: state.checklistCategories });
+      if (!socket.data.name) return;
+      const before = shoppingItems.length;
+      shoppingItems = shoppingItems.filter((it) => !it.done);
+      if (shoppingItems.length === before) return;
+      saveShoppingList();
+      broadcastShoppingList();
     });
 
     // --- Admin: Nutzer sperren/entsperren ----------------------------------------

@@ -459,6 +459,26 @@ html, body {
 }
 .room-add-btn:hover { border-color: var(--accent-dim); color: var(--accent); }
 
+.shopping-nav-section { margin-top: -6px; }
+.shopping-nav-btn {
+  width: 100%;
+  text-align: left;
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 14px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+.shopping-nav-btn:hover { border-color: var(--accent-dim); }
+.shopping-nav-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #1a1204;
+  font-weight: 600;
+}
+
 #user-list {
   list-style: none;
   margin: 0;
@@ -680,13 +700,14 @@ html, body {
 .msg.search-hidden { display: none; }
 
 .checklist-panel {
-  width: 300px;
-  flex: none;
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 18px;
-  border-left: 1px solid var(--border);
+  padding: 24px 28px;
   background: var(--panel);
   overflow-y: auto;
 }
@@ -1482,13 +1503,7 @@ html, body {
   .search-bar { padding: 8px 12px; }
   .pinned-bar { padding: 8px 12px; }
   .emoji-picker { left: 12px; width: min(260px, 80vw); }
-  .chat-body { flex-direction: column; }
-  .checklist-panel {
-    width: auto;
-    max-height: 45vh;
-    border-left: none;
-    border-top: 1px solid var(--border);
-  }
+  .checklist-panel { padding: 18px; }
 }
 
 /* Reduced motion */
