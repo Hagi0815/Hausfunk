@@ -292,7 +292,11 @@ Kanäle können zusätzlich eine **Einkaufsliste als Seitenpanel** bekommen –
   Sprachnachrichten, Umfragen – alles wie gewohnt nutzbar), rechts ein festes
   Panel mit der Liste
 - Einträge werden im Panel über ein eigenes kleines Formular hinzugefügt
-  (Rubrik + Artikel + „+"), nicht über das Chat-Textfeld
+  (Rubrik + Menge + Einheit + Artikel + „+"), nicht über das Chat-Textfeld
+- **Menge und Einheit sind optional** – z. B. „2" + „kg" + „Bananen" ergibt
+  „2 kg Bananen" in der Liste; Einheit hat eine Vorschlagsliste (Stk, kg, g,
+  l, ml, Packung, Dose, Flasche, Bund, Becher), es kann aber auch frei
+  eingetippt werden. Ohne Angabe erscheint einfach nur der Artikelname.
 - **Rubriken sind frei wählbar und bleiben dauerhaft bestehen** – einfach einen
   Namen eintippen (z. B. „Obst & Gemüse", „Getränke") und einen Artikel dazu
   hinzufügen, oder über „+ Rubrik" eine leere Rubrik direkt anlegen. Einmal

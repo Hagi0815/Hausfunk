@@ -12,6 +12,8 @@ const checklistClearDoneBtn = document.getElementById('checklist-clear-done');
 const checklistCategoryInput = document.getElementById('checklist-category-input');
 const checklistCategoryOptions = document.getElementById('checklist-category-options');
 const checklistAddCategoryBtn = document.getElementById('checklist-add-category-btn');
+const checklistAmountInput = document.getElementById('checklist-amount-input');
+const checklistUnitInput = document.getElementById('checklist-unit-input');
 const checklistItemInput = document.getElementById('checklist-item-input');
 const checklistAddBtn = document.getElementById('checklist-add-btn');
 const userListEl = document.getElementById('user-list');
@@ -1371,7 +1373,14 @@ function renderChecklist(items, categories) {
 
         const textSpan = document.createElement('span');
         textSpan.className = 'checklist-text';
-        textSpan.textContent = item.text;
+        const qty = [item.amount, item.unit].filter(Boolean).join(' ');
+        if (qty) {
+          const qtyTag = document.createElement('span');
+          qtyTag.className = 'checklist-qty';
+          qtyTag.textContent = qty;
+          textSpan.appendChild(qtyTag);
+        }
+        textSpan.appendChild(document.createTextNode(item.text));
         li.appendChild(textSpan);
 
         const meta = document.createElement('span');
@@ -1415,8 +1424,12 @@ function addChecklistItem() {
   const text = checklistItemInput.value.trim();
   if (!text) { checklistItemInput.focus(); return; }
   const category = checklistCategoryInput.value.trim();
-  socket.emit('checklist:add', { text, category });
+  const amount = checklistAmountInput.value.trim();
+  const unit = checklistUnitInput.value.trim();
+  socket.emit('checklist:add', { text, category, amount, unit });
   checklistItemInput.value = '';
+  checklistAmountInput.value = '';
+  checklistUnitInput.value = '';
   checklistItemInput.focus();
 }
 checklistAddBtn.addEventListener('click', addChecklistItem);
@@ -1424,6 +1437,12 @@ checklistItemInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') { e.preventDefault(); addChecklistItem(); }
 });
 checklistCategoryInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); checklistAmountInput.focus(); }
+});
+checklistAmountInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); checklistUnitInput.focus(); }
+});
+checklistUnitInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') { e.preventDefault(); checklistItemInput.focus(); }
 });
 

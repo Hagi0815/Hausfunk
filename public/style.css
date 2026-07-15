@@ -686,6 +686,8 @@ html, body {
 #checklist-add-category-btn:hover { border-color: var(--accent-dim); color: var(--accent); }
 .checklist-add-row { display: flex; gap: 6px; }
 .checklist-add-row input { flex: 1; }
+.checklist-amount-input { flex: 0 0 70px !important; }
+.checklist-unit-input { flex: 0 0 90px !important; }
 #checklist-add-btn {
   flex: none;
   width: 34px;
@@ -768,6 +770,17 @@ html, body {
 .checklist-item.done .checklist-text {
   text-decoration: line-through;
   color: var(--text-dim);
+}
+.checklist-qty {
+  display: inline-block;
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 5px;
+  margin-right: 6px;
 }
 .checklist-meta {
   flex: none;

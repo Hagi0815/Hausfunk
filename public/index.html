@@ -150,6 +150,22 @@
               <button id="checklist-add-category-btn" type="button" title="Nur Rubrik anlegen">+ Rubrik</button>
             </div>
             <div class="checklist-add-row">
+              <input id="checklist-amount-input" type="text" placeholder="Menge" maxlength="20" class="checklist-amount-input" />
+              <input id="checklist-unit-input" list="checklist-unit-options" placeholder="Einheit" maxlength="20" class="checklist-unit-input" />
+              <datalist id="checklist-unit-options">
+                <option value="Stk"></option>
+                <option value="kg"></option>
+                <option value="g"></option>
+                <option value="l"></option>
+                <option value="ml"></option>
+                <option value="Packung"></option>
+                <option value="Dose"></option>
+                <option value="Flasche"></option>
+                <option value="Bund"></option>
+                <option value="Becher"></option>
+              </datalist>
+            </div>
+            <div class="checklist-add-row">
               <input id="checklist-item-input" type="text" placeholder="Artikel hinzufügen..." maxlength="200" />
               <button id="checklist-add-btn" type="button">+</button>
             </div>
