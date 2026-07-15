@@ -11,6 +11,7 @@ const checklistCountEl = document.getElementById('checklist-count');
 const checklistClearDoneBtn = document.getElementById('checklist-clear-done');
 const checklistCategoryInput = document.getElementById('checklist-category-input');
 const checklistCategoryOptions = document.getElementById('checklist-category-options');
+const checklistAddCategoryBtn = document.getElementById('checklist-add-category-btn');
 const checklistItemInput = document.getElementById('checklist-item-input');
 const checklistAddBtn = document.getElementById('checklist-add-btn');
 const userListEl = document.getElementById('user-list');
@@ -1272,20 +1273,23 @@ function updateRoomTypeUI() {
   checklistPanelEl.classList.toggle('hidden', !isChecklist);
 }
 
-function renderChecklist(items) {
+function renderChecklist(items, categories) {
   checklistGroupsEl.innerHTML = '';
 
-  // Rubriken fuer die Autovervollstaendigung sammeln (alphabetisch)
-  const categories = [...new Set(items.map((i) => i.category || 'Sonstiges'))].sort((a, b) => a.localeCompare(b, 'de'));
+  const known = categories && categories.length ? categories : [];
+  const itemCategories = items.map((i) => i.category || 'Sonstiges');
+  const allCategories = [...new Set([...known, ...itemCategories])];
+  const sortedCategories = [...allCategories].sort((a, b) => a.localeCompare(b, 'de'));
+
   checklistCategoryOptions.innerHTML = '';
-  categories.forEach((cat) => {
+  sortedCategories.forEach((cat) => {
     const opt = document.createElement('option');
     opt.value = cat;
     checklistCategoryOptions.appendChild(opt);
   });
 
-  // Eintraege nach Rubrik gruppieren
   const groups = new Map();
+  sortedCategories.forEach((cat) => groups.set(cat, [])); // leere Rubriken bleiben sichtbar
   items.forEach((item) => {
     const cat = item.category || 'Sonstiges';
     if (!groups.has(cat)) groups.set(cat, []);
@@ -1303,44 +1307,66 @@ function renderChecklist(items) {
 
     const heading = document.createElement('div');
     heading.className = 'checklist-group-heading';
-    heading.textContent = cat;
+    const headingText = document.createElement('span');
+    headingText.textContent = cat;
+    heading.appendChild(headingText);
+
+    const removeCatBtn = document.createElement('button');
+    removeCatBtn.type = 'button';
+    removeCatBtn.className = 'checklist-category-remove';
+    removeCatBtn.textContent = '✕';
+    removeCatBtn.title = 'Rubrik entfernen';
+    removeCatBtn.addEventListener('click', () => {
+      if (confirm(`Rubrik "${cat}" entfernen? Vorhandene Artikel wandern nach "Sonstiges".`)) {
+        socket.emit('checklist:removeCategory', { category: cat });
+      }
+    });
+    heading.appendChild(removeCatBtn);
     groupEl.appendChild(heading);
 
-    const list = document.createElement('ul');
-    list.className = 'checklist-items';
+    if (!groupItems.length) {
+      const empty = document.createElement('div');
+      empty.className = 'checklist-group-empty';
+      empty.textContent = 'Noch keine Artikel';
+      groupEl.appendChild(empty);
+    } else {
+      const list = document.createElement('ul');
+      list.className = 'checklist-items';
 
-    groupItems.forEach((item) => {
-      const li = document.createElement('li');
-      li.className = `checklist-item${item.done ? ' done' : ''}`;
+      groupItems.forEach((item) => {
+        const li = document.createElement('li');
+        li.className = `checklist-item${item.done ? ' done' : ''}`;
 
-      const checkbox = document.createElement('input');
-      checkbox.type = 'checkbox';
-      checkbox.checked = item.done;
-      checkbox.addEventListener('change', () => socket.emit('checklist:toggle', { itemId: item.id }));
-      li.appendChild(checkbox);
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = item.done;
+        checkbox.addEventListener('change', () => socket.emit('checklist:toggle', { itemId: item.id }));
+        li.appendChild(checkbox);
 
-      const textSpan = document.createElement('span');
-      textSpan.className = 'checklist-text';
-      textSpan.textContent = item.text;
-      li.appendChild(textSpan);
+        const textSpan = document.createElement('span');
+        textSpan.className = 'checklist-text';
+        textSpan.textContent = item.text;
+        li.appendChild(textSpan);
 
-      const meta = document.createElement('span');
-      meta.className = 'checklist-meta';
-      meta.textContent = item.addedBy;
-      li.appendChild(meta);
+        const meta = document.createElement('span');
+        meta.className = 'checklist-meta';
+        meta.textContent = item.addedBy;
+        li.appendChild(meta);
 
-      const removeBtn = document.createElement('button');
-      removeBtn.className = 'checklist-remove-btn';
-      removeBtn.type = 'button';
-      removeBtn.textContent = '✕';
-      removeBtn.title = 'Eintrag entfernen';
-      removeBtn.addEventListener('click', () => socket.emit('checklist:remove', { itemId: item.id }));
-      li.appendChild(removeBtn);
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'checklist-remove-btn';
+        removeBtn.type = 'button';
+        removeBtn.textContent = '✕';
+        removeBtn.title = 'Eintrag entfernen';
+        removeBtn.addEventListener('click', () => socket.emit('checklist:remove', { itemId: item.id }));
+        li.appendChild(removeBtn);
 
-      list.appendChild(li);
-    });
+        list.appendChild(li);
+      });
 
-    groupEl.appendChild(list);
+      groupEl.appendChild(list);
+    }
+
     checklistGroupsEl.appendChild(groupEl);
   });
 
@@ -1350,9 +1376,9 @@ function renderChecklist(items) {
     : 'Noch keine Einträge';
 }
 
-socket.on('checklistUpdate', ({ roomId, items }) => {
+socket.on('checklistUpdate', ({ roomId, items, categories }) => {
   if (roomId !== currentRoom) return;
-  renderChecklist(items || []);
+  renderChecklist(items || [], categories || []);
 });
 
 checklistClearDoneBtn.addEventListener('click', () => {
@@ -1373,6 +1399,14 @@ checklistItemInput.addEventListener('keydown', (e) => {
 });
 checklistCategoryInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') { e.preventDefault(); checklistItemInput.focus(); }
+});
+
+checklistAddCategoryBtn.addEventListener('click', () => {
+  const category = checklistCategoryInput.value.trim();
+  if (!category) { checklistCategoryInput.focus(); return; }
+  socket.emit('checklist:addCategory', { category });
+  checklistCategoryInput.value = '';
+  checklistCategoryInput.focus();
 });
 
 socket.on('typing', ({ name, isTyping }) => {

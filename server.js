@@ -352,6 +352,9 @@ function roomPinnedFile(roomId) {
 function roomChecklistFile(roomId) {
   return path.join(roomDir(roomId), 'checklist.json');
 }
+function roomChecklistCategoriesFile(roomId) {
+  return path.join(roomDir(roomId), 'checklist-categories.json');
+}
 
 // --- Alten (vor Kanaelen bestehenden) Verlauf einmalig in den Standard-Kanal
 //     uebernehmen, damit kein bestehender Chat verloren geht. ------------------
@@ -379,16 +382,20 @@ function loadRoom(roomId) {
   const mFile = roomMessagesFile(roomId);
   const pFile = roomPinnedFile(roomId);
   const cFile = roomChecklistFile(roomId);
+  const catFile = roomChecklistCategoriesFile(roomId);
   if (!fs.existsSync(mFile)) fs.writeFileSync(mFile, '[]');
   if (!fs.existsSync(pFile)) fs.writeFileSync(pFile, 'null');
   if (!fs.existsSync(cFile)) fs.writeFileSync(cFile, '[]');
+  if (!fs.existsSync(catFile)) fs.writeFileSync(catFile, '[]');
   let messages = [];
   let pinned = null;
   let checklist = [];
+  let checklistCategories = [];
   try { messages = JSON.parse(fs.readFileSync(mFile, 'utf-8')); } catch (err) { messages = []; }
   try { pinned = JSON.parse(fs.readFileSync(pFile, 'utf-8')); } catch (err) { pinned = null; }
   try { checklist = JSON.parse(fs.readFileSync(cFile, 'utf-8')); } catch (err) { checklist = []; }
-  return { messages, pinned, checklist };
+  try { checklistCategories = JSON.parse(fs.readFileSync(catFile, 'utf-8')); } catch (err) { checklistCategories = []; }
+  return { messages, pinned, checklist, checklistCategories };
 }
 
 function saveRoomMessages(roomId) {
@@ -403,6 +410,10 @@ function saveRoomPinned(roomId) {
 function saveRoomChecklist(roomId) {
   const state = roomState.get(roomId);
   fs.writeFileSync(roomChecklistFile(roomId), JSON.stringify(state.checklist, null, 2));
+}
+function saveRoomChecklistCategories(roomId) {
+  const state = roomState.get(roomId);
+  fs.writeFileSync(roomChecklistCategoriesFile(roomId), JSON.stringify(state.checklistCategories, null, 2));
 }
 
 ROOMS.forEach((r) => roomState.set(r.id, loadRoom(r.id)));
@@ -618,7 +629,7 @@ async function main() {
     socket.emit('roomChanged', roomId);
     socket.emit('history', state.messages.slice(-MAX_SEND));
     socket.emit('pinnedUpdate', state.pinned);
-    socket.emit('checklistUpdate', { roomId, items: state.checklist });
+    socket.emit('checklistUpdate', { roomId, items: state.checklist, categories: state.checklistCategories });
     socket.emit('unreadCounts', computeUnreadCounts(name, roomId));
     if (role === 'admin') {
       socket.emit('bannedList', bannedNames);
@@ -805,7 +816,7 @@ async function main() {
       socket.emit('roomChanged', roomId);
       socket.emit('history', state.messages.slice(-MAX_SEND));
       socket.emit('pinnedUpdate', state.pinned);
-      socket.emit('checklistUpdate', { roomId, items: state.checklist });
+      socket.emit('checklistUpdate', { roomId, items: state.checklist, categories: state.checklistCategories });
       socket.emit('unreadCounts', computeUnreadCounts(socket.data.name, roomId));
       broadcastRoomUsers(oldRoom);
       broadcastRoomUsers(roomId);
@@ -1050,7 +1061,7 @@ async function main() {
         s.emit('roomChanged', fallbackRoom);
         s.emit('history', state.messages.slice(-MAX_SEND));
         s.emit('pinnedUpdate', state.pinned);
-        s.emit('checklistUpdate', { roomId: fallbackRoom, items: state.checklist });
+        s.emit('checklistUpdate', { roomId: fallbackRoom, items: state.checklist, categories: state.checklistCategories });
         s.emit('unreadCounts', computeUnreadCounts(entry.name, fallbackRoom));
       }
       broadcastRoomUsers(fallbackRoom);
@@ -1073,7 +1084,45 @@ async function main() {
       };
       state.checklist.push(item);
       saveRoomChecklist(roomId);
-      io.to(roomId).emit('checklistUpdate', { roomId, items: state.checklist });
+      if (!state.checklistCategories.some((c) => c.toLowerCase() === category.toLowerCase())) {
+        state.checklistCategories.push(category);
+        saveRoomChecklistCategories(roomId);
+      }
+      io.to(roomId).emit('checklistUpdate', { roomId, items: state.checklist, categories: state.checklistCategories });
+    });
+
+    socket.on('checklist:addCategory', (payload) => {
+      if (!socket.data.name || !socket.data.room || !payload) return;
+      const roomId = socket.data.room;
+      const room = ROOMS.find((r) => r.id === roomId);
+      if (!room || room.type !== 'checklist') return;
+      const category = (payload.category || '').toString().slice(0, 60).trim();
+      if (!category) return;
+      const state = roomState.get(roomId);
+      if (state.checklistCategories.some((c) => c.toLowerCase() === category.toLowerCase())) return;
+      state.checklistCategories.push(category);
+      saveRoomChecklistCategories(roomId);
+      io.to(roomId).emit('checklistUpdate', { roomId, items: state.checklist, categories: state.checklistCategories });
+    });
+
+    socket.on('checklist:removeCategory', (payload) => {
+      if (!socket.data.name || !socket.data.room || !payload) return;
+      const roomId = socket.data.room;
+      const category = (payload.category || '').toString();
+      const state = roomState.get(roomId);
+      const before = state.checklistCategories.length;
+      state.checklistCategories = state.checklistCategories.filter((c) => c.toLowerCase() !== category.toLowerCase());
+      if (state.checklistCategories.length === before) return;
+      // Vorhandene Eintraege dieser Rubrik nach "Sonstiges" verschieben statt zu loeschen
+      state.checklist.forEach((it) => {
+        if (it.category && it.category.toLowerCase() === category.toLowerCase()) it.category = 'Sonstiges';
+      });
+      if (!state.checklistCategories.some((c) => c.toLowerCase() === 'sonstiges') && state.checklist.some((it) => it.category === 'Sonstiges')) {
+        state.checklistCategories.push('Sonstiges');
+      }
+      saveRoomChecklistCategories(roomId);
+      saveRoomChecklist(roomId);
+      io.to(roomId).emit('checklistUpdate', { roomId, items: state.checklist, categories: state.checklistCategories });
     });
 
     socket.on('checklist:toggle', (payload) => {
@@ -1084,7 +1133,7 @@ async function main() {
       if (!item) return;
       item.done = !item.done;
       saveRoomChecklist(roomId);
-      io.to(roomId).emit('checklistUpdate', { roomId, items: state.checklist });
+      io.to(roomId).emit('checklistUpdate', { roomId, items: state.checklist, categories: state.checklistCategories });
     });
 
     socket.on('checklist:remove', (payload) => {
@@ -1095,7 +1144,7 @@ async function main() {
       state.checklist = state.checklist.filter((it) => it.id !== payload.itemId);
       if (state.checklist.length === before) return;
       saveRoomChecklist(roomId);
-      io.to(roomId).emit('checklistUpdate', { roomId, items: state.checklist });
+      io.to(roomId).emit('checklistUpdate', { roomId, items: state.checklist, categories: state.checklistCategories });
     });
 
     socket.on('checklist:clearDone', () => {
@@ -1106,7 +1155,7 @@ async function main() {
       state.checklist = state.checklist.filter((it) => !it.done);
       if (state.checklist.length === before) return;
       saveRoomChecklist(roomId);
-      io.to(roomId).emit('checklistUpdate', { roomId, items: state.checklist });
+      io.to(roomId).emit('checklistUpdate', { roomId, items: state.checklist, categories: state.checklistCategories });
     });
 
     // --- Admin: Nutzer sperren/entsperren ----------------------------------------

@@ -293,9 +293,14 @@ Kanäle können zusätzlich eine **Einkaufsliste als Seitenpanel** bekommen –
   Panel mit der Liste
 - Einträge werden im Panel über ein eigenes kleines Formular hinzugefügt
   (Rubrik + Artikel + „+"), nicht über das Chat-Textfeld
-- **Rubriken sind frei wählbar** – einfach einen Namen eintippen (z. B. „Obst &
-  Gemüse", „Getränke"); bereits verwendete Rubriken werden beim Tippen als
-  Vorschlag angeboten, ein neuer Name legt sofort eine neue Rubrik an
+- **Rubriken sind frei wählbar und bleiben dauerhaft bestehen** – einfach einen
+  Namen eintippen (z. B. „Obst & Gemüse", „Getränke") und einen Artikel dazu
+  hinzufügen, oder über „+ Rubrik" eine leere Rubrik direkt anlegen. Einmal
+  angelegte Rubriken bleiben auch sichtbar, wenn gerade kein Artikel drin ist
+  (ähnlich wie bei Bring) – bereits verwendete Rubriken werden beim Tippen als
+  Vorschlag angeboten. Über das ✕ neben einer Rubrik-Überschrift lässt sie
+  sich entfernen (vorhandene Artikel wandern dann nach „Sonstiges", nichts
+  geht verloren)
 - jeder kann Punkte abhaken (☑), wieder entfernen (✕), oder mit „Erledigte
   löschen" aufräumen – erledigte Punkte bleiben durchgestrichen sichtbar, bis
   sie gelöscht werden

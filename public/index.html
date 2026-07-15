@@ -144,8 +144,11 @@
             <span id="checklist-count" class="checklist-count"></span>
           </div>
           <div class="checklist-add-form">
-            <input id="checklist-category-input" list="checklist-category-options" placeholder="Rubrik (z. B. Obst)" maxlength="60" />
-            <datalist id="checklist-category-options"></datalist>
+            <div class="checklist-category-row">
+              <input id="checklist-category-input" list="checklist-category-options" placeholder="Rubrik (z. B. Obst)" maxlength="60" />
+              <datalist id="checklist-category-options"></datalist>
+              <button id="checklist-add-category-btn" type="button" title="Nur Rubrik anlegen">+ Rubrik</button>
+            </div>
             <div class="checklist-add-row">
               <input id="checklist-item-input" type="text" placeholder="Artikel hinzufügen..." maxlength="200" />
               <button id="checklist-add-btn" type="button">+</button>
