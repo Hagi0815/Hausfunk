@@ -1301,6 +1301,46 @@ function updateRoomTypeUI() {
   checklistPanelEl.classList.toggle('hidden', !isChecklist);
 }
 
+// --- Passendes Icon zum Artikel (einfache Stichwort-Erkennung) --------------
+const ITEM_ICON_MAP = [
+  ['banane', '🍌'], ['apfel', '🍎'], ['orange', '🍊'], ['mandarine', '🍊'],
+  ['traube', '🍇'], ['erdbeere', '🍓'], ['himbeere', '🍓'], ['zitrone', '🍋'],
+  ['limette', '🍋'], ['birne', '🍐'], ['ananas', '🍍'], ['wassermelone', '🍉'],
+  ['melone', '🍈'], ['kirsche', '🍒'], ['pfirsich', '🍑'], ['avocado', '🥑'],
+  ['kiwi', '🥝'], ['mango', '🥭'], ['kokosnuss', '🥥'], ['kokos', '🥥'],
+  ['tomate', '🍅'], ['karotte', '🥕'], ['möhre', '🥕'], ['moehre', '🥕'],
+  ['kartoffel', '🥔'], ['zwiebel', '🧅'], ['knoblauch', '🧄'], ['paprika', '🫑'],
+  ['salat', '🥬'], ['brokkoli', '🥦'], ['blumenkohl', '🥦'], ['mais', '🌽'],
+  ['gurke', '🥒'], ['pilz', '🍄'], ['champignon', '🍄'], ['aubergine', '🍆'],
+  ['erdnuss', '🥜'], ['nuss', '🥜'], ['milch', '🥛'], ['käse', '🧀'],
+  ['kaese', '🧀'], ['butter', '🧈'], ['joghurt', '🥣'], ['jogurt', '🥣'],
+  ['sahne', '🥛'], ['quark', '🥣'], ['ei', '🥚'], ['brot', '🍞'],
+  ['brötchen', '🥐'], ['broetchen', '🥐'], ['croissant', '🥐'], ['kuchen', '🍰'],
+  ['torte', '🎂'], ['waffel', '🧇'], ['pfannkuchen', '🥞'], ['wasser', '💧'],
+  ['saft', '🧃'], ['bier', '🍺'], ['wein', '🍷'], ['sekt', '🍾'],
+  ['kaffee', '☕'], ['tee', '🍵'], ['cola', '🥤'], ['limo', '🥤'],
+  ['fleisch', '🥩'], ['steak', '🥩'], ['hähnchen', '🍗'], ['haehnchen', '🍗'],
+  ['hühnchen', '🍗'], ['huehnchen', '🍗'], ['huhn', '🍗'], ['wurst', '🌭'],
+  ['schinken', '🥓'], ['speck', '🥓'], ['fisch', '🐟'], ['lachs', '🐟'],
+  ['garnele', '🦐'], ['schokolade', '🍫'], ['bonbon', '🍬'], ['lolli', '🍭'],
+  ['keks', '🍪'], ['chips', '🍟'], ['pommes', '🍟'], ['eis', '🍦'],
+  ['popcorn', '🍿'], ['nudel', '🍝'], ['spaghetti', '🍝'], ['pasta', '🍝'],
+  ['reis', '🍚'], ['pizza', '🍕'], ['burger', '🍔'], ['döner', '🌯'],
+  ['doener', '🌯'], ['honig', '🍯'], ['marmelade', '🍯'], ['salz', '🧂'],
+  ['pfeffer', '🧂'], ['zucker', '🧂'], ['gewürz', '🧂'], ['gewuerz', '🧂'],
+  ['mehl', '🌾'], ['müsli', '🥣'], ['muesli', '🥣'], ['cerealien', '🥣'],
+  ['toilettenpapier', '🧻'], ['klopapier', '🧻'], ['küchenrolle', '🧻'],
+  ['seife', '🧼'], ['waschmittel', '🧴'], ['shampoo', '🧴'], ['zahnpasta', '🪥'],
+  ['kerze', '🕯️'], ['batterie', '🔋'], ['blume', '💐'], ['tulpe', '🌷'],
+];
+const SORTED_ITEM_ICON_MAP = [...ITEM_ICON_MAP].sort((a, b) => b[0].length - a[0].length);
+
+function getItemIcon(text) {
+  const lower = text.toLowerCase();
+  const match = SORTED_ITEM_ICON_MAP.find(([keyword]) => lower.includes(keyword));
+  return match ? match[1] : '🛒';
+}
+
 function renderChecklist(items, categories) {
   checklistGroupsEl.innerHTML = '';
 
@@ -1373,6 +1413,10 @@ function renderChecklist(items, categories) {
 
         const textSpan = document.createElement('span');
         textSpan.className = 'checklist-text';
+        const iconTag = document.createElement('span');
+        iconTag.className = 'checklist-icon';
+        iconTag.textContent = getItemIcon(item.text);
+        textSpan.appendChild(iconTag);
         const qty = [item.amount, item.unit].filter(Boolean).join(' ');
         if (qty) {
           const qtyTag = document.createElement('span');
@@ -1976,27 +2020,60 @@ function formatDateTime(ts) {
   });
 }
 
+function pairPresenceSessions(list) {
+  const sorted = [...list].sort((a, b) => a.ts - b.ts);
+  const openByName = new Map(); // name -> Zeitpunkt des letzten "online" ohne bekanntes "offline"
+  const sessions = [];
+
+  sorted.forEach((entry) => {
+    if (entry.event === 'online') {
+      openByName.set(entry.name, entry.ts);
+    } else if (entry.event === 'offline') {
+      const startTs = openByName.get(entry.name);
+      sessions.push({ name: entry.name, start: startTs ?? null, end: entry.ts });
+      openByName.delete(entry.name);
+    }
+  });
+  // Wer noch online ist (kein passendes "offline" bisher) als laufende Sitzung ergaenzen
+  openByName.forEach((ts, name) => {
+    sessions.push({ name, start: ts, end: null });
+  });
+
+  return sessions.sort((a, b) => (b.end ?? b.start) - (a.end ?? a.start));
+}
+
 function renderPresenceLog(list) {
   presenceLogListEl.innerHTML = '';
-  if (!list.length) {
+  const sessions = pairPresenceSessions(list);
+  if (!sessions.length) {
     presenceLogEmptyEl.classList.remove('hidden');
     return;
   }
   presenceLogEmptyEl.classList.add('hidden');
-  [...list].reverse().slice(0, 100).forEach((entry) => {
+  sessions.slice(0, 100).forEach((session) => {
     const li = document.createElement('li');
     li.className = 'presence-log-item';
 
+    const isOngoing = session.end === null;
     const label = document.createElement('span');
     label.className = 'presence-log-name';
-    label.textContent = `${entry.event === 'online' ? '🟢' : '⚪'} ${entry.name}`;
+    label.textContent = `${isOngoing ? '🟢' : '⚪'} ${session.name}`;
     li.appendChild(label);
 
-    const timeLabel = document.createElement('span');
-    timeLabel.className = 'presence-log-time';
-    timeLabel.title = formatDateTime(entry.ts);
-    timeLabel.textContent = timeAgo(entry.ts);
-    li.appendChild(timeLabel);
+    const detail = document.createElement('span');
+    detail.className = 'presence-log-time';
+    if (session.start && session.end) {
+      const durationMin = Math.max(1, Math.round((session.end - session.start) / 60000));
+      detail.title = `${formatDateTime(session.start)} – ${formatDateTime(session.end)}`;
+      detail.textContent = `${formatTime(session.start)}–${formatTime(session.end)} · ${durationMin} Min.`;
+    } else if (isOngoing) {
+      detail.title = `Seit ${formatDateTime(session.start)}`;
+      detail.textContent = `seit ${formatTime(session.start)} · online`;
+    } else {
+      detail.title = formatDateTime(session.end);
+      detail.textContent = `bis ${formatTime(session.end)}`;
+    }
+    li.appendChild(detail);
 
     presenceLogListEl.appendChild(li);
   });

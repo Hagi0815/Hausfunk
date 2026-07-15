@@ -782,6 +782,7 @@ html, body {
   border-radius: 5px;
   margin-right: 6px;
 }
+.checklist-icon { margin-right: 6px; }
 .checklist-meta {
   flex: none;
   font-family: var(--font-display);

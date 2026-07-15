@@ -297,6 +297,10 @@ Kanäle können zusätzlich eine **Einkaufsliste als Seitenpanel** bekommen –
   „2 kg Bananen" in der Liste; Einheit hat eine Vorschlagsliste (Stk, kg, g,
   l, ml, Packung, Dose, Flasche, Bund, Becher), es kann aber auch frei
   eingetippt werden. Ohne Angabe erscheint einfach nur der Artikelname.
+- Jeder Artikel bekommt automatisch ein passendes Icon anhand des Namens
+  (z. B. „Bananen" → 🍌, „Milch" → 🥛, „Käse" → 🧀) – über eine feste
+  Stichwortliste, kein KI-Aufruf. Unbekannte Artikel bekommen ein
+  Einkaufswagen-Symbol 🛒.
 - **Rubriken sind frei wählbar und bleiben dauerhaft bestehen** – einfach einen
   Namen eintippen (z. B. „Obst & Gemüse", „Getränke") und einen Artikel dazu
   hinzufügen, oder über „+ Rubrik" eine leere Rubrik direkt anlegen. Einmal
@@ -326,13 +330,18 @@ vorherige wird automatisch ersetzt, keine Doppelabstimmung möglich).
 
 ## Online-Verlauf (nur für DOM)
 
-Im Admin-Panel (🛡) zeigt „Online-Verlauf" die letzten Anmeldungen und
-Abmeldungen aller Namen (🟢 online / ⚪ offline), neueste zuerst, mit
-relativer Zeit (z. B. „vor 5 Min.", volles Datum beim Draufhalten). Es werden
-die letzten 300 Ereignisse dauerhaft in `data/presence-log.json` gespeichert.
-Kurze Verbindungsaussetzer (z. B. kurzzeitig schlechtes WLAN) erzeugen dabei
-ein knappes Offline/Online-Pärchen, auch wenn die Person durchgehend in der
-App war.
+Im Admin-Panel (🛡) zeigt „Online-Verlauf" für jeden Namen die einzelnen
+Sitzungen mit Ein- und Ausloggzeit, neueste zuerst:
+
+- abgeschlossene Sitzung: z. B. „⚪ Tina · 14:32–15:10 · 38 Min."
+- noch laufende Sitzung: z. B. „🟢 DOM · seit 16:02 · online"
+- beim Draufhalten (Tooltip) steht das volle Datum dabei
+
+Es werden die letzten 300 Ein-/Ausloggereignisse dauerhaft in
+`data/presence-log.json` gespeichert (daraus werden die Sitzungen live
+zusammengesetzt). Kurze Verbindungsaussetzer (z. B. kurzzeitig schlechtes
+WLAN) erzeugen dabei eine kurze, eigene Sitzung, auch wenn die Person
+gefühlt durchgehend in der App war.
 
 ## Grenzen (bewusst einfach gehalten)
 
