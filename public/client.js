@@ -91,6 +91,8 @@ const bannedEmptyEl = document.getElementById('banned-empty');
 let rooms = [];
 let currentRoom = null;
 let currentRoomType = 'chat';
+let lastChecklistItems = [];
+let lastChecklistCategories = [];
 let unreadCounts = {}; // roomId -> Anzahl ungelesener Nachrichten
 let myRole = 'user';
 let hasJoined = false;
@@ -1434,7 +1436,71 @@ document.addEventListener('click', (e) => {
   }
 });
 
+function startEditChecklistItem(li, item) {
+  li.innerHTML = '';
+  li.classList.add('checklist-item-editing');
+
+  const row1 = document.createElement('div');
+  row1.className = 'checklist-edit-row';
+
+  const amountInput = document.createElement('input');
+  amountInput.type = 'text';
+  amountInput.value = item.amount || '';
+  amountInput.placeholder = 'Menge';
+  amountInput.className = 'checklist-edit-amount';
+  row1.appendChild(amountInput);
+
+  const unitInput = document.createElement('input');
+  unitInput.type = 'text';
+  unitInput.value = item.unit || '';
+  unitInput.placeholder = 'Einheit';
+  unitInput.className = 'checklist-edit-unit';
+  row1.appendChild(unitInput);
+
+  const row2 = document.createElement('div');
+  row2.className = 'checklist-edit-row';
+
+  const textInput = document.createElement('input');
+  textInput.type = 'text';
+  textInput.value = item.text;
+  textInput.className = 'checklist-edit-text';
+  row2.appendChild(textInput);
+
+  const actions = document.createElement('div');
+  actions.className = 'checklist-edit-row';
+
+  const saveBtn = document.createElement('button');
+  saveBtn.type = 'button';
+  saveBtn.className = 'unban-btn';
+  saveBtn.textContent = 'Speichern';
+  saveBtn.addEventListener('click', () => {
+    const newText = textInput.value.trim();
+    if (!newText) { textInput.focus(); return; }
+    socket.emit('checklist:edit', {
+      itemId: item.id,
+      text: newText,
+      amount: amountInput.value.trim(),
+      unit: unitInput.value.trim(),
+    });
+  });
+  actions.appendChild(saveBtn);
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.className = 'unban-btn';
+  cancelBtn.textContent = 'Abbrechen';
+  cancelBtn.addEventListener('click', () => renderChecklist(lastChecklistItems, lastChecklistCategories));
+  actions.appendChild(cancelBtn);
+
+  li.appendChild(row1);
+  li.appendChild(row2);
+  li.appendChild(actions);
+  textInput.focus();
+}
+
 function renderChecklist(items, categories) {
+  lastChecklistItems = items;
+  lastChecklistCategories = categories;
   checklistGroupsEl.innerHTML = '';
 
   const known = categories && categories.length ? categories : [];
@@ -1524,6 +1590,14 @@ function renderChecklist(items, categories) {
         meta.className = 'checklist-meta';
         meta.textContent = item.addedBy;
         li.appendChild(meta);
+
+        const editBtn = document.createElement('button');
+        editBtn.className = 'checklist-remove-btn';
+        editBtn.type = 'button';
+        editBtn.textContent = '✏️';
+        editBtn.title = 'Eintrag bearbeiten';
+        editBtn.addEventListener('click', () => startEditChecklistItem(li, item));
+        li.appendChild(editBtn);
 
         const removeBtn = document.createElement('button');
         removeBtn.className = 'checklist-remove-btn';

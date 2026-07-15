@@ -309,9 +309,10 @@ Kanäle können zusätzlich eine **Einkaufsliste als Seitenpanel** bekommen –
   Vorschlag angeboten. Über das ✕ neben einer Rubrik-Überschrift lässt sie
   sich entfernen (vorhandene Artikel wandern dann nach „Sonstiges", nichts
   geht verloren)
-- jeder kann Punkte abhaken (☑), wieder entfernen (✕), oder mit „Erledigte
-  löschen" aufräumen – erledigte Punkte bleiben durchgestrichen sichtbar, bis
-  sie gelöscht werden
+- jeder kann Punkte abhaken (☑), **bearbeiten (✏️, ändert Artikelname/Menge/
+  Einheit nachträglich)**, wieder entfernen (✕), oder mit „Erledigte löschen"
+  aufräumen – erledigte Punkte bleiben durchgestrichen sichtbar, bis sie
+  gelöscht werden
 - auf schmalen Bildschirmen (Handy) rutscht das Panel unter den Chat statt
   daneben
 

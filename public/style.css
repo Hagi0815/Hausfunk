@@ -807,6 +807,25 @@ html, body {
   border: 1px solid var(--border);
   border-radius: 8px;
 }
+.checklist-item-editing {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+.checklist-edit-row { display: flex; gap: 6px; }
+.checklist-edit-row input {
+  flex: 1;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 12px;
+  padding: 6px 8px;
+  outline: none;
+  box-sizing: border-box;
+}
+.checklist-edit-row input:focus { border-color: var(--accent); }
+.checklist-edit-amount, .checklist-edit-unit { flex: 0 0 70px !important; }
 .checklist-item input[type="checkbox"] {
   flex: none;
   width: 17px;

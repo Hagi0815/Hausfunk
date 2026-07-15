@@ -1208,6 +1208,21 @@ async function main() {
       io.to(roomId).emit('checklistUpdate', { roomId, items: state.checklist, categories: state.checklistCategories });
     });
 
+    socket.on('checklist:edit', (payload) => {
+      if (!socket.data.name || !socket.data.room || !payload) return;
+      const roomId = socket.data.room;
+      const state = roomState.get(roomId);
+      const item = state.checklist.find((it) => it.id === payload.itemId);
+      if (!item) return;
+      const text = (payload.text || '').toString().slice(0, 200).trim();
+      if (!text) return;
+      item.text = text;
+      item.amount = (payload.amount || '').toString().slice(0, 20).trim();
+      item.unit = (payload.unit || '').toString().slice(0, 20).trim();
+      saveRoomChecklist(roomId);
+      io.to(roomId).emit('checklistUpdate', { roomId, items: state.checklist, categories: state.checklistCategories });
+    });
+
     socket.on('checklist:toggle', (payload) => {
       if (!socket.data.name || !socket.data.room || !payload) return;
       const roomId = socket.data.room;
