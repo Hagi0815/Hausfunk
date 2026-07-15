@@ -386,10 +386,12 @@ updateAvatarPreview();
 avatarUploadBtn.addEventListener('click', () => {
   const name = nameInput.value.trim();
   if (!name) {
+    joinErrorEl.textContent = 'Bitte zuerst deinen Namen eingeben, dann kannst du ein Profilbild hochladen.';
+    joinErrorEl.classList.remove('hidden');
     nameInput.focus();
-    nameInput.placeholder = 'Erst Namen eingeben...';
     return;
   }
+  joinErrorEl.classList.add('hidden');
   avatarFileInput.click();
 });
 
@@ -403,6 +405,7 @@ avatarFileInput.addEventListener('change', async () => {
   formData.append('avatar', file);
   formData.append('name', name);
   avatarUploadBtn.textContent = '⏳ Lädt...';
+  joinErrorEl.classList.add('hidden');
   try {
     const res = await fetch('/upload-avatar', { method: 'POST', body: formData });
     const data = await res.json();
@@ -410,9 +413,13 @@ avatarFileInput.addEventListener('change', async () => {
       myAvatarType = 'photo';
       myAvatarValue = data.url;
       updateAvatarPreview();
+    } else {
+      joinErrorEl.textContent = data.error || 'Profilbild konnte nicht hochgeladen werden.';
+      joinErrorEl.classList.remove('hidden');
     }
   } catch (err) {
-    // Upload fehlgeschlagen, Auswahl bleibt wie zuvor
+    joinErrorEl.textContent = 'Profilbild konnte nicht hochgeladen werden (Verbindungsfehler). Bitte nochmal versuchen.';
+    joinErrorEl.classList.remove('hidden');
   }
   avatarUploadBtn.textContent = '📷 Eigenes Bild';
 });
