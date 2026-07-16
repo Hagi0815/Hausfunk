@@ -638,9 +638,11 @@ html, body {
   transform-origin: left center;
 }
 .room-title-icon-img:hover {
-  transform: scale(3.5);
+  transform: scale(8);
   position: relative;
   z-index: 20;
+  background: #fff;
+  object-fit: contain;
   border: 1px solid var(--border);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
 }
@@ -655,9 +657,11 @@ html, body {
   transform-origin: left center;
 }
 .room-icon-img:hover {
-  transform: scale(4);
+  transform: scale(9);
   position: relative;
   z-index: 20;
+  background: #fff;
+  object-fit: contain;
   border: 1px solid var(--border);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
 }
