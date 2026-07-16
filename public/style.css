@@ -425,7 +425,9 @@ html, body {
   display: flex;
   align-items: center;
   gap: 2px;
+  position: relative;
 }
+.room-list-item:hover { z-index: 30; }
 .room-toggle-btn {
   flex: 1;
   min-width: 0;
@@ -618,6 +620,8 @@ html, body {
   gap: 14px;
   border-bottom: 1px solid var(--border);
   padding: 10px 16px;
+  position: relative;
+  z-index: 15;
 }
 .room-title {
   font-family: var(--font-display);
