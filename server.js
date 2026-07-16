@@ -19,6 +19,7 @@ const READ_STATE_FILE = path.join(DATA_DIR, 'read-state.json');
 const ROOMS_CONFIG_FILE = path.join(DATA_DIR, 'rooms-config.json');
 const SHOPPING_LIST_FILE = path.join(DATA_DIR, 'shopping-list.json');
 const SHOPPING_CATEGORIES_FILE = path.join(DATA_DIR, 'shopping-list-categories.json');
+const BIRTHDAYS_FILE = path.join(DATA_DIR, 'birthdays.json');
 const BANNED_FILE = path.join(DATA_DIR, 'banned.json');
 const PROTECTED_USERS_FILE = path.join(DATA_DIR, 'protected-users.json');
 const ADMIN_CONFIG_FILE = path.join(DATA_DIR, 'admin-config.json');
@@ -33,6 +34,11 @@ const PRESENCE_LOG_MAX = 300; // wie viele Ereignisse dauerhaft aufgehoben werde
 const WEATHER_LAT = process.env.HAUSFUNK_WEATHER_LAT || '51.31';
 const WEATHER_LON = process.env.HAUSFUNK_WEATHER_LON || '8.06';
 const WEATHER_REFRESH_MS = 30 * 60 * 1000; // alle 30 Minuten neu abrufen
+
+// --- GIF-Suche (Tenor) -------------------------------------------------------
+// Kostenloser API-Key: https://tenor.com/gifapi/documentation -- ohne Key
+// bleibt die GIF-Suche einfach deaktiviert (kein Absturz, klare Fehlermeldung).
+const TENOR_API_KEY = process.env.HAUSFUNK_TENOR_KEY || null;
 const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 Tage "angemeldet bleiben"
 const MAX_HISTORY = 500;   // wie viele Nachrichten pro Kanal dauerhaft behalten werden
 const MAX_SEND = 200;      // wie viele beim Beitritt/Wechsel an den Client geschickt werden
@@ -73,6 +79,7 @@ if (!fs.existsSync(ADMIN_CONFIG_FILE)) {
 }
 if (!fs.existsSync(PUSH_SUBS_FILE)) fs.writeFileSync(PUSH_SUBS_FILE, '{}');
 if (!fs.existsSync(SESSIONS_FILE)) fs.writeFileSync(SESSIONS_FILE, '{}');
+if (!fs.existsSync(BIRTHDAYS_FILE)) fs.writeFileSync(BIRTHDAYS_FILE, '[]');
 if (!fs.existsSync(PRESENCE_LOG_FILE)) fs.writeFileSync(PRESENCE_LOG_FILE, '[]');
 if (!fs.existsSync(PROTECTED_USERS_FILE)) fs.writeFileSync(PROTECTED_USERS_FILE, '{}');
 
@@ -431,6 +438,19 @@ function saveShoppingCategories() {
 let shoppingItems = loadShoppingList();
 let shoppingCategories = loadShoppingCategories();
 
+// --- Geburtstage (eigenstaendig, jeder kann eintragen) ----------------------
+function loadBirthdays() {
+  try {
+    return JSON.parse(fs.readFileSync(BIRTHDAYS_FILE, 'utf-8'));
+  } catch (err) {
+    return [];
+  }
+}
+function saveBirthdays() {
+  fs.writeFileSync(BIRTHDAYS_FILE, JSON.stringify(birthdays, null, 2));
+}
+let birthdays = loadBirthdays(); // { id, name, day, month, year, addedBy, lastCongratulatedYear }
+
 // --- Zustand pro Kanal laden/speichern ---------------------------------------
 const roomState = new Map(); // roomId -> { messages: [...], pinned: {...}|null }
 
@@ -572,6 +592,38 @@ async function main() {
     res.json({ publicKey: vapidKeys.publicKey });
   });
 
+  // --- GIF-Suche (Tenor, API-Key bleibt serverseitig) -------------------------
+  app.get('/gif-search', async (req, res) => {
+    if (!TENOR_API_KEY) {
+      res.status(503).json({ error: 'GIF-Suche ist auf diesem Server nicht eingerichtet.' });
+      return;
+    }
+    const q = (req.query.q || '').toString().trim().slice(0, 100);
+    if (!q) {
+      res.json({ results: [] });
+      return;
+    }
+    try {
+      const url = `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(q)}`
+        + `&key=${TENOR_API_KEY}&client_key=hausfunk&limit=16&media_filter=tinygif,gif&contentfilter=medium`;
+      const tenorRes = await fetch(url);
+      if (!tenorRes.ok) throw new Error(`Tenor Status ${tenorRes.status}`);
+      const data = await tenorRes.json();
+      const results = (data.results || []).map((item) => {
+        const formats = item.media_formats || {};
+        return {
+          id: item.id,
+          preview: (formats.tinygif && formats.tinygif.url) || (formats.gif && formats.gif.url),
+          full: (formats.gif && formats.gif.url) || (formats.tinygif && formats.tinygif.url),
+        };
+      }).filter((r) => r.preview && r.full);
+      res.json({ results });
+    } catch (err) {
+      console.error('GIF-Suche fehlgeschlagen:', err.message);
+      res.status(502).json({ error: 'GIF-Suche gerade nicht erreichbar.' });
+    }
+  });
+
   // --- Online-Nutzer & Farben -------------------------------------------------
   const onlineUsers = new Map(); // socket.id -> { name, color, avatar, photo, role, room }
 
@@ -656,6 +708,47 @@ async function main() {
   }
   fetchWeather();
   setInterval(fetchWeather, WEATHER_REFRESH_MS);
+
+  // --- Geburtstage: einmal pro Stunde pruefen und ggf. gratulieren -----------
+  function checkBirthdaysToday() {
+    const now = new Date();
+    const month = now.getMonth() + 1;
+    const day = now.getDate();
+    const year = now.getFullYear();
+    let changed = false;
+
+    birthdays.forEach((b) => {
+      if (b.month !== month || b.day !== day || b.lastCongratulatedYear === year) return;
+      const roomId = ROOMS.some((r) => r.id === DEFAULT_ROOM) ? DEFAULT_ROOM : ROOMS[0].id;
+      const state = roomState.get(roomId);
+      if (state) {
+        const age = b.year && b.year > 1900 ? year - b.year : null;
+        const ageText = age ? ` Heute wird ${b.name} ${age} Jahre alt!` : '';
+        const msg = {
+          id: makeId(),
+          type: 'text',
+          sender: 'Hausfunk',
+          color: '#E8A33D',
+          avatar: null,
+          photo: null,
+          role: 'user',
+          text: `🎉🎂 Alles Gute zum Geburtstag, ${b.name}!${ageText} 🎂🎉`,
+          ts: Date.now(),
+          reactions: {},
+          replyTo: null,
+        };
+        state.messages.push(msg);
+        saveRoomMessages(roomId);
+        io.to(roomId).emit('message', msg);
+      }
+      b.lastCongratulatedYear = year;
+      changed = true;
+    });
+
+    if (changed) saveBirthdays();
+  }
+  checkBirthdaysToday();
+  setInterval(checkBirthdaysToday, 60 * 60 * 1000); // stuendlich pruefen
 
   function notifyPushForMessage(roomId, msg) {
     const connectedNames = new Set([...onlineUsers.values()].map((u) => u.name.toLowerCase()));
@@ -754,6 +847,7 @@ async function main() {
     socket.emit('protectedNames', getProtectedNamesPublic());
     if (weatherCache) socket.emit('weatherUpdate', weatherCache);
     socket.emit('shoppingListUpdate', { items: shoppingItems, categories: shoppingCategories });
+    socket.emit('birthdaysUpdate', birthdays);
 
     socket.on('join', (payload) => {
       const raw = typeof payload === 'string' ? { name: payload } : (payload || {});
@@ -1246,6 +1340,34 @@ async function main() {
       if (shoppingItems.length === before) return;
       saveShoppingList();
       broadcastShoppingList();
+    });
+
+    // --- Geburtstage (eigenstaendig, jeder kann eintragen/entfernen) -----------
+    socket.on('birthday:add', (payload) => {
+      if (!socket.data.name || !payload) return;
+      const name = (payload.name || '').toString().slice(0, 40).trim();
+      const day = Number(payload.day);
+      const month = Number(payload.month);
+      const year = payload.year ? Number(payload.year) : null;
+      if (!name) return;
+      if (!Number.isInteger(day) || day < 1 || day > 31) return;
+      if (!Number.isInteger(month) || month < 1 || month > 12) return;
+      const entry = {
+        id: makeId(), name, day, month, year: year && year > 1900 ? year : null,
+        addedBy: socket.data.name, lastCongratulatedYear: null,
+      };
+      birthdays.push(entry);
+      saveBirthdays();
+      io.emit('birthdaysUpdate', birthdays);
+    });
+
+    socket.on('birthday:remove', (payload) => {
+      if (!socket.data.name || !payload) return;
+      const before = birthdays.length;
+      birthdays = birthdays.filter((b) => b.id !== payload.id);
+      if (birthdays.length === before) return;
+      saveBirthdays();
+      io.emit('birthdaysUpdate', birthdays);
     });
 
     // --- Admin: Nutzer sperren/entsperren ----------------------------------------

@@ -362,6 +362,32 @@ Minuten serverseitig abgerufen und an alle verbundenen Geräte verteilt.
 Schlägt der Abruf mal fehl (z. B. kein Internetzugang gerade), bleibt einfach
 der letzte bekannte Stand stehen bzw. „…", bis der nächste Versuch klappt.
 
+## Konfetti-Überraschung
+
+Enthält eine Nachricht bestimmte Wörter oder Emojis (z. B. „Geburtstag",
+„bestanden", „Glückwunsch", 🎉, 🎂), regnet für alle im Kanal kurz buntes
+Konfetti über den Bildschirm – rein clientseitig, ohne Server-Logik. Bei
+aktivierter „Bewegung reduzieren"-Einstellung im Betriebssystem bleibt es aus.
+
+## GIFs im Chat
+
+Über den „GIF"-Button in der Nachrichtenleiste lässt sich nach GIFs suchen
+und eines direkt als Bild in den Chat schicken (wird technisch wie ein
+normales Bild behandelt – landet auch in der Bilder-Galerie). Nutzt die
+kostenlose [Tenor](https://tenor.com/gifapi/documentation)-API; dafür einmalig
+einen kostenlosen API-Key holen und als `HAUSFUNK_TENOR_KEY` in
+`ecosystem.config.js` eintragen. Ohne Key bleibt die Funktion einfach mit
+einer klaren Meldung deaktiviert, kein Absturz.
+
+## Geburtstags-Erinnerung
+
+Über das 🎂-Symbol oben in der Sidebar öffnet sich eine Liste, in die jeder
+Geburtstage der Familie eintragen kann (Name + Datum). Die Liste zeigt immer
+den nächsten anstehenden Geburtstag zuerst. Am Tag selbst postet Hausfunk
+automatisch eine Gratulation im Standard-Kanal (inkl. Alter, falls das
+Geburtsjahr mit angegeben wurde) – die Prüfung läuft stündlich im
+Hintergrund, auch wenn gerade niemand online ist.
+
 ## Grenzen (bewusst einfach gehalten)
 
 - Keine Zwei-Faktor-Authentifizierung.

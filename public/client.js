@@ -36,6 +36,10 @@ const replyPreviewText = document.getElementById('reply-preview-text');
 const replyCancelBtn = document.getElementById('reply-cancel');
 const emojiBtn = document.getElementById('emoji-btn');
 const pollBtn = document.getElementById('poll-btn');
+const gifBtn = document.getElementById('gif-btn');
+const gifPicker = document.getElementById('gif-picker');
+const gifSearchInput = document.getElementById('gif-search-input');
+const gifResultsEl = document.getElementById('gif-results');
 const pollForm = document.getElementById('poll-form');
 const pollQuestionInput = document.getElementById('poll-question-input');
 const pollOptionsList = document.getElementById('poll-options-list');
@@ -61,6 +65,14 @@ const themeToggleBtn = document.getElementById('theme-toggle');
 const logoutBtn = document.getElementById('logout-btn');
 const galleryToggleBtn = document.getElementById('gallery-toggle');
 const galleryOverlay = document.getElementById('gallery-overlay');
+const birthdaysToggleBtn = document.getElementById('birthdays-toggle');
+const birthdaysOverlay = document.getElementById('birthdays-overlay');
+const birthdaysCloseBtn = document.getElementById('birthdays-close');
+const birthdaysListEl = document.getElementById('birthdays-list');
+const birthdaysEmptyEl = document.getElementById('birthdays-empty');
+const birthdayNameInput = document.getElementById('birthday-name-input');
+const birthdayDateInput = document.getElementById('birthday-date-input');
+const birthdayAddBtn = document.getElementById('birthday-add-btn');
 const avatarLightbox = document.getElementById('avatar-lightbox');
 const avatarLightboxImg = document.getElementById('avatar-lightbox-img');
 const avatarLightboxClose = document.getElementById('avatar-lightbox-close');
@@ -207,6 +219,48 @@ function isMentioned(text, name) {
     if (match[1].toLowerCase() === name.toLowerCase()) return true;
   }
   return false;
+}
+
+// --- Konfetti-Überraschung ---------------------------------------------------
+const CONFETTI_TRIGGERS = [
+  'geburtstag', 'jubiläum', 'jubilaeum', 'bestanden', 'geschafft', 'gewonnen',
+  'verlobung', 'verlobt', 'hochzeit', 'schwanger', 'glückwunsch', 'gluckwunsch',
+  '🎉', '🎊', '🥳', '🎂',
+];
+const CONFETTI_COLORS = ['#E8A33D', '#3E7C77', '#C9614A', '#6C8EBF', '#9B7EDE', '#5FAE6B', '#D9B24C'];
+
+function shouldTriggerConfetti(text) {
+  const lower = text.toLowerCase();
+  return CONFETTI_TRIGGERS.some((word) => lower.includes(word));
+}
+
+let lastConfettiAt = 0;
+function launchConfetti() {
+  // Nicht mehrfach innerhalb kurzer Zeit ausloesen (z.B. mehrere Nachrichten mit Trigger-Wort kurz hintereinander)
+  const now = Date.now();
+  if (now - lastConfettiAt < 2000) return;
+  lastConfettiAt = now;
+
+  const container = document.createElement('div');
+  container.className = 'confetti-container';
+  document.body.appendChild(container);
+
+  const pieceCount = 60;
+  for (let i = 0; i < pieceCount; i++) {
+    const piece = document.createElement('span');
+    piece.className = 'confetti-piece';
+    piece.style.left = `${Math.random() * 100}vw`;
+    piece.style.background = CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)];
+    piece.style.animationDelay = `${Math.random() * 0.4}s`;
+    piece.style.animationDuration = `${2.2 + Math.random() * 1.2}s`;
+    const size = 6 + Math.random() * 6;
+    piece.style.width = `${size}px`;
+    piece.style.height = `${size * (Math.random() > 0.5 ? 1 : 2.2)}px`;
+    piece.style.transform = `rotate(${Math.random() * 360}deg)`;
+    container.appendChild(piece);
+  }
+
+  setTimeout(() => container.remove(), 3800);
 }
 
 function renderTextWithMentions(container, text) {
@@ -942,6 +996,9 @@ socket.on('history', (msgs) => {
 
 socket.on('message', (msg) => {
   renderMessage(msg);
+  if (msg.type === 'text' && shouldTriggerConfetti(msg.text)) {
+    launchConfetti();
+  }
   if (msg.sender !== myName) {
     const mentioned = msg.type === 'text' && isMentioned(msg.text, myName);
     if (document.hidden) {
@@ -1917,6 +1974,82 @@ document.addEventListener('click', (e) => {
   }
 });
 
+// --- GIFs im Chat -------------------------------------------------------------
+let gifSearchTimer = null;
+let gifSearchSeq = 0;
+
+function openGifPicker() {
+  gifPicker.classList.remove('hidden');
+  gifSearchInput.value = '';
+  gifResultsEl.innerHTML = '';
+  gifSearchInput.focus();
+}
+function closeGifPicker() {
+  gifPicker.classList.add('hidden');
+}
+
+async function runGifSearch(query) {
+  const seq = ++gifSearchSeq;
+  gifResultsEl.innerHTML = '';
+  if (!query.trim()) return;
+  try {
+    const res = await fetch(`/gif-search?q=${encodeURIComponent(query.trim())}`);
+    const data = await res.json();
+    if (seq !== gifSearchSeq) return; // veraltete Antwort einer inzwischen ueberholten Suche ignorieren
+    if (data.error) {
+      const empty = document.createElement('div');
+      empty.className = 'gif-picker-empty';
+      empty.textContent = data.error;
+      gifResultsEl.appendChild(empty);
+      return;
+    }
+    if (!data.results || !data.results.length) {
+      const empty = document.createElement('div');
+      empty.className = 'gif-picker-empty';
+      empty.textContent = 'Keine GIFs gefunden.';
+      gifResultsEl.appendChild(empty);
+      return;
+    }
+    data.results.forEach((gif) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'gif-result-btn';
+      const img = document.createElement('img');
+      img.src = gif.preview;
+      img.loading = 'lazy';
+      img.alt = '';
+      btn.appendChild(img);
+      btn.addEventListener('click', () => {
+        socket.emit('message', { type: 'image', url: gif.full, replyTo: replyingTo });
+        cancelReply();
+        closeGifPicker();
+      });
+      gifResultsEl.appendChild(btn);
+    });
+  } catch (err) {
+    const empty = document.createElement('div');
+    empty.className = 'gif-picker-empty';
+    empty.textContent = 'GIF-Suche gerade nicht erreichbar.';
+    gifResultsEl.appendChild(empty);
+  }
+}
+
+gifBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (gifPicker.classList.contains('hidden')) openGifPicker();
+  else closeGifPicker();
+});
+gifSearchInput.addEventListener('input', () => {
+  clearTimeout(gifSearchTimer);
+  const query = gifSearchInput.value;
+  gifSearchTimer = setTimeout(() => runGifSearch(query), 400);
+});
+document.addEventListener('click', (e) => {
+  if (!gifPicker.classList.contains('hidden') && !gifPicker.contains(e.target) && e.target !== gifBtn) {
+    closeGifPicker();
+  }
+});
+
 // --- Bilder-Galerie ---------------------------------------------------------------
 function openGallery() {
   galleryGrid.innerHTML = '';
@@ -1979,6 +2112,77 @@ galleryToggleBtn.addEventListener('click', openGallery);
 galleryCloseBtn.addEventListener('click', closeGallery);
 galleryOverlay.addEventListener('click', (e) => {
   if (e.target === galleryOverlay) closeGallery();
+});
+
+// --- Geburtstage ---------------------------------------------------------------
+let birthdaysList = [];
+
+function nextOccurrence(b) {
+  const now = new Date();
+  const thisYear = new Date(now.getFullYear(), b.month - 1, b.day);
+  if (thisYear < new Date(now.getFullYear(), now.getMonth(), now.getDate())) {
+    return new Date(now.getFullYear() + 1, b.month - 1, b.day);
+  }
+  return thisYear;
+}
+
+function renderBirthdaysList() {
+  birthdaysListEl.innerHTML = '';
+  if (!birthdaysList.length) {
+    birthdaysEmptyEl.classList.remove('hidden');
+    return;
+  }
+  birthdaysEmptyEl.classList.add('hidden');
+
+  const sorted = [...birthdaysList].sort((a, b) => nextOccurrence(a) - nextOccurrence(b));
+  sorted.forEach((b) => {
+    const li = document.createElement('li');
+    const label = document.createElement('span');
+    const dateStr = `${String(b.day).padStart(2, '0')}.${String(b.month).padStart(2, '0')}.${b.year ? b.year : ''}`.replace(/\.$/, '');
+    label.textContent = `${b.name} — ${dateStr}`;
+    li.appendChild(label);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'unban-btn';
+    removeBtn.textContent = '✕';
+    removeBtn.title = 'Entfernen';
+    removeBtn.addEventListener('click', () => {
+      if (confirm(`Geburtstag von "${b.name}" wirklich entfernen?`)) {
+        socket.emit('birthday:remove', { id: b.id });
+      }
+    });
+    li.appendChild(removeBtn);
+    birthdaysListEl.appendChild(li);
+  });
+}
+
+socket.on('birthdaysUpdate', (list) => {
+  birthdaysList = list || [];
+  renderBirthdaysList();
+});
+
+function openBirthdays() {
+  birthdaysOverlay.classList.remove('hidden');
+}
+function closeBirthdays() {
+  birthdaysOverlay.classList.add('hidden');
+}
+birthdaysToggleBtn.addEventListener('click', openBirthdays);
+birthdaysCloseBtn.addEventListener('click', closeBirthdays);
+birthdaysOverlay.addEventListener('click', (e) => {
+  if (e.target === birthdaysOverlay) closeBirthdays();
+});
+
+birthdayAddBtn.addEventListener('click', () => {
+  const name = birthdayNameInput.value.trim();
+  const dateVal = birthdayDateInput.value; // Format: YYYY-MM-DD
+  if (!name) { birthdayNameInput.focus(); return; }
+  if (!dateVal) { birthdayDateInput.focus(); return; }
+  const [year, month, day] = dateVal.split('-').map(Number);
+  socket.emit('birthday:add', { name, day, month, year });
+  birthdayNameInput.value = '';
+  birthdayDateInput.value = '';
+  birthdayNameInput.focus();
 });
 
 // --- Sprachnachrichten (Push-to-Talk) -----------------------------------------------
