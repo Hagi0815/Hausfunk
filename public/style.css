@@ -775,7 +775,6 @@ html, body {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  background-attachment: fixed;
 }
 .messages.searching .date-divider { display: none; }
 .msg.search-hidden { display: none; }
