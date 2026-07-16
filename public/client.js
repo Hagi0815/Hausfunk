@@ -74,6 +74,9 @@ const roomCustomizeTitleEl = document.getElementById('room-customize-title');
 const roomCustomizeClose = document.getElementById('room-customize-close');
 const roomIconInput = document.getElementById('room-icon-input');
 const roomIconSaveBtn = document.getElementById('room-icon-save-btn');
+const roomIconUploadBtn = document.getElementById('room-icon-upload-btn');
+const roomIconFileInput = document.getElementById('room-icon-file-input');
+const roomIconRemoveBtn = document.getElementById('room-icon-remove-btn');
 const roomBgUploadBtn = document.getElementById('room-bg-upload-btn');
 const roomBgFileInput = document.getElementById('room-bg-file-input');
 const roomBgRemoveBtn = document.getElementById('room-bg-remove-btn');
@@ -1238,7 +1241,16 @@ function renderRoomList() {
     btn.className = `room-toggle-btn${r.id === currentRoom && viewMode === 'chat' ? ' active' : ''}`;
 
     const label = document.createElement('span');
-    label.textContent = `${r.icon || '#'} ${r.label}`;
+    if (r.iconImage) {
+      const iconImg = document.createElement('img');
+      iconImg.src = r.iconImage;
+      iconImg.alt = '';
+      iconImg.className = 'room-icon-img';
+      label.appendChild(iconImg);
+      label.appendChild(document.createTextNode(` ${r.label}`));
+    } else {
+      label.textContent = `${r.icon || '#'} ${r.label}`;
+    }
     btn.appendChild(label);
 
     const count = unreadCounts[r.id] || 0;
@@ -1377,7 +1389,17 @@ function updateViewModeUI() {
     roomTitleEl.textContent = '🛒 Einkaufsliste';
   } else {
     const room = rooms.find((r) => r.id === currentRoom);
-    roomTitleEl.textContent = `${room && room.icon ? room.icon : '#'} ${room ? room.label : currentRoom}`;
+    roomTitleEl.innerHTML = '';
+    if (room && room.iconImage) {
+      const img = document.createElement('img');
+      img.src = room.iconImage;
+      img.alt = '';
+      img.className = 'room-title-icon-img';
+      roomTitleEl.appendChild(img);
+      roomTitleEl.appendChild(document.createTextNode(` ${room.label}`));
+    } else {
+      roomTitleEl.textContent = `${room && room.icon ? room.icon : '#'} ${room ? room.label : currentRoom}`;
+    }
   }
   document.body.classList.toggle('theme-fun', !isShopping && currentRoom === 'fun');
   applyRoomBackground();
@@ -2147,6 +2169,23 @@ roomCustomizeOverlay.addEventListener('click', (e) => {
 roomIconSaveBtn.addEventListener('click', () => {
   if (!customizingRoomId) return;
   socket.emit('admin:setRoomIcon', { roomId: customizingRoomId, icon: roomIconInput.value.trim() });
+});
+
+roomIconUploadBtn.addEventListener('click', () => roomIconFileInput.click());
+roomIconFileInput.addEventListener('change', () => {
+  const file = roomIconFileInput.files[0];
+  roomIconFileInput.value = '';
+  if (!file || !customizingRoomId) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    socket.emit('admin:uploadRoomIcon', { roomId: customizingRoomId, dataUrl: reader.result });
+  };
+  reader.readAsDataURL(file);
+});
+
+roomIconRemoveBtn.addEventListener('click', () => {
+  if (!customizingRoomId) return;
+  socket.emit('admin:removeRoomIcon', { roomId: customizingRoomId });
 });
 
 roomBgUploadBtn.addEventListener('click', () => roomBgFileInput.click());

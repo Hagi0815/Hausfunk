@@ -383,13 +383,15 @@ Hintergrund, auch wenn gerade niemand online ist.
 Über das 🎨-Symbol neben jedem Kanal in der Sidebar kann DOM für **jeden
 einzelnen Kanal**:
 
-- ein eigenes Icon statt „#" vor dem Kanalnamen festlegen (ein beliebiges
-  Emoji/Zeichen)
+- ein eigenes Icon statt „#" vor dem Kanalnamen festlegen – entweder als
+  **Text/Emoji** eingetippt, oder als **eigenes Bild hochgeladen**
+  (JPG/PNG/WebP/GIF, max. 2 MB, wird klein z. B. neben dem Kanalnamen
+  angezeigt). Ist ein Bild hochgeladen, hat es Vorrang vor dem Text-Icon.
 - ein Hintergrundbild hochladen, das im Nachrichtenbereich dieses Kanals
   angezeigt wird (JPG/PNG/WebP/GIF, max. 6 MB), oder es wieder entfernen
 
 Beides gilt nur für den jeweiligen Kanal und wird sofort für alle sichtbar,
-die ihn gerade offen haben. Bilder liegen unter
+die ihn gerade offen haben. Bilder liegen unter `uploads/room-icons/` bzw.
 `uploads/room-backgrounds/`.
 
 ## Grenzen (bewusst einfach gehalten)
