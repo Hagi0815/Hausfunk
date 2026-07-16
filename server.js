@@ -754,23 +754,34 @@ async function main() {
     const isValidPhotoPath = avatar && avatar.startsWith('/uploads/avatars/');
     if (isPhoto && !isValidPhotoPath) avatar = null;
     if (!isPhoto) avatar = avatar ? avatar.slice(0, 8) : null;
+
+    const nameKey = name.toLowerCase();
+    let finalIsPhoto = Boolean(isPhoto && avatar);
+    let finalAvatar = avatar;
+
+    // Ist fuer diesen Namen bereits ein Profilbild hinterlegt, hat es Vorrang --
+    // verhindert, dass ein zwischenzeitlich ohne Foto gesendeter Zustand (z.B.
+    // bei einem kurzen Verbindungsaussetzer und automatischem Re-Join) das
+    // gespeicherte Bild fuer die laufende Sitzung verschwinden laesst.
+    if (!finalIsPhoto && avatarsByName[nameKey]) {
+      finalIsPhoto = true;
+      finalAvatar = avatarsByName[nameKey];
+    }
+
     const roomId = DEFAULT_ROOM;
 
-    // Gewaehltes Bild (Preset oder eigener Upload) fuer den naechsten Login
-    // unter diesem Namen merken, damit es automatisch vorgeschlagen wird.
-    if (isPhoto && avatar) {
-      const nameKey = name.toLowerCase();
-      if (avatarsByName[nameKey] !== avatar) {
-        avatarsByName[nameKey] = avatar;
-        saveAvatars(avatarsByName);
-        io.emit('avatarMap', avatarsByName);
-      }
+    // Gewaehltes Bild fuer den naechsten Login unter diesem Namen merken,
+    // damit es automatisch vorgeschlagen wird.
+    if (finalIsPhoto && finalAvatar && avatarsByName[nameKey] !== finalAvatar) {
+      avatarsByName[nameKey] = finalAvatar;
+      saveAvatars(avatarsByName);
+      io.emit('avatarMap', avatarsByName);
     }
 
     socket.data.name = name;
     socket.data.color = colorForName(name);
-    socket.data.avatar = isPhoto ? null : avatar;
-    socket.data.photo = isPhoto ? avatar : null;
+    socket.data.avatar = finalIsPhoto ? null : finalAvatar;
+    socket.data.photo = finalIsPhoto ? finalAvatar : null;
     socket.data.role = role;
     socket.data.room = roomId;
     socket.join(roomId);
