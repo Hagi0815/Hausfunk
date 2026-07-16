@@ -449,6 +449,9 @@ html, body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.room-toggle-btn span:first-child:has(.room-icon-img:hover) {
+  overflow: visible;
+}
 .room-toggle-btn:hover { background: var(--panel-alt); }
 .room-toggle-btn.active {
   background: var(--accent-dim);
