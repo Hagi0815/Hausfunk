@@ -1360,6 +1360,7 @@ function updateViewModeUI() {
     const room = rooms.find((r) => r.id === currentRoom);
     roomTitleEl.textContent = `# ${room ? room.label : currentRoom}`;
   }
+  document.body.classList.toggle('theme-fun', !isShopping && currentRoom === 'fun');
 }
 
 shoppingNavBtn.addEventListener('click', () => {

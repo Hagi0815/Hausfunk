@@ -26,6 +26,21 @@
   --other-bubble: #ece7dd;
 }
 
+/* Eigenes Farbthema fuer den FUN-Kanal -- wird aktiv, solange dieser Kanal
+   geoeffnet ist, und faellt beim Wechsel automatisch zurueck. */
+body.theme-fun {
+  --bg: #0d0507;
+  --panel: #180a0d;
+  --panel-alt: #23100f;
+  --border: rgba(200, 30, 40, 0.28);
+  --text: #f1e2e2;
+  --text-dim: #b58585;
+  --accent: #c81e28;
+  --accent-dim: rgba(200, 30, 40, 0.3);
+  --own-bubble: #5c1015;
+  --other-bubble: #2a1416;
+}
+
 * { box-sizing: border-box; }
 
 .avatar {
