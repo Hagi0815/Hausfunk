@@ -36,10 +36,6 @@ const replyPreviewText = document.getElementById('reply-preview-text');
 const replyCancelBtn = document.getElementById('reply-cancel');
 const emojiBtn = document.getElementById('emoji-btn');
 const pollBtn = document.getElementById('poll-btn');
-const gifBtn = document.getElementById('gif-btn');
-const gifPicker = document.getElementById('gif-picker');
-const gifSearchInput = document.getElementById('gif-search-input');
-const gifResultsEl = document.getElementById('gif-results');
 const pollForm = document.getElementById('poll-form');
 const pollQuestionInput = document.getElementById('poll-question-input');
 const pollOptionsList = document.getElementById('poll-options-list');
@@ -1971,82 +1967,6 @@ pollSubmitBtn.addEventListener('click', () => {
 document.addEventListener('click', (e) => {
   if (!pollForm.classList.contains('hidden') && !pollForm.contains(e.target) && e.target !== pollBtn) {
     closePollForm();
-  }
-});
-
-// --- GIFs im Chat -------------------------------------------------------------
-let gifSearchTimer = null;
-let gifSearchSeq = 0;
-
-function openGifPicker() {
-  gifPicker.classList.remove('hidden');
-  gifSearchInput.value = '';
-  gifResultsEl.innerHTML = '';
-  gifSearchInput.focus();
-}
-function closeGifPicker() {
-  gifPicker.classList.add('hidden');
-}
-
-async function runGifSearch(query) {
-  const seq = ++gifSearchSeq;
-  gifResultsEl.innerHTML = '';
-  if (!query.trim()) return;
-  try {
-    const res = await fetch(`/gif-search?q=${encodeURIComponent(query.trim())}`);
-    const data = await res.json();
-    if (seq !== gifSearchSeq) return; // veraltete Antwort einer inzwischen ueberholten Suche ignorieren
-    if (data.error) {
-      const empty = document.createElement('div');
-      empty.className = 'gif-picker-empty';
-      empty.textContent = data.error;
-      gifResultsEl.appendChild(empty);
-      return;
-    }
-    if (!data.results || !data.results.length) {
-      const empty = document.createElement('div');
-      empty.className = 'gif-picker-empty';
-      empty.textContent = 'Keine GIFs gefunden.';
-      gifResultsEl.appendChild(empty);
-      return;
-    }
-    data.results.forEach((gif) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'gif-result-btn';
-      const img = document.createElement('img');
-      img.src = gif.preview;
-      img.loading = 'lazy';
-      img.alt = '';
-      btn.appendChild(img);
-      btn.addEventListener('click', () => {
-        socket.emit('message', { type: 'image', url: gif.full, replyTo: replyingTo });
-        cancelReply();
-        closeGifPicker();
-      });
-      gifResultsEl.appendChild(btn);
-    });
-  } catch (err) {
-    const empty = document.createElement('div');
-    empty.className = 'gif-picker-empty';
-    empty.textContent = 'GIF-Suche gerade nicht erreichbar.';
-    gifResultsEl.appendChild(empty);
-  }
-}
-
-gifBtn.addEventListener('click', (e) => {
-  e.stopPropagation();
-  if (gifPicker.classList.contains('hidden')) openGifPicker();
-  else closeGifPicker();
-});
-gifSearchInput.addEventListener('input', () => {
-  clearTimeout(gifSearchTimer);
-  const query = gifSearchInput.value;
-  gifSearchTimer = setTimeout(() => runGifSearch(query), 400);
-});
-document.addEventListener('click', (e) => {
-  if (!gifPicker.classList.contains('hidden') && !gifPicker.contains(e.target) && e.target !== gifBtn) {
-    closeGifPicker();
   }
 });
 

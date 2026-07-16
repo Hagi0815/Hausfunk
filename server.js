@@ -35,10 +35,6 @@ const WEATHER_LAT = process.env.HAUSFUNK_WEATHER_LAT || '51.31';
 const WEATHER_LON = process.env.HAUSFUNK_WEATHER_LON || '8.06';
 const WEATHER_REFRESH_MS = 30 * 60 * 1000; // alle 30 Minuten neu abrufen
 
-// --- GIF-Suche (Tenor) -------------------------------------------------------
-// Kostenloser API-Key: https://tenor.com/gifapi/documentation -- ohne Key
-// bleibt die GIF-Suche einfach deaktiviert (kein Absturz, klare Fehlermeldung).
-const TENOR_API_KEY = process.env.HAUSFUNK_TENOR_KEY || null;
 const SESSION_DURATION_MS = 30 * 24 * 60 * 60 * 1000; // 30 Tage "angemeldet bleiben"
 const MAX_HISTORY = 500;   // wie viele Nachrichten pro Kanal dauerhaft behalten werden
 const MAX_SEND = 200;      // wie viele beim Beitritt/Wechsel an den Client geschickt werden
@@ -590,38 +586,6 @@ async function main() {
   // --- Web-Push: oeffentlicher Schluessel fuer den Client ---------------------
   app.get('/vapid-public-key', (req, res) => {
     res.json({ publicKey: vapidKeys.publicKey });
-  });
-
-  // --- GIF-Suche (Tenor, API-Key bleibt serverseitig) -------------------------
-  app.get('/gif-search', async (req, res) => {
-    if (!TENOR_API_KEY) {
-      res.status(503).json({ error: 'GIF-Suche ist auf diesem Server nicht eingerichtet.' });
-      return;
-    }
-    const q = (req.query.q || '').toString().trim().slice(0, 100);
-    if (!q) {
-      res.json({ results: [] });
-      return;
-    }
-    try {
-      const url = `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(q)}`
-        + `&key=${TENOR_API_KEY}&client_key=hausfunk&limit=16&media_filter=tinygif,gif&contentfilter=medium`;
-      const tenorRes = await fetch(url);
-      if (!tenorRes.ok) throw new Error(`Tenor Status ${tenorRes.status}`);
-      const data = await tenorRes.json();
-      const results = (data.results || []).map((item) => {
-        const formats = item.media_formats || {};
-        return {
-          id: item.id,
-          preview: (formats.tinygif && formats.tinygif.url) || (formats.gif && formats.gif.url),
-          full: (formats.gif && formats.gif.url) || (formats.tinygif && formats.tinygif.url),
-        };
-      }).filter((r) => r.preview && r.full);
-      res.json({ results });
-    } catch (err) {
-      console.error('GIF-Suche fehlgeschlagen:', err.message);
-      res.status(502).json({ error: 'GIF-Suche gerade nicht erreichbar.' });
-    }
   });
 
   // --- Online-Nutzer & Farben -------------------------------------------------
