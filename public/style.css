@@ -763,6 +763,20 @@ html, body {
   text-align: right;
 }
 
+.messages-wrap {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+}
+.messages-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  z-index: 0;
+}
 .messages {
   flex: 1;
   min-height: 0;
@@ -772,9 +786,8 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+  position: relative;
+  z-index: 1;
 }
 .messages.searching .date-divider { display: none; }
 .msg.search-hidden { display: none; }

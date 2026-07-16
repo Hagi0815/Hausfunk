@@ -5,6 +5,7 @@ const chatScreen = document.getElementById('chat-screen');
 const nameInput = document.getElementById('name-input');
 const joinBtn = document.getElementById('join-btn');
 const messagesEl = document.getElementById('messages');
+const messagesBgEl = document.getElementById('messages-bg');
 const chatColumnEl = document.getElementById('chat-column');
 const shoppingNavBtn = document.getElementById('shopping-nav-btn');
 const checklistPanelEl = document.getElementById('checklist-panel');
@@ -2213,7 +2214,7 @@ socket.on('adminActionError', (msg) => {
 
 function applyRoomBackground() {
   const room = rooms.find((r) => r.id === currentRoom);
-  messagesEl.style.backgroundImage = room && room.background ? `url("${room.background}")` : 'none';
+  messagesBgEl.style.backgroundImage = room && room.background ? `url("${room.background}")` : 'none';
 }
 
 // --- Sprachnachrichten (Push-to-Talk) -----------------------------------------------
