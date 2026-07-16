@@ -226,6 +226,28 @@
     </div>
   </div>
 
+  <div id="room-customize-overlay" class="gallery-overlay hidden">
+    <div class="gallery-panel">
+      <div class="gallery-header">
+        <span id="room-customize-title">🎨 Kanal anpassen</span>
+        <button id="room-customize-close" aria-label="Schließen">✕</button>
+      </div>
+      <div class="room-customize-form">
+        <div class="online-label">ICON (statt „#")</div>
+        <div class="room-customize-row">
+          <input id="room-icon-input" type="text" placeholder="z. B. 🎮" maxlength="8" />
+          <button id="room-icon-save-btn" class="unban-btn" type="button">Speichern</button>
+        </div>
+        <div class="online-label">HINTERGRUNDBILD</div>
+        <div class="room-customize-row">
+          <button id="room-bg-upload-btn" class="unban-btn" type="button">📷 Bild hochladen</button>
+          <button id="room-bg-remove-btn" class="unban-btn" type="button">Entfernen</button>
+        </div>
+        <input id="room-bg-file-input" type="file" accept="image/*" class="visually-hidden-file-input" />
+      </div>
+    </div>
+  </div>
+
   <div id="admin-overlay" class="gallery-overlay hidden">
     <div class="gallery-panel">
       <div class="gallery-header">

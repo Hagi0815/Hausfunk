@@ -14,6 +14,7 @@ const UPLOAD_DIR = path.join(__dirname, 'uploads');
 const LEGACY_MESSAGES_FILE = path.join(DATA_DIR, 'messages.json');
 const LEGACY_PINNED_FILE = path.join(DATA_DIR, 'pinned.json');
 const AVATAR_DIR = path.join(UPLOAD_DIR, 'avatars');
+const ROOM_BG_DIR = path.join(UPLOAD_DIR, 'room-backgrounds');
 const AVATARS_FILE = path.join(DATA_DIR, 'avatars.json');
 const READ_STATE_FILE = path.join(DATA_DIR, 'read-state.json');
 const ROOMS_CONFIG_FILE = path.join(DATA_DIR, 'rooms-config.json');
@@ -64,7 +65,7 @@ const DEFAULT_ROOMS = [
 ];
 
 // --- Ordner sicherstellen ----------------------------------------------------
-[DATA_DIR, ROOMS_DIR, UPLOAD_DIR, AVATAR_DIR].forEach((dir) => {
+[DATA_DIR, ROOMS_DIR, UPLOAD_DIR, AVATAR_DIR, ROOM_BG_DIR].forEach((dir) => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 if (!fs.existsSync(AVATARS_FILE)) fs.writeFileSync(AVATARS_FILE, '{}');
@@ -1181,6 +1182,48 @@ async function main() {
       const label = (payload.label || '').toString().trim().slice(0, 40);
       if (!label) return;
       room.label = label;
+      saveRoomsConfig();
+      io.emit('rooms', ROOMS);
+    });
+
+    socket.on('admin:setRoomIcon', (payload) => {
+      if (socket.data.role !== 'admin' || !payload) return;
+      const room = ROOMS.find((r) => r.id === payload.roomId);
+      if (!room) return;
+      const icon = (payload.icon || '').toString().trim().slice(0, 8);
+      room.icon = icon || null;
+      saveRoomsConfig();
+      io.emit('rooms', ROOMS);
+    });
+
+    socket.on('admin:uploadRoomBackground', (payload) => {
+      if (socket.data.role !== 'admin' || !payload) return;
+      const room = ROOMS.find((r) => r.id === payload.roomId);
+      if (!room) return;
+      const dataUrl = (payload.dataUrl || '').toString();
+      const match = /^data:image\/(png|jpe?g|webp|gif);base64,(.+)$/.exec(dataUrl);
+      if (!match) {
+        socket.emit('adminActionError', 'Nur Bilddateien (JPG/PNG/WebP/GIF) sind als Kanal-Hintergrund erlaubt.');
+        return;
+      }
+      const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
+      const buffer = Buffer.from(match[2], 'base64');
+      if (buffer.length > 6 * 1024 * 1024) {
+        socket.emit('adminActionError', 'Das Bild ist zu groß (max. 6 MB).');
+        return;
+      }
+      const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      fs.writeFileSync(path.join(ROOM_BG_DIR, filename), buffer);
+      room.background = `/uploads/room-backgrounds/${filename}`;
+      saveRoomsConfig();
+      io.emit('rooms', ROOMS);
+    });
+
+    socket.on('admin:removeRoomBackground', (payload) => {
+      if (socket.data.role !== 'admin' || !payload) return;
+      const room = ROOMS.find((r) => r.id === payload.roomId);
+      if (!room) return;
+      room.background = null;
       saveRoomsConfig();
       io.emit('rooms', ROOMS);
     });

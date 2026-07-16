@@ -378,6 +378,20 @@ automatisch eine Gratulation im Standard-Kanal (inkl. Alter, falls das
 Geburtsjahr mit angegeben wurde) – die Prüfung läuft stündlich im
 Hintergrund, auch wenn gerade niemand online ist.
 
+## Kanal anpassen (Icon & Hintergrundbild, nur DOM)
+
+Über das 🎨-Symbol neben jedem Kanal in der Sidebar kann DOM für **jeden
+einzelnen Kanal**:
+
+- ein eigenes Icon statt „#" vor dem Kanalnamen festlegen (ein beliebiges
+  Emoji/Zeichen)
+- ein Hintergrundbild hochladen, das im Nachrichtenbereich dieses Kanals
+  angezeigt wird (JPG/PNG/WebP/GIF, max. 6 MB), oder es wieder entfernen
+
+Beides gilt nur für den jeweiligen Kanal und wird sofort für alle sichtbar,
+die ihn gerade offen haben. Bilder liegen unter
+`uploads/room-backgrounds/`.
+
 ## Grenzen (bewusst einfach gehalten)
 
 - Keine Zwei-Faktor-Authentifizierung.

@@ -69,6 +69,14 @@ const birthdaysEmptyEl = document.getElementById('birthdays-empty');
 const birthdayNameInput = document.getElementById('birthday-name-input');
 const birthdayDateInput = document.getElementById('birthday-date-input');
 const birthdayAddBtn = document.getElementById('birthday-add-btn');
+const roomCustomizeOverlay = document.getElementById('room-customize-overlay');
+const roomCustomizeTitleEl = document.getElementById('room-customize-title');
+const roomCustomizeClose = document.getElementById('room-customize-close');
+const roomIconInput = document.getElementById('room-icon-input');
+const roomIconSaveBtn = document.getElementById('room-icon-save-btn');
+const roomBgUploadBtn = document.getElementById('room-bg-upload-btn');
+const roomBgFileInput = document.getElementById('room-bg-file-input');
+const roomBgRemoveBtn = document.getElementById('room-bg-remove-btn');
 const avatarLightbox = document.getElementById('avatar-lightbox');
 const avatarLightboxImg = document.getElementById('avatar-lightbox-img');
 const avatarLightboxClose = document.getElementById('avatar-lightbox-close');
@@ -1230,7 +1238,7 @@ function renderRoomList() {
     btn.className = `room-toggle-btn${r.id === currentRoom && viewMode === 'chat' ? ' active' : ''}`;
 
     const label = document.createElement('span');
-    label.textContent = `# ${r.label}`;
+    label.textContent = `${r.icon || '#'} ${r.label}`;
     btn.appendChild(label);
 
     const count = unreadCounts[r.id] || 0;
@@ -1260,6 +1268,16 @@ function renderRoomList() {
         }
       });
       li.appendChild(renameBtn);
+
+      const customizeBtn = document.createElement('button');
+      customizeBtn.className = 'room-admin-btn';
+      customizeBtn.textContent = '🎨';
+      customizeBtn.title = 'Icon & Hintergrundbild anpassen';
+      customizeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openRoomCustomize(r);
+      });
+      li.appendChild(customizeBtn);
 
       const deleteBtn = document.createElement('button');
       deleteBtn.className = 'room-admin-btn';
@@ -1303,6 +1321,7 @@ function renderRoomList() {
 socket.on('rooms', (list) => {
   rooms = list;
   renderRoomList();
+  applyRoomBackground();
 });
 
 socket.on('unreadCounts', (counts) => {
@@ -1358,9 +1377,10 @@ function updateViewModeUI() {
     roomTitleEl.textContent = '🛒 Einkaufsliste';
   } else {
     const room = rooms.find((r) => r.id === currentRoom);
-    roomTitleEl.textContent = `# ${room ? room.label : currentRoom}`;
+    roomTitleEl.textContent = `${room && room.icon ? room.icon : '#'} ${room ? room.label : currentRoom}`;
   }
   document.body.classList.toggle('theme-fun', !isShopping && currentRoom === 'fun');
+  applyRoomBackground();
 }
 
 shoppingNavBtn.addEventListener('click', () => {
@@ -2105,6 +2125,57 @@ birthdayAddBtn.addEventListener('click', () => {
   birthdayDateInput.value = '';
   birthdayNameInput.focus();
 });
+
+// --- Kanal anpassen (Icon + Hintergrundbild, nur Admin) -----------------------
+let customizingRoomId = null;
+
+function openRoomCustomize(room) {
+  customizingRoomId = room.id;
+  roomCustomizeTitleEl.textContent = `🎨 "${room.label}" anpassen`;
+  roomIconInput.value = room.icon || '';
+  roomCustomizeOverlay.classList.remove('hidden');
+}
+function closeRoomCustomize() {
+  roomCustomizeOverlay.classList.add('hidden');
+  customizingRoomId = null;
+}
+roomCustomizeClose.addEventListener('click', closeRoomCustomize);
+roomCustomizeOverlay.addEventListener('click', (e) => {
+  if (e.target === roomCustomizeOverlay) closeRoomCustomize();
+});
+
+roomIconSaveBtn.addEventListener('click', () => {
+  if (!customizingRoomId) return;
+  socket.emit('admin:setRoomIcon', { roomId: customizingRoomId, icon: roomIconInput.value.trim() });
+});
+
+roomBgUploadBtn.addEventListener('click', () => roomBgFileInput.click());
+roomBgFileInput.addEventListener('change', () => {
+  const file = roomBgFileInput.files[0];
+  roomBgFileInput.value = '';
+  if (!file || !customizingRoomId) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    socket.emit('admin:uploadRoomBackground', { roomId: customizingRoomId, dataUrl: reader.result });
+  };
+  reader.readAsDataURL(file);
+});
+
+roomBgRemoveBtn.addEventListener('click', () => {
+  if (!customizingRoomId) return;
+  if (confirm('Hintergrundbild für diesen Kanal wirklich entfernen?')) {
+    socket.emit('admin:removeRoomBackground', { roomId: customizingRoomId });
+  }
+});
+
+socket.on('adminActionError', (msg) => {
+  alert(msg);
+});
+
+function applyRoomBackground() {
+  const room = rooms.find((r) => r.id === currentRoom);
+  messagesEl.style.backgroundImage = room && room.background ? `url("${room.background}")` : 'none';
+}
 
 // --- Sprachnachrichten (Push-to-Talk) -----------------------------------------------
 let mediaRecorder = null;
