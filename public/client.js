@@ -500,10 +500,20 @@ function updateNameFieldUI() {
   } else {
     joinInfoEl.classList.add('hidden');
   }
+  refreshAvatarPreviewFromName();
 }
 
 // Falls fuer den eingegebenen Namen schon ein Profilbild gespeichert ist,
-// automatisch vorschlagen (aendert nichts, wenn der Name noch nicht bekannt ist).
+// automatisch vorschlagen -- sofort beim Tippen, nicht erst beim Verlassen
+// des Feldes (blur), damit die Vorschau nie faelschlich leer erscheint.
+function refreshAvatarPreviewFromName() {
+  const key = nameInput.value.trim().toLowerCase();
+  if (key && avatarMap[key] && myAvatarValue !== avatarMap[key]) {
+    myAvatarType = 'photo';
+    myAvatarValue = avatarMap[key];
+    updateAvatarPreview();
+  }
+}
 nameInput.addEventListener('input', updateNameFieldUI);
 nameInput.addEventListener('blur', () => {
   const key = nameInput.value.trim().toLowerCase();
@@ -516,6 +526,7 @@ nameInput.addEventListener('blur', () => {
 
 socket.on('avatarMap', (map) => {
   avatarMap = map || {};
+  refreshAvatarPreviewFromName();
 });
 
 socket.on('protectedNames', (list) => {
