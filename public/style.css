@@ -1898,6 +1898,16 @@ html, body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.calendar-day-event-multiday {
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-weight: 600;
+  margin: 0 -5px;
+  padding: 1px 5px;
+}
+.calendar-day-event-start { border-radius: 4px 0 0 4px; }
+.calendar-day-event-middle { border-radius: 0; }
+.calendar-day-event-end { border-radius: 0 4px 4px 0; }
 .calendar-day-more {
   font-size: 10px;
   color: var(--text-dim);

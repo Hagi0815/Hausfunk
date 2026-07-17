@@ -2199,15 +2199,40 @@ function dateKey(d) {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
 
+// Alle Tage berechnen, die ein Termin ueberspannt (fuer mehrtaegige Termine) --
+// bei ganztaegigen Terminen ist DTEND laut iCal-Konvention exklusiv (der Tag
+// NACH dem letzten Tag), daher dort 1ms abziehen.
+function getEventDayKeys(ev) {
+  const start = new Date(ev.start);
+  let end = ev.end ? new Date(ev.end) : start;
+  if (ev.allDay && ev.end) {
+    end = new Date(end.getTime() - 1);
+  }
+  const keys = [];
+  const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+  let guard = 0;
+  while (cursor <= endDay && guard < 400) {
+    keys.push(dateKey(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+    guard += 1;
+  }
+  return keys.length ? keys : [dateKey(start)];
+}
+
 function renderCalendarGrid() {
   calendarGridEl.innerHTML = '';
   calendarMonthLabelEl.textContent = calendarViewMonth.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
 
   const eventsByDay = new Map();
   lastCalendarEvents.forEach((ev) => {
-    const key = dateKey(new Date(ev.start));
-    if (!eventsByDay.has(key)) eventsByDay.set(key, []);
-    eventsByDay.get(key).push(ev);
+    const keys = getEventDayKeys(ev);
+    const isMultiDay = keys.length > 1;
+    keys.forEach((key, idx) => {
+      if (!eventsByDay.has(key)) eventsByDay.set(key, []);
+      const spanPosition = idx === 0 ? 'start' : (idx === keys.length - 1 ? 'end' : 'middle');
+      eventsByDay.get(key).push({ ...ev, isMultiDay, spanPosition });
+    });
   });
 
   const today = new Date();
@@ -2230,7 +2255,11 @@ function renderCalendarGrid() {
     dayEvents.slice(0, maxShow).forEach((ev) => {
       const evEl = document.createElement('div');
       evEl.className = 'calendar-day-event';
-      evEl.textContent = ev.allDay ? ev.summary : `${formatEventTime(ev)} ${ev.summary}`;
+      if (ev.isMultiDay) {
+        evEl.classList.add('calendar-day-event-multiday', `calendar-day-event-${ev.spanPosition}`);
+      }
+      const showTime = !ev.allDay && (!ev.isMultiDay || ev.spanPosition === 'start');
+      evEl.textContent = showTime ? `${formatEventTime(ev)} ${ev.summary}` : ev.summary;
       evEl.title = ev.location ? `${ev.summary} (${ev.location})` : ev.summary;
       cell.appendChild(evEl);
     });
