@@ -2246,14 +2246,10 @@ function renderCalendarGrid() {
     if (day.getMonth() !== viewMonthIndex) cell.classList.add('calendar-day-outside');
     if (day.getTime() === today.getTime()) cell.classList.add('calendar-day-today');
 
-    const inner = document.createElement('div');
-    inner.className = 'calendar-day-cell-inner';
-    cell.appendChild(inner);
-
     const numEl = document.createElement('div');
     numEl.className = 'calendar-day-number';
     numEl.textContent = day.getDate();
-    inner.appendChild(numEl);
+    cell.appendChild(numEl);
 
     const dayEvents = (eventsByDay.get(dateKey(day)) || []).sort((a, b) => new Date(a.start) - new Date(b.start));
     dayEvents.forEach((ev, idx) => {
@@ -2266,13 +2262,13 @@ function renderCalendarGrid() {
       const showTime = !ev.allDay && (!ev.isMultiDay || ev.spanPosition === 'start');
       evEl.textContent = showTime ? `${formatEventTime(ev)} ${ev.summary}` : ev.summary;
       evEl.title = ev.location ? `${ev.summary} (${ev.location})` : ev.summary;
-      inner.appendChild(evEl);
+      cell.appendChild(evEl);
     });
     if (dayEvents.length > maxShow) {
       const more = document.createElement('div');
       more.className = 'calendar-day-more';
       more.textContent = `+${dayEvents.length - maxShow} mehr (hovern für alle)`;
-      inner.appendChild(more);
+      cell.appendChild(more);
     }
 
     calendarGridEl.appendChild(cell);
