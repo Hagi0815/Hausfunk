@@ -2246,28 +2246,33 @@ function renderCalendarGrid() {
     if (day.getMonth() !== viewMonthIndex) cell.classList.add('calendar-day-outside');
     if (day.getTime() === today.getTime()) cell.classList.add('calendar-day-today');
 
+    const inner = document.createElement('div');
+    inner.className = 'calendar-day-cell-inner';
+    cell.appendChild(inner);
+
     const numEl = document.createElement('div');
     numEl.className = 'calendar-day-number';
     numEl.textContent = day.getDate();
-    cell.appendChild(numEl);
+    inner.appendChild(numEl);
 
     const dayEvents = (eventsByDay.get(dateKey(day)) || []).sort((a, b) => new Date(a.start) - new Date(b.start));
-    dayEvents.slice(0, maxShow).forEach((ev) => {
+    dayEvents.forEach((ev, idx) => {
       const evEl = document.createElement('div');
       evEl.className = 'calendar-day-event';
+      if (idx >= maxShow) evEl.classList.add('calendar-day-event-extra');
       if (ev.isMultiDay) {
         evEl.classList.add('calendar-day-event-multiday', `calendar-day-event-${ev.spanPosition}`);
       }
       const showTime = !ev.allDay && (!ev.isMultiDay || ev.spanPosition === 'start');
       evEl.textContent = showTime ? `${formatEventTime(ev)} ${ev.summary}` : ev.summary;
       evEl.title = ev.location ? `${ev.summary} (${ev.location})` : ev.summary;
-      cell.appendChild(evEl);
+      inner.appendChild(evEl);
     });
     if (dayEvents.length > maxShow) {
       const more = document.createElement('div');
       more.className = 'calendar-day-more';
-      more.textContent = `+${dayEvents.length - maxShow} mehr`;
-      cell.appendChild(more);
+      more.textContent = `+${dayEvents.length - maxShow} mehr (hovern für alle)`;
+      inner.appendChild(more);
     }
 
     calendarGridEl.appendChild(cell);
