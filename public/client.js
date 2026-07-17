@@ -2199,133 +2199,92 @@ function dateKey(d) {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
 
-function startOfDay(d) {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-}
-
-// Fuer einen Termin den tatsaechlichen letzten betroffenen Tag ermitteln --
+// Alle Tage berechnen, die ein Termin ueberspannt (fuer mehrtaegige Termine) --
 // bei ganztaegigen Terminen ist DTEND laut iCal-Konvention exklusiv (der Tag
 // NACH dem letzten Tag), daher dort 1ms abziehen.
-function eventEndDay(ev) {
+function getEventDayKeys(ev) {
   const start = new Date(ev.start);
   let end = ev.end ? new Date(ev.end) : start;
-  if (ev.allDay && ev.end) end = new Date(end.getTime() - 1);
-  return startOfDay(end);
-}
-
-const MAX_LANES = 4;
-
-// Ordnet alle Termine einer Woche in "Spuren" (Zeilen) ein, sodass sich
-// ueberschneidende Termine nie dieselbe Spur teilen -- Grundlage fuer echte,
-// durchgehende Balken ueber mehrere Tage hinweg (wie in gaengigen Kalendern).
-function assignEventLanes(weekStart, weekEnd, events) {
-  const items = [];
-  events.forEach((ev) => {
-    const evStartDay = startOfDay(new Date(ev.start));
-    const evEndDay = eventEndDay(ev);
-    if (evEndDay < weekStart || evStartDay > weekEnd) return; // beruehrt diese Woche nicht
-    const startCol = Math.max(0, Math.round((evStartDay - weekStart) / 86400000));
-    const endCol = Math.min(6, Math.round((evEndDay - weekStart) / 86400000));
-    const isMultiDay = evEndDay.getTime() !== evStartDay.getTime();
-    items.push({
-      ev, startCol, endCol, isMultiDay,
-    });
-  });
-
-  // Laengere/frueher beginnende Termine zuerst einordnen -- ergibt eine
-  // stabilere, gewohntere Anordnung.
-  items.sort((a, b) => {
-    const spanDiff = (b.endCol - b.startCol) - (a.endCol - a.startCol);
-    if (spanDiff !== 0) return spanDiff;
-    return a.startCol - b.startCol;
-  });
-
-  const laneEnds = []; // laneEnds[i] = letzte belegte Spalte in Spur i
-  items.forEach((item) => {
-    let lane = laneEnds.findIndex((endCol) => endCol < item.startCol);
-    if (lane === -1) {
-      lane = laneEnds.length;
-      laneEnds.push(item.endCol);
-    } else {
-      laneEnds[lane] = item.endCol;
-    }
-    item.lane = lane;
-  });
-
-  return items;
+  if (ev.allDay && ev.end) {
+    end = new Date(end.getTime() - 1);
+  }
+  const keys = [];
+  const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+  let guard = 0;
+  while (cursor <= endDay && guard < 400) {
+    keys.push(dateKey(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+    guard += 1;
+  }
+  return keys.length ? keys : [dateKey(start)];
 }
 
 function renderCalendarGrid() {
   calendarGridEl.innerHTML = '';
   calendarMonthLabelEl.textContent = calendarViewMonth.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
 
-  const allDays = getMonthGridDays(calendarViewMonth);
-  const today = startOfDay(new Date());
+  const eventsByDay = new Map();
+  lastCalendarEvents.forEach((ev) => {
+    const keys = getEventDayKeys(ev);
+    const isMultiDay = keys.length > 1;
+    keys.forEach((key, idx) => {
+      if (!eventsByDay.has(key)) eventsByDay.set(key, []);
+      const spanPosition = idx === 0 ? 'start' : (idx === keys.length - 1 ? 'end' : 'middle');
+      eventsByDay.get(key).push({ ...ev, isMultiDay, spanPosition });
+    });
+  });
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const viewMonthIndex = calendarViewMonth.getMonth();
+  const maxShow = 3;
 
-  for (let w = 0; w < 6; w += 1) {
-    const weekDays = allDays.slice(w * 7, w * 7 + 7);
-    const weekStart = weekDays[0];
-    const weekEnd = weekDays[6];
+  getMonthGridDays(calendarViewMonth).forEach((day) => {
+    const cell = document.createElement('div');
+    cell.className = 'calendar-day-cell';
+    if (day.getMonth() !== viewMonthIndex) cell.classList.add('calendar-day-outside');
+    if (day.getTime() === today.getTime()) cell.classList.add('calendar-day-today');
 
-    const weekEl = document.createElement('div');
-    weekEl.className = 'calendar-week';
+    const numEl = document.createElement('div');
+    numEl.className = 'calendar-day-number';
+    numEl.textContent = day.getDate();
+    cell.appendChild(numEl);
 
-    weekDays.forEach((day, i) => {
-      const dayNumWrap = document.createElement('div');
-      dayNumWrap.className = 'calendar-week-daynum';
-      dayNumWrap.style.gridColumn = `${i + 1} / ${i + 2}`;
-      if (day.getMonth() !== viewMonthIndex) dayNumWrap.classList.add('calendar-day-outside');
-      const numSpan = document.createElement('span');
-      if (day.getTime() === today.getTime()) numSpan.className = 'calendar-today-circle';
-      numSpan.textContent = day.getDate();
-      dayNumWrap.appendChild(numSpan);
-      weekEl.appendChild(dayNumWrap);
-    });
-
-    const laneItems = assignEventLanes(weekStart, weekEnd, lastCalendarEvents);
-    const visibleItems = laneItems.filter((item) => item.lane < MAX_LANES);
-    const hiddenItems = laneItems.filter((item) => item.lane >= MAX_LANES);
-
-    visibleItems.forEach((item) => {
-      const bar = document.createElement('div');
-      bar.className = 'calendar-week-event';
-      if (item.isMultiDay) bar.classList.add('calendar-week-event-bar');
-      bar.style.gridColumn = `${item.startCol + 1} / ${item.endCol + 2}`;
-      bar.style.gridRow = `${item.lane + 2}`;
-      const showTime = !item.ev.allDay && !item.isMultiDay;
-      bar.textContent = showTime ? `${formatEventTime(item.ev)} ${item.ev.summary}` : item.ev.summary;
-      bar.title = item.ev.location ? `${item.ev.summary} (${item.ev.location})` : item.ev.summary;
-      weekEl.appendChild(bar);
-    });
-
-    // "+X" pro Tag, an dem wegen des Spuren-Limits Termine nicht sichtbar sind --
-    // beim Hovern erscheint ein Popover mit der vollstaendigen Liste dieses Tages.
-    for (let i = 0; i < 7; i += 1) {
-      const hiddenForDay = hiddenItems.filter((item) => item.startCol <= i && item.endCol >= i);
-      if (!hiddenForDay.length) continue;
-      const more = document.createElement('div');
-      more.className = 'calendar-week-more';
-      more.style.gridColumn = `${i + 1} / ${i + 2}`;
-      more.style.gridRow = `${MAX_LANES + 2}`;
-      more.textContent = `+${hiddenForDay.length}`;
-
-      const popover = document.createElement('div');
-      popover.className = 'calendar-week-more-popover';
-      laneItems
-        .filter((item) => item.startCol <= i && item.endCol >= i)
-        .forEach((item) => {
-          const line = document.createElement('div');
-          line.className = 'calendar-day-event';
-          line.textContent = item.ev.allDay ? item.ev.summary : `${formatEventTime(item.ev)} ${item.ev.summary}`;
-          popover.appendChild(line);
-        });
-      more.appendChild(popover);
-      weekEl.appendChild(more);
+    function buildEventEl(ev) {
+      const evEl = document.createElement('div');
+      evEl.className = 'calendar-day-event';
+      if (ev.isMultiDay) {
+        evEl.classList.add('calendar-day-event-multiday', `calendar-day-event-${ev.spanPosition}`);
+      }
+      const showTime = !ev.allDay && (!ev.isMultiDay || ev.spanPosition === 'start');
+      evEl.textContent = showTime ? `${formatEventTime(ev)} ${ev.summary}` : ev.summary;
+      evEl.title = ev.location ? `${ev.summary} (${ev.location})` : ev.summary;
+      return evEl;
     }
 
-    calendarGridEl.appendChild(weekEl);
-  }
+    const dayEvents = (eventsByDay.get(dateKey(day)) || []).sort((a, b) => new Date(a.start) - new Date(b.start));
+    dayEvents.slice(0, maxShow).forEach((ev) => {
+      cell.appendChild(buildEventEl(ev));
+    });
+    if (dayEvents.length > maxShow) {
+      const more = document.createElement('div');
+      more.className = 'calendar-day-more';
+      more.textContent = `+${dayEvents.length - maxShow} mehr (hovern für alle)`;
+      cell.appendChild(more);
+
+      // Zusaetzliche Termine in einem eigenen, unabhaengig positionierten
+      // Popover -- beeinflusst die feste Zellengroesse dadurch nie.
+      const popover = document.createElement('div');
+      popover.className = 'calendar-day-extra-popover';
+      dayEvents.slice(maxShow).forEach((ev) => {
+        popover.appendChild(buildEventEl(ev));
+      });
+      cell.appendChild(popover);
+    }
+
+    calendarGridEl.appendChild(cell);
+  });
 }
 
 calendarPrevMonthBtn.addEventListener('click', () => {
