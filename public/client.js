@@ -514,8 +514,9 @@ socket.on('protectedNames', (list) => {
   updateNameFieldUI();
 });
 
-function openAvatarLightbox(src) {
+function openAvatarLightbox(src, isHoverPreview) {
   avatarLightboxImg.src = src;
+  avatarLightbox.classList.toggle('avatar-lightbox-hover-preview', Boolean(isHoverPreview));
   avatarLightbox.classList.remove('hidden');
 }
 function closeAvatarLightbox() {
@@ -542,9 +543,9 @@ function renderAvatar(color, avatar, photo) {
     el.classList.add('avatar-clickable');
     el.addEventListener('click', (e) => {
       e.stopPropagation();
-      openAvatarLightbox(photo);
+      openAvatarLightbox(photo, false);
     });
-    el.addEventListener('mouseenter', () => openAvatarLightbox(photo));
+    el.addEventListener('mouseenter', () => openAvatarLightbox(photo, true));
     el.addEventListener('mouseleave', () => closeAvatarLightbox());
   } else {
     // Kein eigenes Foto vorhanden -- neutraler gruener Platzhalter statt Icon

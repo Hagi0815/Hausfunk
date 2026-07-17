@@ -1649,6 +1649,7 @@ html, body {
   padding: 20px;
 }
 .avatar-lightbox.hidden { display: none; }
+.avatar-lightbox-hover-preview { pointer-events: none; }
 .avatar-lightbox-panel {
   position: relative;
   max-width: min(420px, 90vw);
