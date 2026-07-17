@@ -1603,7 +1603,7 @@ html, body {
   .pinned-bar { padding: 8px 12px; }
   .emoji-picker { left: 12px; width: min(260px, 80vw); }
   .checklist-panel { padding: 18px; }
-  .calendar-day-cell { min-height: 52px; padding: 3px; }
+  .calendar-day-cell { height: 70px; padding: 3px; }
   .calendar-day-event { font-size: 9px; }
   .calendar-month-label { min-width: 0; font-size: 13px; }
   .calendar-today-btn { font-size: 11px; padding: 3px 6px; }
@@ -1865,7 +1865,7 @@ html, body {
 }
 .calendar-day-cell {
   position: relative;
-  height: 78px;
+  height: 104px;
   background: var(--panel-alt);
   border: 1px solid var(--border);
   border-radius: 8px;
