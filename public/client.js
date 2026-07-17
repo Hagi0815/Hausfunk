@@ -553,6 +553,8 @@ function renderAvatar(color, avatar, photo) {
       e.stopPropagation();
       openAvatarLightbox(photo);
     });
+    el.addEventListener('mouseenter', () => openAvatarLightbox(photo));
+    el.addEventListener('mouseleave', () => closeAvatarLightbox());
   } else {
     // Kein eigenes Foto vorhanden -- neutraler gruener Platzhalter statt Icon
     el.classList.add('avatar-placeholder');
