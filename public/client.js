@@ -2251,24 +2251,36 @@ function renderCalendarGrid() {
     numEl.textContent = day.getDate();
     cell.appendChild(numEl);
 
-    const dayEvents = (eventsByDay.get(dateKey(day)) || []).sort((a, b) => new Date(a.start) - new Date(b.start));
-    dayEvents.forEach((ev, idx) => {
+    function buildEventEl(ev) {
       const evEl = document.createElement('div');
       evEl.className = 'calendar-day-event';
-      if (idx >= maxShow) evEl.classList.add('calendar-day-event-extra');
       if (ev.isMultiDay) {
         evEl.classList.add('calendar-day-event-multiday', `calendar-day-event-${ev.spanPosition}`);
       }
       const showTime = !ev.allDay && (!ev.isMultiDay || ev.spanPosition === 'start');
       evEl.textContent = showTime ? `${formatEventTime(ev)} ${ev.summary}` : ev.summary;
       evEl.title = ev.location ? `${ev.summary} (${ev.location})` : ev.summary;
-      cell.appendChild(evEl);
+      return evEl;
+    }
+
+    const dayEvents = (eventsByDay.get(dateKey(day)) || []).sort((a, b) => new Date(a.start) - new Date(b.start));
+    dayEvents.slice(0, maxShow).forEach((ev) => {
+      cell.appendChild(buildEventEl(ev));
     });
     if (dayEvents.length > maxShow) {
       const more = document.createElement('div');
       more.className = 'calendar-day-more';
       more.textContent = `+${dayEvents.length - maxShow} mehr (hovern für alle)`;
       cell.appendChild(more);
+
+      // Zusaetzliche Termine in einem eigenen, unabhaengig positionierten
+      // Popover -- beeinflusst die feste Zellengroesse dadurch nie.
+      const popover = document.createElement('div');
+      popover.className = 'calendar-day-extra-popover';
+      dayEvents.slice(maxShow).forEach((ev) => {
+        popover.appendChild(buildEventEl(ev));
+      });
+      cell.appendChild(popover);
     }
 
     calendarGridEl.appendChild(cell);
