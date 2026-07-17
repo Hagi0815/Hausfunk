@@ -9,6 +9,7 @@
   "dependencies": {
     "express": "^4.19.2",
     "multer": "^2.0.0",
+    "node-ical": "^0.26.1",
     "socket.io": "^4.7.5",
     "web-push": "^3.6.7"
   }

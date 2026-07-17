@@ -59,6 +59,7 @@
 
       <div class="shopping-nav-section">
         <button id="shopping-nav-btn" class="shopping-nav-btn" type="button">🛒 Einkaufsliste</button>
+        <button id="calendar-nav-btn" class="shopping-nav-btn" type="button">📅 Kalender</button>
       </div>
 
       <div class="online-label">ONLINE &middot; <span id="online-count">0</span></div>
@@ -182,6 +183,24 @@
           </div>
           <button id="checklist-clear-done" class="unban-btn checklist-clear-btn">Erledigte löschen</button>
           <div id="checklist-groups" class="checklist-groups"></div>
+        </aside>
+
+        <aside id="calendar-panel" class="checklist-panel hidden">
+          <div class="checklist-panel-header">
+            <span>📅 Kalender</span>
+          </div>
+          <div id="calendar-admin-form" class="calendar-admin-form hidden">
+            <div class="online-label">ICAL-ADRESSE</div>
+            <div class="room-customize-row">
+              <input id="calendar-url-input" type="text" placeholder="https://.../kalender.ics" />
+              <button id="calendar-url-save-btn" class="unban-btn" type="button">Speichern</button>
+            </div>
+          </div>
+          <div id="calendar-error" class="join-error hidden"></div>
+          <div id="calendar-list" class="calendar-list"></div>
+          <div id="calendar-empty" class="gallery-empty hidden">
+            Noch keine Termine. DOM kann oben eine iCal-Adresse hinterlegen.
+          </div>
         </aside>
       </div>
     </main>

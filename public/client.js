@@ -9,6 +9,14 @@ const messagesBgEl = document.getElementById('messages-bg');
 const chatColumnEl = document.getElementById('chat-column');
 const shoppingNavBtn = document.getElementById('shopping-nav-btn');
 const checklistPanelEl = document.getElementById('checklist-panel');
+const calendarNavBtn = document.getElementById('calendar-nav-btn');
+const calendarPanelEl = document.getElementById('calendar-panel');
+const calendarAdminForm = document.getElementById('calendar-admin-form');
+const calendarUrlInput = document.getElementById('calendar-url-input');
+const calendarUrlSaveBtn = document.getElementById('calendar-url-save-btn');
+const calendarErrorEl = document.getElementById('calendar-error');
+const calendarListEl = document.getElementById('calendar-list');
+const calendarEmptyEl = document.getElementById('calendar-empty');
 const checklistGroupsEl = document.getElementById('checklist-groups');
 const checklistCountEl = document.getElementById('checklist-count');
 const checklistClearDoneBtn = document.getElementById('checklist-clear-done');
@@ -1324,6 +1332,7 @@ function renderRoomList() {
   }
 
   shoppingNavBtn.classList.toggle('active', viewMode === 'shopping');
+  calendarNavBtn.classList.toggle('active', viewMode === 'calendar');
 }
 
 socket.on('rooms', (list) => {
@@ -1379,10 +1388,16 @@ socket.on('roomChanged', (roomId) => {
 
 function updateViewModeUI() {
   const isShopping = viewMode === 'shopping';
-  chatColumnEl.classList.toggle('hidden', isShopping);
+  const isCalendar = viewMode === 'calendar';
+  const isChat = !isShopping && !isCalendar;
+  chatColumnEl.classList.toggle('hidden', !isChat);
   checklistPanelEl.classList.toggle('hidden', !isShopping);
+  calendarPanelEl.classList.toggle('hidden', !isCalendar);
+  calendarAdminForm.classList.toggle('hidden', myRole !== 'admin');
   if (isShopping) {
     roomTitleEl.textContent = '🛒 Einkaufsliste';
+  } else if (isCalendar) {
+    roomTitleEl.textContent = '📅 Kalender';
   } else {
     const room = rooms.find((r) => r.id === currentRoom);
     roomTitleEl.innerHTML = '';
@@ -1397,12 +1412,19 @@ function updateViewModeUI() {
       roomTitleEl.textContent = `${room && room.icon ? room.icon : '#'} ${room ? room.label : currentRoom}`;
     }
   }
-  document.body.classList.toggle('theme-fun', !isShopping && currentRoom === 'fun');
+  document.body.classList.toggle('theme-fun', isChat && currentRoom === 'fun');
   applyRoomBackground();
 }
 
 shoppingNavBtn.addEventListener('click', () => {
   viewMode = 'shopping';
+  renderRoomList();
+  updateViewModeUI();
+  sidebar.classList.remove('open');
+});
+
+calendarNavBtn.addEventListener('click', () => {
+  viewMode = 'calendar';
   renderRoomList();
   updateViewModeUI();
   sidebar.classList.remove('open');
@@ -2142,6 +2164,98 @@ birthdayAddBtn.addEventListener('click', () => {
   birthdayNameInput.value = '';
   birthdayDateInput.value = '';
   birthdayNameInput.focus();
+});
+
+// --- Kalender (iCal) -----------------------------------------------------------
+function formatEventTime(ev) {
+  if (ev.allDay) return 'Ganztägig';
+  return new Date(ev.start).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatDayHeading(date) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(date);
+  target.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((target - today) / 86400000);
+  const dateStr = date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+  if (diffDays === 0) return `Heute · ${dateStr}`;
+  if (diffDays === 1) return `Morgen · ${dateStr}`;
+  const weekday = date.toLocaleDateString('de-DE', { weekday: 'long' });
+  return `${weekday} · ${dateStr}`;
+}
+
+function renderCalendar(events) {
+  calendarListEl.innerHTML = '';
+  if (!events.length) {
+    calendarEmptyEl.classList.remove('hidden');
+    return;
+  }
+  calendarEmptyEl.classList.add('hidden');
+
+  const groups = new Map(); // dayKey -> { date, items }
+  events.forEach((ev) => {
+    const d = new Date(ev.start);
+    const dayKey = d.toDateString();
+    if (!groups.has(dayKey)) groups.set(dayKey, { date: d, items: [] });
+    groups.get(dayKey).items.push(ev);
+  });
+
+  [...groups.values()].forEach((group) => {
+    const dayEl = document.createElement('div');
+
+    const heading = document.createElement('div');
+    heading.className = 'calendar-day-heading';
+    heading.textContent = formatDayHeading(group.date);
+    dayEl.appendChild(heading);
+
+    const list = document.createElement('ul');
+    list.className = 'calendar-events';
+    group.items.forEach((ev) => {
+      const li = document.createElement('li');
+      li.className = 'calendar-event';
+
+      const time = document.createElement('span');
+      time.className = 'calendar-event-time';
+      time.textContent = formatEventTime(ev);
+      li.appendChild(time);
+
+      const body = document.createElement('div');
+      body.className = 'calendar-event-body';
+      const summary = document.createElement('div');
+      summary.className = 'calendar-event-summary';
+      summary.textContent = ev.summary;
+      body.appendChild(summary);
+      if (ev.location) {
+        const loc = document.createElement('div');
+        loc.className = 'calendar-event-location';
+        loc.textContent = `📍 ${ev.location}`;
+        body.appendChild(loc);
+      }
+      li.appendChild(body);
+      list.appendChild(li);
+    });
+    dayEl.appendChild(list);
+    calendarListEl.appendChild(dayEl);
+  });
+}
+
+socket.on('calendarUpdate', ({ events, error }) => {
+  if (error) {
+    calendarErrorEl.textContent = error;
+    calendarErrorEl.classList.remove('hidden');
+  } else {
+    calendarErrorEl.classList.add('hidden');
+  }
+  renderCalendar(events || []);
+});
+
+socket.on('calendarUrl', (url) => {
+  calendarUrlInput.value = url || '';
+});
+
+calendarUrlSaveBtn.addEventListener('click', () => {
+  socket.emit('admin:setCalendarUrl', { url: calendarUrlInput.value.trim() });
 });
 
 // --- Kanal anpassen (Icon + Hintergrundbild, nur Admin) -----------------------

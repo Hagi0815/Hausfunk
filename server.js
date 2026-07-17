@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const multer = require('multer');
+const ical = require('node-ical');
 const webPush = require('web-push');
 const { Server } = require('socket.io');
 
@@ -22,6 +23,9 @@ const ROOMS_CONFIG_FILE = path.join(DATA_DIR, 'rooms-config.json');
 const SHOPPING_LIST_FILE = path.join(DATA_DIR, 'shopping-list.json');
 const SHOPPING_CATEGORIES_FILE = path.join(DATA_DIR, 'shopping-list-categories.json');
 const BIRTHDAYS_FILE = path.join(DATA_DIR, 'birthdays.json');
+const CALENDAR_CONFIG_FILE = path.join(DATA_DIR, 'calendar-config.json');
+const CALENDAR_REFRESH_MS = 30 * 60 * 1000; // alle 30 Minuten neu abrufen
+const CALENDAR_LOOKAHEAD_DAYS = 60;
 const BANNED_FILE = path.join(DATA_DIR, 'banned.json');
 const PROTECTED_USERS_FILE = path.join(DATA_DIR, 'protected-users.json');
 const ADMIN_CONFIG_FILE = path.join(DATA_DIR, 'admin-config.json');
@@ -78,6 +82,7 @@ if (!fs.existsSync(ADMIN_CONFIG_FILE)) {
 if (!fs.existsSync(PUSH_SUBS_FILE)) fs.writeFileSync(PUSH_SUBS_FILE, '{}');
 if (!fs.existsSync(SESSIONS_FILE)) fs.writeFileSync(SESSIONS_FILE, '{}');
 if (!fs.existsSync(BIRTHDAYS_FILE)) fs.writeFileSync(BIRTHDAYS_FILE, '[]');
+if (!fs.existsSync(CALENDAR_CONFIG_FILE)) fs.writeFileSync(CALENDAR_CONFIG_FILE, JSON.stringify({ url: null }));
 if (!fs.existsSync(PRESENCE_LOG_FILE)) fs.writeFileSync(PRESENCE_LOG_FILE, '[]');
 if (!fs.existsSync(PROTECTED_USERS_FILE)) fs.writeFileSync(PROTECTED_USERS_FILE, '{}');
 
@@ -449,6 +454,20 @@ function saveBirthdays() {
 }
 let birthdays = loadBirthdays(); // { id, name, day, month, year, addedBy, lastCongratulatedYear }
 
+// --- Kalender (iCal-Adresse, von DOM eingegeben) -----------------------------
+function loadCalendarConfig() {
+  try {
+    return JSON.parse(fs.readFileSync(CALENDAR_CONFIG_FILE, 'utf-8'));
+  } catch (err) {
+    return { url: null };
+  }
+}
+function saveCalendarConfig() {
+  fs.writeFileSync(CALENDAR_CONFIG_FILE, JSON.stringify({ url: calendarUrl }, null, 2));
+}
+let calendarUrl = loadCalendarConfig().url || null;
+let calendarEvents = [];
+
 // --- Zustand pro Kanal laden/speichern ---------------------------------------
 const roomState = new Map(); // roomId -> { messages: [...], pinned: {...}|null }
 
@@ -683,6 +702,66 @@ async function main() {
   checkBirthdaysToday();
   setInterval(checkBirthdaysToday, 60 * 60 * 1000); // stuendlich pruefen
 
+  // --- Kalender (iCal) abrufen und an alle verteilen --------------------------
+  async function fetchCalendar() {
+    if (!calendarUrl) {
+      calendarEvents = [];
+      io.emit('calendarUpdate', { events: [], updatedAt: Date.now(), error: null });
+      return;
+    }
+    try {
+      const data = await ical.async.fromURL(calendarUrl);
+      const now = new Date();
+      const future = new Date(now.getTime() + CALENDAR_LOOKAHEAD_DAYS * 24 * 60 * 60 * 1000);
+      const events = [];
+
+      Object.values(data).forEach((item) => {
+        if (!item || item.type !== 'VEVENT' || !item.start) return;
+        const allDay = Boolean(item.start.dateOnly);
+        const durationMs = item.end ? item.end.getTime() - item.start.getTime() : 0;
+        const summary = (item.summary || '(Ohne Titel)').toString().slice(0, 200);
+        const location = item.location ? item.location.toString().slice(0, 200) : null;
+
+        if (item.rrule) {
+          let occurrences = [];
+          try {
+            occurrences = item.rrule.between(now, future, true);
+          } catch (err) {
+            occurrences = [];
+          }
+          occurrences.forEach((occStart) => {
+            events.push({
+              summary,
+              location,
+              start: occStart.toISOString(),
+              end: new Date(occStart.getTime() + durationMs).toISOString(),
+              allDay,
+            });
+          });
+        } else if (item.start >= now && item.start <= future) {
+          events.push({
+            summary,
+            location,
+            start: item.start.toISOString(),
+            end: item.end ? item.end.toISOString() : null,
+            allDay,
+          });
+        }
+      });
+
+      events.sort((a, b) => new Date(a.start) - new Date(b.start));
+      calendarEvents = events.slice(0, 60);
+      io.emit('calendarUpdate', { events: calendarEvents, updatedAt: Date.now(), error: null });
+    } catch (err) {
+      console.error('Kalender konnte nicht abgerufen werden:', err.message);
+      io.emit('calendarUpdate', {
+        events: calendarEvents, updatedAt: Date.now(), error: 'Kalender konnte nicht abgerufen werden. Ist die Adresse korrekt?',
+      });
+    }
+  }
+  fetchCalendar();
+  setInterval(fetchCalendar, CALENDAR_REFRESH_MS);
+
   function notifyPushForMessage(roomId, msg) {
     const connectedNames = new Set([...onlineUsers.values()].map((u) => u.name.toLowerCase()));
     const room = ROOMS.find((r) => r.id === roomId);
@@ -771,6 +850,7 @@ async function main() {
       socket.emit('approvedAccounts', getApprovedList());
       socket.emit('pendingResets', getPendingResetsList());
       socket.emit('presenceLog', presenceLog);
+      socket.emit('calendarUrl', calendarUrl);
     }
     broadcastRoomUsers(roomId);
     broadcastGlobalUsers();
@@ -792,6 +872,7 @@ async function main() {
     if (weatherCache) socket.emit('weatherUpdate', weatherCache);
     socket.emit('shoppingListUpdate', { items: shoppingItems, categories: shoppingCategories });
     socket.emit('birthdaysUpdate', birthdays);
+    socket.emit('calendarUpdate', { events: calendarEvents, updatedAt: Date.now(), error: null });
 
     socket.on('join', (payload) => {
       const raw = typeof payload === 'string' ? { name: payload } : (payload || {});
@@ -1425,6 +1506,16 @@ async function main() {
       if (birthdays.length === before) return;
       saveBirthdays();
       io.emit('birthdaysUpdate', birthdays);
+    });
+
+    // --- Kalender-Adresse (iCal) festlegen, nur DOM -----------------------------
+    socket.on('admin:setCalendarUrl', (payload) => {
+      if (socket.data.role !== 'admin' || !payload) return;
+      const url = (payload.url || '').toString().trim().slice(0, 500);
+      calendarUrl = url || null;
+      saveCalendarConfig();
+      socket.emit('calendarUrl', calendarUrl);
+      fetchCalendar();
     });
 
     // --- Admin: Nutzer sperren/entsperren ----------------------------------------

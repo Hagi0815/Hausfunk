@@ -376,6 +376,25 @@ automatisch eine Gratulation im Standard-Kanal (inkl. Alter, falls das
 Geburtsjahr mit angegeben wurde) – die Prüfung läuft stündlich im
 Hintergrund, auch wenn gerade niemand online ist.
 
+## Kalender (iCal)
+
+„📅 Kalender" steht als eigener Bereich unter „🛒 Einkaufsliste" in der
+Sidebar, genauso wie die Einkaufsliste unabhängig von Kanälen. Zeigt die
+kommenden Termine der nächsten 60 Tage, nach Tag gruppiert, mit Uhrzeit
+(oder „Ganztägig") und Ort, falls angegeben. Wiederkehrende Termine (z. B.
+wöchentliche Termine) werden korrekt einzeln aufgeführt.
+
+- Die iCal-Adresse trägt DOM oben im Kalender-Bereich ein (Feld nur für DOM
+  sichtbar) – funktioniert mit jeder öffentlichen oder „geheimen" iCal-URL,
+  wie sie z. B. Google Kalender, Apple Kalender oder Outlook anbieten
+- Wird alle 30 Minuten automatisch neu abgerufen; bei einem Abruffehler
+  (z. B. falsche Adresse) erscheint eine Meldung, ohne den Rest der App zu
+  stören
+- Adresse liegt in `data/calendar-config.json`, nur für DOM einsehbar –
+  andere Nutzer sehen ausschließlich die daraus abgeleiteten Termine, nicht
+  die Adresse selbst (die bei manchen Anbietern ein privates Zugangs-Token
+  enthält)
+
 ## Kanal anpassen (Icon & Hintergrundbild, nur DOM)
 
 Über das 🎨-Symbol neben jedem Kanal in der Sidebar kann DOM für **jeden
