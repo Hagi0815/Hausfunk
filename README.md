@@ -31,24 +31,22 @@ PORT=4000 npm start
 
 ## Profilbilder
 
-Es gibt nur eine Möglichkeit für ein Profilbild: über „📷 Eigenes Bild“ ein
-echtes Foto hochladen (JPG/PNG/WebP, max. 5 MB) – keine vorgefertigten
-Icons/Bilder zur Auswahl. Ohne eigenes Foto wird ein neutraler grüner
-Kreis angezeigt, kein Platzhalter-Icon. Jede Person kann ihr Bild jederzeit
-ändern, einfach beim nächsten Betreten ein neues hochladen. Da es keine
-Benutzerkonten gibt, wird das Bild an den eingegebenen Namen gebunden: tippt
-man später denselben Namen erneut ein, wird das zuletzt hochgeladene Bild
-automatisch vorgeschlagen (Vorschau aktualisiert sich, sobald man aus dem
-Namensfeld heraus-tabbt).
+Profilbilder werden **nicht mehr beim Einloggen** ausgewählt. Stattdessen:
+Klick auf den eigenen Namen in der Online-Liste (Sidebar) öffnet ein kleines
+Modal zum Hochladen eines echten Fotos (JPG/PNG/WebP/GIF, max. 5 MB) – keine
+vorgefertigten Icons zur Auswahl. Ohne eigenes Foto wird ein neutraler
+grüner Kreis angezeigt.
 
+- **Jede Person kann nur ihr eigenes Bild ändern** – der Upload läuft über
+  die eigene, bereits angemeldete Verbindung (Socket), nicht über eine offene
+  Adresse, die jeder mit jedem Namen ansprechen könnte
+- Die Änderung wirkt sofort, auch in der laufenden Sitzung – ein erneutes
+  Einloggen ist nicht nötig
 - Zuordnung liegt in `data/avatars.json` (Name → Bild-URL), Bilder selbst unter
   `uploads/avatars/`
 - Kein Zuschneiden/Verkleinern serverseitig – die Bilder werden nur in der
   Chat-Oberfläche klein dargestellt; im LAN spielt die Dateigröße performance-
   mäßig keine Rolle
-- Da es sich um ein vertrauenswürdiges Heimnetz ohne Zugriffsschutz handelt,
-  kann grundsätzlich jeder ein Bild unter einem beliebigen Namen hochladen –
-  für den Familiengebrauch unkritisch, aber gut zu wissen
 
 ## Zugang (verpflichtende Konto-Freigabe für neue Namen)
 

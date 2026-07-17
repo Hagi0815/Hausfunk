@@ -35,15 +35,6 @@
       <div id="join-error" class="join-error hidden"></div>
       <div id="join-info" class="join-info hidden"></div>
 
-      <div class="avatar-picker">
-        <div class="online-label">DEIN PROFILBILD</div>
-        <div class="avatar-preview-row">
-          <div id="avatar-preview" class="avatar-preview"></div>
-          <button id="avatar-upload-btn" type="button" class="avatar-upload-btn">📷 Eigenes Bild</button>
-          <input id="avatar-file-input" type="file" accept="image/*" class="visually-hidden-file-input" />
-        </div>
-      </div>
-
       <button id="join-btn">Kanal betreten</button>
     </div>
   </div>
@@ -226,6 +217,21 @@
       </div>
       <ul id="birthdays-list" class="banned-list"></ul>
       <div id="birthdays-empty" class="gallery-empty hidden">Noch keine Geburtstage eingetragen.</div>
+    </div>
+  </div>
+
+  <div id="my-avatar-overlay" class="gallery-overlay hidden">
+    <div class="gallery-panel">
+      <div class="gallery-header">
+        <span>Dein Profilbild</span>
+        <button id="my-avatar-close" aria-label="Schließen">✕</button>
+      </div>
+      <div class="my-avatar-form">
+        <div id="my-avatar-preview" class="avatar-preview"></div>
+        <button id="my-avatar-upload-btn" class="unban-btn" type="button">📷 Neues Bild hochladen</button>
+        <input id="my-avatar-file-input" type="file" accept="image/*" class="visually-hidden-file-input" />
+        <div id="my-avatar-error" class="join-error hidden"></div>
+      </div>
     </div>
   </div>
 

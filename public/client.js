@@ -137,9 +137,12 @@ let myAvatarType = 'none'; // 'none' | 'photo' -- ohne eigenes Foto gibt's keine
 let myAvatarValue = null;
 let avatarMap = {}; // name (lowercase) -> gespeicherte Foto-URL
 
-const avatarPreviewEl = document.getElementById('avatar-preview');
-const avatarUploadBtn = document.getElementById('avatar-upload-btn');
-const avatarFileInput = document.getElementById('avatar-file-input');
+const myAvatarOverlay = document.getElementById('my-avatar-overlay');
+const myAvatarPreviewEl = document.getElementById('my-avatar-preview');
+const myAvatarCloseBtn = document.getElementById('my-avatar-close');
+const myAvatarUploadBtn = document.getElementById('my-avatar-upload-btn');
+const myAvatarFileInput = document.getElementById('my-avatar-file-input');
+const myAvatarErrorEl = document.getElementById('my-avatar-error');
 
 let myName = '';
 let typingTimeout = null;
@@ -426,64 +429,63 @@ themeToggleBtn.addEventListener('click', () => {
   applyTheme(currentTheme);
 });
 
-// --- Avatar-Vorschau auf der Login-Seite (nur eigenes Foto oder gruener Platzhalter) ---
-function updateAvatarPreview() {
-  avatarPreviewEl.innerHTML = '';
+// --- Eigenes Profilbild aendern (Modal nach dem Login, per Klick auf den
+//     eigenen Namen in der Nutzerliste -- nicht mehr beim Einloggen) --------
+function renderMyAvatarPreview() {
+  myAvatarPreviewEl.innerHTML = '';
   if (myAvatarType === 'photo' && myAvatarValue) {
     const img = document.createElement('img');
     img.src = myAvatarValue;
     img.alt = '';
-    avatarPreviewEl.appendChild(img);
-    avatarPreviewEl.classList.remove('avatar-preview-empty');
-    avatarPreviewEl.classList.add('avatar-clickable');
-    avatarPreviewEl.onclick = () => openAvatarLightbox(myAvatarValue);
+    myAvatarPreviewEl.appendChild(img);
+    myAvatarPreviewEl.classList.remove('avatar-preview-empty');
   } else {
-    avatarPreviewEl.classList.add('avatar-preview-empty');
-    avatarPreviewEl.classList.remove('avatar-clickable');
-    avatarPreviewEl.onclick = null;
+    myAvatarPreviewEl.classList.add('avatar-preview-empty');
   }
 }
-updateAvatarPreview();
 
-avatarUploadBtn.addEventListener('click', () => {
-  const name = nameInput.value.trim();
-  if (!name) {
-    joinErrorEl.textContent = 'Bitte zuerst deinen Namen eingeben, dann kannst du ein Profilbild hochladen.';
-    joinErrorEl.classList.remove('hidden');
-    nameInput.focus();
-    return;
-  }
-  joinErrorEl.classList.add('hidden');
-  avatarFileInput.click();
+function openMyAvatarModal() {
+  renderMyAvatarPreview();
+  myAvatarErrorEl.classList.add('hidden');
+  myAvatarOverlay.classList.remove('hidden');
+}
+function closeMyAvatarModal() {
+  myAvatarOverlay.classList.add('hidden');
+}
+myAvatarCloseBtn.addEventListener('click', closeMyAvatarModal);
+myAvatarOverlay.addEventListener('click', (e) => {
+  if (e.target === myAvatarOverlay) closeMyAvatarModal();
 });
 
-avatarFileInput.addEventListener('change', async () => {
-  const file = avatarFileInput.files[0];
-  avatarFileInput.value = '';
+myAvatarUploadBtn.addEventListener('click', () => myAvatarFileInput.click());
+myAvatarFileInput.addEventListener('change', () => {
+  const file = myAvatarFileInput.files[0];
+  myAvatarFileInput.value = '';
   if (!file) return;
-  const name = nameInput.value.trim();
-  if (!name) return;
-  const formData = new FormData();
-  formData.append('avatar', file);
-  formData.append('name', name);
-  avatarUploadBtn.textContent = '⏳ Lädt...';
-  joinErrorEl.classList.add('hidden');
-  try {
-    const res = await fetch('/upload-avatar', { method: 'POST', body: formData });
-    const data = await res.json();
-    if (data.url) {
-      myAvatarType = 'photo';
-      myAvatarValue = data.url;
-      updateAvatarPreview();
-    } else {
-      joinErrorEl.textContent = data.error || 'Profilbild konnte nicht hochgeladen werden.';
-      joinErrorEl.classList.remove('hidden');
-    }
-  } catch (err) {
-    joinErrorEl.textContent = 'Profilbild konnte nicht hochgeladen werden (Verbindungsfehler). Bitte nochmal versuchen.';
-    joinErrorEl.classList.remove('hidden');
-  }
-  avatarUploadBtn.textContent = '📷 Eigenes Bild';
+  myAvatarErrorEl.classList.add('hidden');
+  myAvatarUploadBtn.textContent = '⏳ Lädt...';
+  const reader = new FileReader();
+  reader.onload = () => {
+    socket.emit('updateMyAvatar', { dataUrl: reader.result });
+  };
+  reader.onerror = () => {
+    myAvatarErrorEl.textContent = 'Bild konnte nicht gelesen werden. Bitte nochmal versuchen.';
+    myAvatarErrorEl.classList.remove('hidden');
+    myAvatarUploadBtn.textContent = '📷 Neues Bild hochladen';
+  };
+  reader.readAsDataURL(file);
+});
+
+socket.on('myAvatarUpdated', (url) => {
+  myAvatarType = 'photo';
+  myAvatarValue = url;
+  renderMyAvatarPreview();
+  myAvatarUploadBtn.textContent = '📷 Neues Bild hochladen';
+});
+socket.on('avatarActionError', (msg) => {
+  myAvatarErrorEl.textContent = msg;
+  myAvatarErrorEl.classList.remove('hidden');
+  myAvatarUploadBtn.textContent = '📷 Neues Bild hochladen';
 });
 
 // Passwortfeld/Registrierungs-Option abhaengig vom eingegebenen Namen steuern:
@@ -500,33 +502,11 @@ function updateNameFieldUI() {
   } else {
     joinInfoEl.classList.add('hidden');
   }
-  refreshAvatarPreviewFromName();
-}
-
-// Falls fuer den eingegebenen Namen schon ein Profilbild gespeichert ist,
-// automatisch vorschlagen -- sofort beim Tippen, nicht erst beim Verlassen
-// des Feldes (blur), damit die Vorschau nie faelschlich leer erscheint.
-function refreshAvatarPreviewFromName() {
-  const key = nameInput.value.trim().toLowerCase();
-  if (key && avatarMap[key] && myAvatarValue !== avatarMap[key]) {
-    myAvatarType = 'photo';
-    myAvatarValue = avatarMap[key];
-    updateAvatarPreview();
-  }
 }
 nameInput.addEventListener('input', updateNameFieldUI);
-nameInput.addEventListener('blur', () => {
-  const key = nameInput.value.trim().toLowerCase();
-  if (key && avatarMap[key]) {
-    myAvatarType = 'photo';
-    myAvatarValue = avatarMap[key];
-    updateAvatarPreview();
-  }
-});
 
 socket.on('avatarMap', (map) => {
   avatarMap = map || {};
-  refreshAvatarPreviewFromName();
 });
 
 socket.on('protectedNames', (list) => {
@@ -586,16 +566,6 @@ function join() {
 
   joinErrorEl.classList.add('hidden');
   joinInfoEl.classList.add('hidden');
-
-  // Zur Sicherheit hier nochmal pruefen (nicht nur beim "blur" auf das Namensfeld,
-  // das z.B. beim direkten Enter-Druecken nicht immer zuverlaessig auslöst) --
-  // damit ein zuvor gespeichertes Profilbild garantiert verwendet wird.
-  const nameKey = name.toLowerCase();
-  if (avatarMap[nameKey] && myAvatarValue !== avatarMap[nameKey]) {
-    myAvatarType = 'photo';
-    myAvatarValue = avatarMap[nameKey];
-    updateAvatarPreview();
-  }
 
   myName = name;
   lastJoinPassword = password; // nur im Speicher, fuer automatisches Re-Login nach Verbindungsabbruch
@@ -1183,6 +1153,7 @@ function renderUserList(container, list, allowActions, showRoom) {
   container.innerHTML = '';
   list.forEach((u) => {
     const li = document.createElement('li');
+    const isMe = hasJoined && u.name === myName;
     li.appendChild(renderAvatar(u.color, u.avatar, u.photo));
 
     const nameWrap = document.createElement('span');
@@ -1199,6 +1170,15 @@ function renderUserList(container, list, allowActions, showRoom) {
     }
     li.appendChild(nameWrap);
 
+    if (isMe) {
+      li.classList.add('user-list-item-me');
+      li.title = 'Klicken, um dein Profilbild zu ändern';
+      li.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openMyAvatarModal();
+      });
+    }
+
     if (u.role === 'admin') {
       const badge = document.createElement('span');
       badge.className = 'role-badge';
@@ -1210,7 +1190,8 @@ function renderUserList(container, list, allowActions, showRoom) {
       banBtn.className = 'ban-btn';
       banBtn.textContent = '🚫';
       banBtn.title = `${u.name} sperren`;
-      banBtn.addEventListener('click', () => {
+      banBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
         if (confirm(`${u.name} wirklich aus dem Kanal entfernen und sperren?`)) {
           socket.emit('admin:banUser', { name: u.name });
         }

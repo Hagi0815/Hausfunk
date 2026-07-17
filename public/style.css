@@ -1804,6 +1804,16 @@ html, body {
   flex-direction: column;
   gap: 6px;
 }
+.my-avatar-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+}
+.my-avatar-form .avatar-preview { width: 72px; height: 72px; font-size: 28px; }
+.user-list-item-me { cursor: pointer; }
+.user-list-item-me:hover { background: var(--panel-alt); border-radius: 6px; }
 .room-customize-row { display: flex; gap: 6px; }
 #room-icon-input {
   flex: 1;

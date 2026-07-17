@@ -552,39 +552,6 @@ async function main() {
     });
   });
 
-  // --- Profilbild-Upload (persistent, an den Namen gebunden) ------------------
-  const avatarStorage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, AVATAR_DIR),
-    filename: (req, file, cb) => {
-      const ext = path.extname(file.originalname).toLowerCase();
-      const safeExt = ['.png', '.jpg', '.jpeg', '.webp'].includes(ext) ? ext : '.jpg';
-      const name = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${safeExt}`;
-      cb(null, name);
-    },
-  });
-  const uploadAvatar = multer({
-    storage: avatarStorage,
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
-    fileFilter: (req, file, cb) => {
-      if (/^image\/(png|jpe?g|webp)$/.test(file.mimetype)) cb(null, true);
-      else cb(new Error('Nur Bilddateien sind erlaubt'));
-    },
-  });
-
-  app.post('/upload-avatar', (req, res) => {
-    uploadAvatar.single('avatar')(req, res, (err) => {
-      if (err) return res.status(400).json({ error: err.message });
-      if (!req.file) return res.status(400).json({ error: 'Keine Datei erhalten' });
-      const name = (req.body.name || '').toString().trim().slice(0, 24).toLowerCase();
-      if (!name) return res.status(400).json({ error: 'Name fehlt' });
-      const url = `/uploads/avatars/${req.file.filename}`;
-      avatarsByName[name] = url;
-      saveAvatars(avatarsByName);
-      io.emit('avatarMap', avatarsByName);
-      res.json({ url });
-    });
-  });
-
   // --- Web-Push: oeffentlicher Schluessel fuer den Client ---------------------
   app.get('/vapid-public-key', (req, res) => {
     res.json({ publicKey: vapidKeys.publicKey });
@@ -1206,6 +1173,45 @@ async function main() {
       room.icon = icon || null;
       saveRoomsConfig();
       io.emit('rooms', ROOMS);
+    });
+
+    // --- Eigenes Profilbild aendern (nur die eigene Sitzung, nach dem Login) ---
+    socket.on('updateMyAvatar', (payload) => {
+      if (!socket.data.name || !payload) return;
+      const dataUrl = (payload.dataUrl || '').toString();
+      const match = /^data:image\/(png|jpe?g|webp|gif);base64,(.+)$/.exec(dataUrl);
+      if (!match) {
+        socket.emit('avatarActionError', 'Nur Bilddateien (JPG/PNG/WebP/GIF) sind als Profilbild erlaubt.');
+        return;
+      }
+      const ext = match[1] === 'jpeg' ? 'jpg' : match[1];
+      const buffer = Buffer.from(match[2], 'base64');
+      if (buffer.length > 5 * 1024 * 1024) {
+        socket.emit('avatarActionError', 'Das Bild ist zu groß (max. 5 MB).');
+        return;
+      }
+      const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      fs.writeFileSync(path.join(AVATAR_DIR, filename), buffer);
+      const url = `/uploads/avatars/${filename}`;
+      const nameKey = socket.data.name.toLowerCase();
+
+      avatarsByName[nameKey] = url;
+      saveAvatars(avatarsByName);
+
+      // Sofort fuer die laufende Sitzung uebernehmen, damit neue Nachrichten
+      // gleich das neue Bild zeigen, nicht erst beim naechsten Login.
+      socket.data.photo = url;
+      socket.data.avatar = null;
+      const entry = onlineUsers.get(socket.id);
+      if (entry) {
+        entry.photo = url;
+        entry.avatar = null;
+      }
+
+      io.emit('avatarMap', avatarsByName);
+      if (socket.data.room) broadcastRoomUsers(socket.data.room);
+      broadcastGlobalUsers();
+      socket.emit('myAvatarUpdated', url);
     });
 
     socket.on('admin:uploadRoomIcon', (payload) => {
