@@ -723,34 +723,45 @@ async function main() {
         const location = item.location ? item.location.toString().slice(0, 200) : null;
 
         if (item.rrule) {
+          // Etwas vor "jetzt" beginnen lassen (um die eigene Dauer), damit
+          // gerade laufende/mehrtaegige wiederkehrende Termine nicht
+          // faelschlich fehlen, nur weil ihr Start knapp in der Vergangenheit liegt.
+          const rangeStart = new Date(now.getTime() - Math.max(durationMs, 0));
           let occurrences = [];
           try {
-            occurrences = item.rrule.between(now, future, true);
+            occurrences = item.rrule.between(rangeStart, future, true);
           } catch (err) {
             occurrences = [];
           }
           occurrences.forEach((occStart) => {
+            const occEnd = new Date(occStart.getTime() + durationMs);
+            if (occEnd < now) return; // bereits abgeschlossene Vorkommen ueberspringen
             events.push({
               summary,
               location,
               start: occStart.toISOString(),
-              end: new Date(occStart.getTime() + durationMs).toISOString(),
+              end: occEnd.toISOString(),
               allDay,
             });
           });
-        } else if (item.start >= now && item.start <= future) {
-          events.push({
-            summary,
-            location,
-            start: item.start.toISOString(),
-            end: item.end ? item.end.toISOString() : null,
-            allDay,
-          });
+        } else {
+          // Auch bereits laufende, aber noch nicht beendete Termine anzeigen
+          // (z.B. mehrtaegige Termine, die vor "jetzt" begonnen haben).
+          const effectiveEnd = item.end || item.start;
+          if (effectiveEnd >= now && item.start <= future) {
+            events.push({
+              summary,
+              location,
+              start: item.start.toISOString(),
+              end: item.end ? item.end.toISOString() : null,
+              allDay,
+            });
+          }
         }
       });
 
       events.sort((a, b) => new Date(a.start) - new Date(b.start));
-      calendarEvents = events.slice(0, 60);
+      calendarEvents = events.slice(0, 400);
       io.emit('calendarUpdate', { events: calendarEvents, updatedAt: Date.now(), error: null });
     } catch (err) {
       console.error('Kalender konnte nicht abgerufen werden:', err.message);
