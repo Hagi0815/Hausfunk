@@ -26,6 +26,7 @@ const BIRTHDAYS_FILE = path.join(DATA_DIR, 'birthdays.json');
 const CALENDAR_CONFIG_FILE = path.join(DATA_DIR, 'calendar-config.json');
 const CALENDAR_REFRESH_MS = 30 * 60 * 1000; // alle 30 Minuten neu abrufen
 const CALENDAR_LOOKAHEAD_DAYS = 60;
+const CALENDAR_LOOKBACK_DAYS = 60;
 const BANNED_FILE = path.join(DATA_DIR, 'banned.json');
 const PROTECTED_USERS_FILE = path.join(DATA_DIR, 'protected-users.json');
 const ADMIN_CONFIG_FILE = path.join(DATA_DIR, 'admin-config.json');
@@ -712,6 +713,7 @@ async function main() {
     try {
       const data = await ical.async.fromURL(calendarUrl);
       const now = new Date();
+      const rangeStart = new Date(now.getTime() - CALENDAR_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
       const future = new Date(now.getTime() + CALENDAR_LOOKAHEAD_DAYS * 24 * 60 * 60 * 1000);
       const events = [];
 
@@ -723,10 +725,6 @@ async function main() {
         const location = item.location ? item.location.toString().slice(0, 200) : null;
 
         if (item.rrule) {
-          // Etwas vor "jetzt" beginnen lassen (um die eigene Dauer), damit
-          // gerade laufende/mehrtaegige wiederkehrende Termine nicht
-          // faelschlich fehlen, nur weil ihr Start knapp in der Vergangenheit liegt.
-          const rangeStart = new Date(now.getTime() - Math.max(durationMs, 0));
           let occurrences = [];
           try {
             occurrences = item.rrule.between(rangeStart, future, true);
@@ -735,7 +733,6 @@ async function main() {
           }
           occurrences.forEach((occStart) => {
             const occEnd = new Date(occStart.getTime() + durationMs);
-            if (occEnd < now) return; // bereits abgeschlossene Vorkommen ueberspringen
             events.push({
               summary,
               location,
@@ -745,10 +742,10 @@ async function main() {
             });
           });
         } else {
-          // Auch bereits laufende, aber noch nicht beendete Termine anzeigen
-          // (z.B. mehrtaegige Termine, die vor "jetzt" begonnen haben).
+          // Vergangene und zukuenftige Termine gleichermassen im Zeitfenster
+          // beruecksichtigen, nicht nur ab "jetzt".
           const effectiveEnd = item.end || item.start;
-          if (effectiveEnd >= now && item.start <= future) {
+          if (effectiveEnd >= rangeStart && item.start <= future) {
             events.push({
               summary,
               location,
@@ -761,7 +758,7 @@ async function main() {
       });
 
       events.sort((a, b) => new Date(a.start) - new Date(b.start));
-      calendarEvents = events.slice(0, 400);
+      calendarEvents = events.slice(0, 600);
       io.emit('calendarUpdate', { events: calendarEvents, updatedAt: Date.now(), error: null });
     } catch (err) {
       console.error('Kalender konnte nicht abgerufen werden:', err.message);

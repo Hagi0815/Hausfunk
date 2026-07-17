@@ -382,14 +382,20 @@ Hintergrund, auch wenn gerade niemand online ist.
 Sidebar, genauso wie die Einkaufsliste unabhängig von Kanälen. Zeigt einen
 **echten Monatsraster-Kalender** (Mo–So, wie bei Google Kalender), mit
 „‹"/„›" zum Blättern zwischen Monaten und einem „Heute"-Button zum
-Zurückspringen. Termine erscheinen kompakt in ihrer Tageszelle (Uhrzeit +
-Titel, bei mehr als 3 Terminen ein „+X mehr"-Hinweis), der heutige Tag ist
-farblich hervorgehoben. Wiederkehrende Termine (z. B. wöchentliche Termine)
-werden korrekt einzeln in ihre jeweilige Tageszelle einsortiert.
+Zurückspringen. Jeder Tag ist eine eigene, fest große Zelle. Termine
+erscheinen kompakt in ihrer Tageszelle (Uhrzeit + Titel, bei mehr als 3
+Terminen ein „+X mehr"-Hinweis, beim Hovern öffnet sich ein Popup mit der
+vollständigen Liste dieses Tages, ohne dass sich die Zellengröße dabei
+ändert). Der heutige Tag ist farblich hervorgehoben.
 
-- Die iCal-Adresse trägt DOM oben im Kalender-Bereich ein (Feld nur für DOM
-  sichtbar) – funktioniert mit jeder öffentlichen oder „geheimen" iCal-URL,
-  wie sie z. B. Google Kalender, Apple Kalender oder Outlook anbieten
+- Mehrtägige Termine erscheinen in **jeder** Tageszelle, die sie
+  überspannen (farblich hervorgehoben, mit passenden Ecken für einen
+  fortlaufenden Eindruck) – nicht nur am Starttag
+- Wiederkehrende Termine (z. B. wöchentliche Termine) werden korrekt als
+  einzelne Vorkommen dargestellt
+- Die iCal-Adresse trägt DOM im Admin-Bereich (🛡) ein – funktioniert mit
+  jeder öffentlichen oder „geheimen" iCal-URL, wie sie z. B. Google
+  Kalender, Apple Kalender oder Outlook anbieten
 - Wird alle 30 Minuten automatisch neu abgerufen; bei einem Abruffehler
   (z. B. falsche Adresse) erscheint eine Meldung, ohne den Rest der App zu
   stören
@@ -397,9 +403,10 @@ werden korrekt einzeln in ihre jeweilige Tageszelle einsortiert.
   andere Nutzer sehen ausschließlich die daraus abgeleiteten Termine, nicht
   die Adresse selbst (die bei manchen Anbietern ein privates Zugangs-Token
   enthält)
-- Termine werden nur für die kommenden 60 Tage vom Server geladen; beim
-  Blättern in weiter entfernte Monate (oder in die Vergangenheit) bleiben
-  die Tageszellen entsprechend leer
+- Termine werden **symmetrisch 60 Tage in die Vergangenheit und 60 Tage in
+  die Zukunft** vom Server geladen – vergangene Termine erscheinen beim
+  Zurückblättern also genauso wie zukünftige. Weiter entfernte Monate
+  bleiben leer.
 
 ## Kanal anpassen (Icon & Hintergrundbild, nur DOM)
 

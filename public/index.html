@@ -189,13 +189,6 @@
           <div class="checklist-panel-header">
             <span>📅 Kalender</span>
           </div>
-          <div id="calendar-admin-form" class="calendar-admin-form hidden">
-            <div class="online-label">ICAL-ADRESSE</div>
-            <div class="room-customize-row">
-              <input id="calendar-url-input" type="text" placeholder="https://.../kalender.ics" />
-              <button id="calendar-url-save-btn" class="unban-btn" type="button">Speichern</button>
-            </div>
-          </div>
           <div id="calendar-error" class="join-error hidden"></div>
           <div class="calendar-month-nav">
             <button id="calendar-prev-month" class="unban-btn" type="button" aria-label="Vorheriger Monat">‹</button>
@@ -299,6 +292,14 @@
         <div class="admin-rename-row">
           <span id="admin-current-name">DOM</span>
           <button id="admin-rename-btn" class="unban-btn">Ändern</button>
+        </div>
+      </div>
+
+      <div class="admin-section">
+        <div class="online-label">KALENDER (ICAL-ADRESSE)</div>
+        <div class="room-customize-row">
+          <input id="calendar-url-input" type="text" placeholder="https://.../kalender.ics" />
+          <button id="calendar-url-save-btn" class="unban-btn" type="button">Speichern</button>
         </div>
       </div>
 

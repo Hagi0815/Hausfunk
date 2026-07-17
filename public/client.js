@@ -11,7 +11,6 @@ const shoppingNavBtn = document.getElementById('shopping-nav-btn');
 const checklistPanelEl = document.getElementById('checklist-panel');
 const calendarNavBtn = document.getElementById('calendar-nav-btn');
 const calendarPanelEl = document.getElementById('calendar-panel');
-const calendarAdminForm = document.getElementById('calendar-admin-form');
 const calendarUrlInput = document.getElementById('calendar-url-input');
 const calendarUrlSaveBtn = document.getElementById('calendar-url-save-btn');
 const calendarErrorEl = document.getElementById('calendar-error');
@@ -1396,7 +1395,6 @@ function updateViewModeUI() {
   chatColumnEl.classList.toggle('hidden', !isChat);
   checklistPanelEl.classList.toggle('hidden', !isShopping);
   calendarPanelEl.classList.toggle('hidden', !isCalendar);
-  calendarAdminForm.classList.toggle('hidden', myRole !== 'admin');
   if (isShopping) {
     roomTitleEl.textContent = '🛒 Einkaufsliste';
   } else if (isCalendar) {
