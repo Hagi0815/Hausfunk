@@ -379,10 +379,13 @@ Hintergrund, auch wenn gerade niemand online ist.
 ## Kalender (iCal)
 
 „📅 Kalender" steht als eigener Bereich unter „🛒 Einkaufsliste" in der
-Sidebar, genauso wie die Einkaufsliste unabhängig von Kanälen. Zeigt die
-kommenden Termine der nächsten 60 Tage, nach Tag gruppiert, mit Uhrzeit
-(oder „Ganztägig") und Ort, falls angegeben. Wiederkehrende Termine (z. B.
-wöchentliche Termine) werden korrekt einzeln aufgeführt.
+Sidebar, genauso wie die Einkaufsliste unabhängig von Kanälen. Zeigt einen
+**echten Monatsraster-Kalender** (Mo–So, wie bei Google Kalender), mit
+„‹"/„›" zum Blättern zwischen Monaten und einem „Heute"-Button zum
+Zurückspringen. Termine erscheinen kompakt in ihrer Tageszelle (Uhrzeit +
+Titel, bei mehr als 3 Terminen ein „+X mehr"-Hinweis), der heutige Tag ist
+farblich hervorgehoben. Wiederkehrende Termine (z. B. wöchentliche Termine)
+werden korrekt einzeln in ihre jeweilige Tageszelle einsortiert.
 
 - Die iCal-Adresse trägt DOM oben im Kalender-Bereich ein (Feld nur für DOM
   sichtbar) – funktioniert mit jeder öffentlichen oder „geheimen" iCal-URL,
@@ -394,6 +397,9 @@ wöchentliche Termine) werden korrekt einzeln aufgeführt.
   andere Nutzer sehen ausschließlich die daraus abgeleiteten Termine, nicht
   die Adresse selbst (die bei manchen Anbietern ein privates Zugangs-Token
   enthält)
+- Termine werden nur für die kommenden 60 Tage vom Server geladen; beim
+  Blättern in weiter entfernte Monate (oder in die Vergangenheit) bleiben
+  die Tageszellen entsprechend leer
 
 ## Kanal anpassen (Icon & Hintergrundbild, nur DOM)
 

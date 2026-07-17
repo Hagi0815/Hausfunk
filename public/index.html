@@ -185,7 +185,7 @@
           <div id="checklist-groups" class="checklist-groups"></div>
         </aside>
 
-        <aside id="calendar-panel" class="checklist-panel hidden">
+        <aside id="calendar-panel" class="checklist-panel calendar-panel hidden">
           <div class="checklist-panel-header">
             <span>📅 Kalender</span>
           </div>
@@ -197,10 +197,16 @@
             </div>
           </div>
           <div id="calendar-error" class="join-error hidden"></div>
-          <div id="calendar-list" class="calendar-list"></div>
-          <div id="calendar-empty" class="gallery-empty hidden">
-            Noch keine Termine. DOM kann oben eine iCal-Adresse hinterlegen.
+          <div class="calendar-month-nav">
+            <button id="calendar-prev-month" class="unban-btn" type="button" aria-label="Vorheriger Monat">‹</button>
+            <span id="calendar-month-label" class="calendar-month-label"></span>
+            <button id="calendar-next-month" class="unban-btn" type="button" aria-label="Nächster Monat">›</button>
+            <button id="calendar-today-btn" class="unban-btn calendar-today-btn" type="button">Heute</button>
           </div>
+          <div class="calendar-weekday-row">
+            <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
+          </div>
+          <div id="calendar-grid" class="calendar-grid"></div>
         </aside>
       </div>
     </main>

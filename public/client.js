@@ -15,8 +15,11 @@ const calendarAdminForm = document.getElementById('calendar-admin-form');
 const calendarUrlInput = document.getElementById('calendar-url-input');
 const calendarUrlSaveBtn = document.getElementById('calendar-url-save-btn');
 const calendarErrorEl = document.getElementById('calendar-error');
-const calendarListEl = document.getElementById('calendar-list');
-const calendarEmptyEl = document.getElementById('calendar-empty');
+const calendarMonthLabelEl = document.getElementById('calendar-month-label');
+const calendarPrevMonthBtn = document.getElementById('calendar-prev-month');
+const calendarNextMonthBtn = document.getElementById('calendar-next-month');
+const calendarTodayBtn = document.getElementById('calendar-today-btn');
+const calendarGridEl = document.getElementById('calendar-grid');
 const checklistGroupsEl = document.getElementById('checklist-groups');
 const checklistCountEl = document.getElementById('checklist-count');
 const checklistClearDoneBtn = document.getElementById('checklist-clear-done');
@@ -2166,79 +2169,96 @@ birthdayAddBtn.addEventListener('click', () => {
   birthdayNameInput.focus();
 });
 
-// --- Kalender (iCal) -----------------------------------------------------------
+// --- Kalender (iCal) -- Monatsraster wie ein gewöhnlicher Kalender ------------
+let lastCalendarEvents = [];
+let calendarViewMonth = new Date();
+calendarViewMonth.setDate(1);
+calendarViewMonth.setHours(0, 0, 0, 0);
+
 function formatEventTime(ev) {
   if (ev.allDay) return 'Ganztägig';
   return new Date(ev.start).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 }
 
-function formatDayHeading(date) {
+// 42 Tage (6 Wochen), beginnend am Montag der Woche des Monatsersten --
+// so bleibt die Rasterhoehe zwischen Monaten konsistent.
+function getMonthGridDays(monthDate) {
+  const year = monthDate.getFullYear();
+  const month = monthDate.getMonth();
+  const firstOfMonth = new Date(year, month, 1);
+  const startWeekday = (firstOfMonth.getDay() + 6) % 7; // 0 = Montag
+  const gridStart = new Date(year, month, 1 - startWeekday);
+  const days = [];
+  for (let i = 0; i < 42; i++) {
+    days.push(new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i));
+  }
+  return days;
+}
+
+function dateKey(d) {
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+function renderCalendarGrid() {
+  calendarGridEl.innerHTML = '';
+  calendarMonthLabelEl.textContent = calendarViewMonth.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+
+  const eventsByDay = new Map();
+  lastCalendarEvents.forEach((ev) => {
+    const key = dateKey(new Date(ev.start));
+    if (!eventsByDay.has(key)) eventsByDay.set(key, []);
+    eventsByDay.get(key).push(ev);
+  });
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const target = new Date(date);
-  target.setHours(0, 0, 0, 0);
-  const diffDays = Math.round((target - today) / 86400000);
-  const dateStr = date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
-  if (diffDays === 0) return `Heute · ${dateStr}`;
-  if (diffDays === 1) return `Morgen · ${dateStr}`;
-  const weekday = date.toLocaleDateString('de-DE', { weekday: 'long' });
-  return `${weekday} · ${dateStr}`;
-}
+  const viewMonthIndex = calendarViewMonth.getMonth();
+  const maxShow = 3;
 
-function renderCalendar(events) {
-  calendarListEl.innerHTML = '';
-  if (!events.length) {
-    calendarEmptyEl.classList.remove('hidden');
-    return;
-  }
-  calendarEmptyEl.classList.add('hidden');
+  getMonthGridDays(calendarViewMonth).forEach((day) => {
+    const cell = document.createElement('div');
+    cell.className = 'calendar-day-cell';
+    if (day.getMonth() !== viewMonthIndex) cell.classList.add('calendar-day-outside');
+    if (day.getTime() === today.getTime()) cell.classList.add('calendar-day-today');
 
-  const groups = new Map(); // dayKey -> { date, items }
-  events.forEach((ev) => {
-    const d = new Date(ev.start);
-    const dayKey = d.toDateString();
-    if (!groups.has(dayKey)) groups.set(dayKey, { date: d, items: [] });
-    groups.get(dayKey).items.push(ev);
-  });
+    const numEl = document.createElement('div');
+    numEl.className = 'calendar-day-number';
+    numEl.textContent = day.getDate();
+    cell.appendChild(numEl);
 
-  [...groups.values()].forEach((group) => {
-    const dayEl = document.createElement('div');
-
-    const heading = document.createElement('div');
-    heading.className = 'calendar-day-heading';
-    heading.textContent = formatDayHeading(group.date);
-    dayEl.appendChild(heading);
-
-    const list = document.createElement('ul');
-    list.className = 'calendar-events';
-    group.items.forEach((ev) => {
-      const li = document.createElement('li');
-      li.className = 'calendar-event';
-
-      const time = document.createElement('span');
-      time.className = 'calendar-event-time';
-      time.textContent = formatEventTime(ev);
-      li.appendChild(time);
-
-      const body = document.createElement('div');
-      body.className = 'calendar-event-body';
-      const summary = document.createElement('div');
-      summary.className = 'calendar-event-summary';
-      summary.textContent = ev.summary;
-      body.appendChild(summary);
-      if (ev.location) {
-        const loc = document.createElement('div');
-        loc.className = 'calendar-event-location';
-        loc.textContent = `📍 ${ev.location}`;
-        body.appendChild(loc);
-      }
-      li.appendChild(body);
-      list.appendChild(li);
+    const dayEvents = (eventsByDay.get(dateKey(day)) || []).sort((a, b) => new Date(a.start) - new Date(b.start));
+    dayEvents.slice(0, maxShow).forEach((ev) => {
+      const evEl = document.createElement('div');
+      evEl.className = 'calendar-day-event';
+      evEl.textContent = ev.allDay ? ev.summary : `${formatEventTime(ev)} ${ev.summary}`;
+      evEl.title = ev.location ? `${ev.summary} (${ev.location})` : ev.summary;
+      cell.appendChild(evEl);
     });
-    dayEl.appendChild(list);
-    calendarListEl.appendChild(dayEl);
+    if (dayEvents.length > maxShow) {
+      const more = document.createElement('div');
+      more.className = 'calendar-day-more';
+      more.textContent = `+${dayEvents.length - maxShow} mehr`;
+      cell.appendChild(more);
+    }
+
+    calendarGridEl.appendChild(cell);
   });
 }
+
+calendarPrevMonthBtn.addEventListener('click', () => {
+  calendarViewMonth = new Date(calendarViewMonth.getFullYear(), calendarViewMonth.getMonth() - 1, 1);
+  renderCalendarGrid();
+});
+calendarNextMonthBtn.addEventListener('click', () => {
+  calendarViewMonth = new Date(calendarViewMonth.getFullYear(), calendarViewMonth.getMonth() + 1, 1);
+  renderCalendarGrid();
+});
+calendarTodayBtn.addEventListener('click', () => {
+  calendarViewMonth = new Date();
+  calendarViewMonth.setDate(1);
+  calendarViewMonth.setHours(0, 0, 0, 0);
+  renderCalendarGrid();
+});
 
 socket.on('calendarUpdate', ({ events, error }) => {
   if (error) {
@@ -2247,7 +2267,8 @@ socket.on('calendarUpdate', ({ events, error }) => {
   } else {
     calendarErrorEl.classList.add('hidden');
   }
-  renderCalendar(events || []);
+  lastCalendarEvents = events || [];
+  renderCalendarGrid();
 });
 
 socket.on('calendarUrl', (url) => {
