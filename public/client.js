@@ -108,6 +108,7 @@ const presenceLogListEl = document.getElementById('presence-log-list');
 const presenceLogEmptyEl = document.getElementById('presence-log-empty');
 const adminPanelToggle = document.getElementById('admin-panel-toggle');
 const serverStatusGridEl = document.getElementById('server-status-grid');
+const serverStatusActivityEl = document.getElementById('server-status-activity');
 const serverStatusRefreshBtn = document.getElementById('server-status-refresh-btn');
 const adminOverlay = document.getElementById('admin-overlay');
 const adminOverlayClose = document.getElementById('admin-overlay-close');
@@ -584,6 +585,17 @@ function join() {
 joinBtn.addEventListener('click', join);
 nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
 adminPasswordInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') join(); });
+
+// --- Aktivitaets-Meldung: letzte Maus-/Tastatur-/Touch-Interaktion an den
+//     Server melden, damit DOM im Admin-Panel sehen kann, wie lange ein
+//     Geraet schon nicht mehr bedient wurde. --------------------------------
+let lastActivityAt = Date.now();
+['mousemove', 'keydown', 'click', 'touchstart', 'scroll'].forEach((evt) => {
+  document.addEventListener(evt, () => { lastActivityAt = Date.now(); }, { passive: true });
+});
+setInterval(() => {
+  if (hasJoined) socket.emit('activityPing', { lastActivityAt });
+}, 20000);
 
 // "Angemeldet bleiben": bei jeder (Wieder-)Verbindung -- egal ob erster
 // Seitenaufruf nach einem Reload oder stiller Reconnect nach einem kurzen
@@ -2680,6 +2692,15 @@ function formatBytes(bytes) {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
+function formatIdle(idleSeconds) {
+  if (idleSeconds === null || idleSeconds === undefined) return 'unbekannt';
+  if (idleSeconds < 60) return 'aktiv (gerade eben)';
+  const minutes = Math.floor(idleSeconds / 60);
+  if (minutes < 60) return `inaktiv seit ${minutes} Min.`;
+  const hours = Math.floor(minutes / 60);
+  return `inaktiv seit ${hours} Std.`;
+}
+
 function renderServerStatus(status) {
   serverStatusGridEl.innerHTML = '';
   const tiles = [
@@ -2709,6 +2730,19 @@ function renderServerStatus(status) {
     valueEl.textContent = value;
     tile.appendChild(valueEl);
     serverStatusGridEl.appendChild(tile);
+  });
+
+  serverStatusActivityEl.innerHTML = '';
+  (status.userActivity || []).forEach((u) => {
+    const li = document.createElement('li');
+    const nameEl = document.createElement('span');
+    nameEl.textContent = u.name;
+    li.appendChild(nameEl);
+    const idleEl = document.createElement('span');
+    idleEl.className = 'presence-log-time';
+    idleEl.textContent = formatIdle(u.idleSeconds);
+    li.appendChild(idleEl);
+    serverStatusActivityEl.appendChild(li);
   });
 }
 

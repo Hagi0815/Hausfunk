@@ -809,6 +809,7 @@ async function main() {
     socket.data.photo = finalIsPhoto ? finalAvatar : null;
     socket.data.role = role;
     socket.data.room = roomId;
+    socket.data.lastActivityAt = Date.now();
     socket.join(roomId);
     onlineUsers.set(socket.id, {
       name, color: socket.data.color, avatar: socket.data.avatar, photo: socket.data.photo, role, room: roomId,
@@ -1469,6 +1470,17 @@ async function main() {
     });
 
     // --- Server-Status (nur DOM) -------------------------------------------------
+    // --- Aktivitaets-Meldung (letzte Maus-/Tastatur-Interaktion), fuer den
+    //     Server-Status im Admin-Panel ------------------------------------------
+    socket.on('activityPing', (payload) => {
+      if (!socket.data.name || !payload) return;
+      const ts = Number(payload.lastActivityAt);
+      if (!Number.isFinite(ts)) return;
+      // Nie in der Zukunft liegend uebernehmen (Sicherheitsnetz gegen falsch
+      // eingestellte Client-Uhren).
+      socket.data.lastActivityAt = Math.min(ts, Date.now());
+    });
+
     socket.on('admin:getServerStatus', () => {
       if (socket.data.role !== 'admin') return;
       let totalMessages = 0;
@@ -1486,6 +1498,18 @@ async function main() {
         // statfsSync evtl. nicht verfuegbar (aeltere Node-Version) -- einfach weglassen
       }
 
+      const now = Date.now();
+      const userActivity = [];
+      for (const [socketId, entry] of onlineUsers.entries()) {
+        const s = io.sockets.sockets.get(socketId);
+        const lastActivityAt = (s && s.data.lastActivityAt) || null;
+        userActivity.push({
+          name: entry.name,
+          idleSeconds: lastActivityAt ? Math.max(0, Math.round((now - lastActivityAt) / 1000)) : null,
+        });
+      }
+      userActivity.sort((a, b) => (a.idleSeconds ?? 0) - (b.idleSeconds ?? 0));
+
       socket.emit('serverStatus', {
         uptimeSeconds: process.uptime(),
         memory: process.memoryUsage(),
@@ -1498,6 +1522,7 @@ async function main() {
         uploadsSize: getDirSize(UPLOAD_DIR),
         diskFree,
         diskTotal,
+        userActivity,
       });
     });
 

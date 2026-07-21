@@ -1980,6 +1980,7 @@ html, body {
   gap: 8px;
   margin-bottom: 8px;
 }
+.server-status-activity-label { margin-top: 12px; margin-bottom: 6px; }
 .server-status-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

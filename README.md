@@ -430,6 +430,10 @@ des Panels und über den „Aktualisieren"-Button:
 - Größe von `data/`- und `uploads/`-Ordner
 - Node.js-Version
 - Freier Festplattenspeicher (falls vom Betriebssystem unterstützt)
+- **Leerlaufzeit pro Person** – wie lange ein verbundenes Gerät schon nicht
+  mehr bedient wurde (Maus/Tastatur/Touch). Der Browser meldet alle 20
+  Sekunden die letzte Interaktion; „aktiv (gerade eben)" bei unter einer
+  Minute, sonst „inaktiv seit X Min./Std."
 
 ## Grenzen (bewusst einfach gehalten)
 
