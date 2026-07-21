@@ -367,15 +367,6 @@ Enthält eine Nachricht bestimmte Wörter oder Emojis (z. B. „Geburtstag",
 Konfetti über den Bildschirm – rein clientseitig, ohne Server-Logik. Bei
 aktivierter „Bewegung reduzieren"-Einstellung im Betriebssystem bleibt es aus.
 
-## Geburtstags-Erinnerung
-
-Über das 🎂-Symbol oben in der Sidebar öffnet sich eine Liste, in die jeder
-Geburtstage der Familie eintragen kann (Name + Datum). Die Liste zeigt immer
-den nächsten anstehenden Geburtstag zuerst. Am Tag selbst postet Hausfunk
-automatisch eine Gratulation im Standard-Kanal (inkl. Alter, falls das
-Geburtsjahr mit angegeben wurde) – die Prüfung läuft stündlich im
-Hintergrund, auch wenn gerade niemand online ist.
-
 ## Kalender (iCal)
 
 „📅 Kalender" steht als eigener Bereich unter „🛒 Einkaufsliste" in der
@@ -407,6 +398,9 @@ vollständigen Liste dieses Tages, ohne dass sich die Zellengröße dabei
   die Zukunft** vom Server geladen – vergangene Termine erscheinen beim
   Zurückblättern also genauso wie zukünftige. Weiter entfernte Monate
   bleiben leer.
+- Der Kalender ist rein lesend – Termine lassen sich nur im ursprünglichen
+  Kalender (Google/Apple/Outlook) selbst anlegen oder ändern, nicht direkt
+  in Hausfunk
 
 ## Kanal anpassen (Icon & Hintergrundbild, nur DOM)
 

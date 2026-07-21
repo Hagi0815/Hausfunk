@@ -72,14 +72,6 @@ const themeToggleBtn = document.getElementById('theme-toggle');
 const logoutBtn = document.getElementById('logout-btn');
 const galleryToggleBtn = document.getElementById('gallery-toggle');
 const galleryOverlay = document.getElementById('gallery-overlay');
-const birthdaysToggleBtn = document.getElementById('birthdays-toggle');
-const birthdaysOverlay = document.getElementById('birthdays-overlay');
-const birthdaysCloseBtn = document.getElementById('birthdays-close');
-const birthdaysListEl = document.getElementById('birthdays-list');
-const birthdaysEmptyEl = document.getElementById('birthdays-empty');
-const birthdayNameInput = document.getElementById('birthday-name-input');
-const birthdayDateInput = document.getElementById('birthday-date-input');
-const birthdayAddBtn = document.getElementById('birthday-add-btn');
 const roomCustomizeOverlay = document.getElementById('room-customize-overlay');
 const roomCustomizeTitleEl = document.getElementById('room-customize-title');
 const roomCustomizeClose = document.getElementById('room-customize-close');
@@ -2094,77 +2086,6 @@ galleryToggleBtn.addEventListener('click', openGallery);
 galleryCloseBtn.addEventListener('click', closeGallery);
 galleryOverlay.addEventListener('click', (e) => {
   if (e.target === galleryOverlay) closeGallery();
-});
-
-// --- Geburtstage ---------------------------------------------------------------
-let birthdaysList = [];
-
-function nextOccurrence(b) {
-  const now = new Date();
-  const thisYear = new Date(now.getFullYear(), b.month - 1, b.day);
-  if (thisYear < new Date(now.getFullYear(), now.getMonth(), now.getDate())) {
-    return new Date(now.getFullYear() + 1, b.month - 1, b.day);
-  }
-  return thisYear;
-}
-
-function renderBirthdaysList() {
-  birthdaysListEl.innerHTML = '';
-  if (!birthdaysList.length) {
-    birthdaysEmptyEl.classList.remove('hidden');
-    return;
-  }
-  birthdaysEmptyEl.classList.add('hidden');
-
-  const sorted = [...birthdaysList].sort((a, b) => nextOccurrence(a) - nextOccurrence(b));
-  sorted.forEach((b) => {
-    const li = document.createElement('li');
-    const label = document.createElement('span');
-    const dateStr = `${String(b.day).padStart(2, '0')}.${String(b.month).padStart(2, '0')}.${b.year ? b.year : ''}`.replace(/\.$/, '');
-    label.textContent = `${b.name} — ${dateStr}`;
-    li.appendChild(label);
-
-    const removeBtn = document.createElement('button');
-    removeBtn.className = 'unban-btn';
-    removeBtn.textContent = '✕';
-    removeBtn.title = 'Entfernen';
-    removeBtn.addEventListener('click', () => {
-      if (confirm(`Geburtstag von "${b.name}" wirklich entfernen?`)) {
-        socket.emit('birthday:remove', { id: b.id });
-      }
-    });
-    li.appendChild(removeBtn);
-    birthdaysListEl.appendChild(li);
-  });
-}
-
-socket.on('birthdaysUpdate', (list) => {
-  birthdaysList = list || [];
-  renderBirthdaysList();
-});
-
-function openBirthdays() {
-  birthdaysOverlay.classList.remove('hidden');
-}
-function closeBirthdays() {
-  birthdaysOverlay.classList.add('hidden');
-}
-birthdaysToggleBtn.addEventListener('click', openBirthdays);
-birthdaysCloseBtn.addEventListener('click', closeBirthdays);
-birthdaysOverlay.addEventListener('click', (e) => {
-  if (e.target === birthdaysOverlay) closeBirthdays();
-});
-
-birthdayAddBtn.addEventListener('click', () => {
-  const name = birthdayNameInput.value.trim();
-  const dateVal = birthdayDateInput.value; // Format: YYYY-MM-DD
-  if (!name) { birthdayNameInput.focus(); return; }
-  if (!dateVal) { birthdayDateInput.focus(); return; }
-  const [year, month, day] = dateVal.split('-').map(Number);
-  socket.emit('birthday:add', { name, day, month, year });
-  birthdayNameInput.value = '';
-  birthdayDateInput.value = '';
-  birthdayNameInput.focus();
 });
 
 // --- Kalender (iCal) -- Monatsraster wie ein gewöhnlicher Kalender ------------

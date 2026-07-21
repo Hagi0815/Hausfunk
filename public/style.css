@@ -1773,36 +1773,6 @@ html, body {
   padding: 20px;
 }
 
-.birthday-add-form {
-  display: flex;
-  gap: 6px;
-}
-.birthday-add-form input {
-  background: var(--panel-alt);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text);
-  font-size: 13px;
-  padding: 8px 10px;
-  outline: none;
-  box-sizing: border-box;
-}
-.birthday-add-form input:focus { border-color: var(--accent); }
-#birthday-name-input { flex: 1; min-width: 0; }
-#birthday-date-input { flex: 0 0 150px; }
-#birthday-add-btn {
-  flex: none;
-  width: 36px;
-  background: var(--accent);
-  border: none;
-  border-radius: 8px;
-  color: #1a1204;
-  font-size: 18px;
-  font-weight: 700;
-  cursor: pointer;
-}
-#birthday-add-btn:hover { filter: brightness(1.08); }
-
 .calendar-admin-form {
   display: flex;
   flex-direction: column;
@@ -1933,13 +1903,6 @@ html, body {
   padding: 4px 5px;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5);
   z-index: 30;
-}
-
-.birthday-date-label {
-  font-family: var(--font-display);
-  font-size: 11px;
-  color: var(--accent);
-  flex: none;
 }
 
 .room-customize-form {

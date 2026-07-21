@@ -22,7 +22,6 @@ const READ_STATE_FILE = path.join(DATA_DIR, 'read-state.json');
 const ROOMS_CONFIG_FILE = path.join(DATA_DIR, 'rooms-config.json');
 const SHOPPING_LIST_FILE = path.join(DATA_DIR, 'shopping-list.json');
 const SHOPPING_CATEGORIES_FILE = path.join(DATA_DIR, 'shopping-list-categories.json');
-const BIRTHDAYS_FILE = path.join(DATA_DIR, 'birthdays.json');
 const CALENDAR_CONFIG_FILE = path.join(DATA_DIR, 'calendar-config.json');
 const CALENDAR_REFRESH_MS = 30 * 60 * 1000; // alle 30 Minuten neu abrufen
 const CALENDAR_LOOKAHEAD_DAYS = 60;
@@ -82,7 +81,6 @@ if (!fs.existsSync(ADMIN_CONFIG_FILE)) {
 }
 if (!fs.existsSync(PUSH_SUBS_FILE)) fs.writeFileSync(PUSH_SUBS_FILE, '{}');
 if (!fs.existsSync(SESSIONS_FILE)) fs.writeFileSync(SESSIONS_FILE, '{}');
-if (!fs.existsSync(BIRTHDAYS_FILE)) fs.writeFileSync(BIRTHDAYS_FILE, '[]');
 if (!fs.existsSync(CALENDAR_CONFIG_FILE)) fs.writeFileSync(CALENDAR_CONFIG_FILE, JSON.stringify({ url: null }));
 if (!fs.existsSync(PRESENCE_LOG_FILE)) fs.writeFileSync(PRESENCE_LOG_FILE, '[]');
 if (!fs.existsSync(PROTECTED_USERS_FILE)) fs.writeFileSync(PROTECTED_USERS_FILE, '{}');
@@ -442,19 +440,6 @@ function saveShoppingCategories() {
 let shoppingItems = loadShoppingList();
 let shoppingCategories = loadShoppingCategories();
 
-// --- Geburtstage (eigenstaendig, jeder kann eintragen) ----------------------
-function loadBirthdays() {
-  try {
-    return JSON.parse(fs.readFileSync(BIRTHDAYS_FILE, 'utf-8'));
-  } catch (err) {
-    return [];
-  }
-}
-function saveBirthdays() {
-  fs.writeFileSync(BIRTHDAYS_FILE, JSON.stringify(birthdays, null, 2));
-}
-let birthdays = loadBirthdays(); // { id, name, day, month, year, addedBy, lastCongratulatedYear }
-
 // --- Kalender (iCal-Adresse, von DOM eingegeben) -----------------------------
 function loadCalendarConfig() {
   try {
@@ -662,52 +647,15 @@ async function main() {
   fetchWeather();
   setInterval(fetchWeather, WEATHER_REFRESH_MS);
 
-  // --- Geburtstage: einmal pro Stunde pruefen und ggf. gratulieren -----------
-  function checkBirthdaysToday() {
-    const now = new Date();
-    const month = now.getMonth() + 1;
-    const day = now.getDate();
-    const year = now.getFullYear();
-    let changed = false;
-
-    birthdays.forEach((b) => {
-      if (b.month !== month || b.day !== day || b.lastCongratulatedYear === year) return;
-      const roomId = ROOMS.some((r) => r.id === DEFAULT_ROOM) ? DEFAULT_ROOM : ROOMS[0].id;
-      const state = roomState.get(roomId);
-      if (state) {
-        const age = b.year && b.year > 1900 ? year - b.year : null;
-        const ageText = age ? ` Heute wird ${b.name} ${age} Jahre alt!` : '';
-        const msg = {
-          id: makeId(),
-          type: 'text',
-          sender: 'Hausfunk',
-          color: '#E8A33D',
-          avatar: null,
-          photo: null,
-          role: 'user',
-          text: `🎉🎂 Alles Gute zum Geburtstag, ${b.name}!${ageText} 🎂🎉`,
-          ts: Date.now(),
-          reactions: {},
-          replyTo: null,
-        };
-        state.messages.push(msg);
-        saveRoomMessages(roomId);
-        io.to(roomId).emit('message', msg);
-      }
-      b.lastCongratulatedYear = year;
-      changed = true;
-    });
-
-    if (changed) saveBirthdays();
-  }
-  checkBirthdaysToday();
-  setInterval(checkBirthdaysToday, 60 * 60 * 1000); // stuendlich pruefen
-
   // --- Kalender (iCal) abrufen und an alle verteilen --------------------------
+  function broadcastCalendarUpdate(error) {
+    io.emit('calendarUpdate', { events: calendarEvents, updatedAt: Date.now(), error: error || null });
+  }
+
   async function fetchCalendar() {
     if (!calendarUrl) {
       calendarEvents = [];
-      io.emit('calendarUpdate', { events: [], updatedAt: Date.now(), error: null });
+      broadcastCalendarUpdate();
       return;
     }
     try {
@@ -759,12 +707,10 @@ async function main() {
 
       events.sort((a, b) => new Date(a.start) - new Date(b.start));
       calendarEvents = events.slice(0, 600);
-      io.emit('calendarUpdate', { events: calendarEvents, updatedAt: Date.now(), error: null });
+      broadcastCalendarUpdate();
     } catch (err) {
       console.error('Kalender konnte nicht abgerufen werden:', err.message);
-      io.emit('calendarUpdate', {
-        events: calendarEvents, updatedAt: Date.now(), error: 'Kalender konnte nicht abgerufen werden. Ist die Adresse korrekt?',
-      });
+      broadcastCalendarUpdate('Kalender konnte nicht abgerufen werden. Ist die Adresse korrekt?');
     }
   }
   fetchCalendar();
@@ -879,7 +825,6 @@ async function main() {
     socket.emit('protectedNames', getProtectedNamesPublic());
     if (weatherCache) socket.emit('weatherUpdate', weatherCache);
     socket.emit('shoppingListUpdate', { items: shoppingItems, categories: shoppingCategories });
-    socket.emit('birthdaysUpdate', birthdays);
     socket.emit('calendarUpdate', { events: calendarEvents, updatedAt: Date.now(), error: null });
 
     socket.on('join', (payload) => {
@@ -1486,34 +1431,6 @@ async function main() {
       if (shoppingItems.length === before) return;
       saveShoppingList();
       broadcastShoppingList();
-    });
-
-    // --- Geburtstage (eigenstaendig, jeder kann eintragen/entfernen) -----------
-    socket.on('birthday:add', (payload) => {
-      if (!socket.data.name || !payload) return;
-      const name = (payload.name || '').toString().slice(0, 40).trim();
-      const day = Number(payload.day);
-      const month = Number(payload.month);
-      const year = payload.year ? Number(payload.year) : null;
-      if (!name) return;
-      if (!Number.isInteger(day) || day < 1 || day > 31) return;
-      if (!Number.isInteger(month) || month < 1 || month > 12) return;
-      const entry = {
-        id: makeId(), name, day, month, year: year && year > 1900 ? year : null,
-        addedBy: socket.data.name, lastCongratulatedYear: null,
-      };
-      birthdays.push(entry);
-      saveBirthdays();
-      io.emit('birthdaysUpdate', birthdays);
-    });
-
-    socket.on('birthday:remove', (payload) => {
-      if (!socket.data.name || !payload) return;
-      const before = birthdays.length;
-      birthdays = birthdays.filter((b) => b.id !== payload.id);
-      if (birthdays.length === before) return;
-      saveBirthdays();
-      io.emit('birthdaysUpdate', birthdays);
     });
 
     // --- Kalender-Adresse (iCal) festlegen, nur DOM -----------------------------
