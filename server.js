@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const crypto = require('crypto');
 const multer = require('multer');
 const ical = require('node-ical');
@@ -120,6 +121,30 @@ function saveRoomsConfig() {
 }
 let ROOMS = loadRoomsConfig();
 const DEFAULT_ROOM = ROOMS[0].id;
+
+// --- Ordnergroesse rekursiv berechnen (fuer den Server-Status im Admin-Panel) ---
+function getDirSize(dirPath) {
+  let total = 0;
+  let entries;
+  try {
+    entries = fs.readdirSync(dirPath, { withFileTypes: true });
+  } catch (err) {
+    return 0;
+  }
+  entries.forEach((entry) => {
+    const fullPath = path.join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      total += getDirSize(fullPath);
+    } else if (entry.isFile()) {
+      try {
+        total += fs.statSync(fullPath).size;
+      } catch (err) {
+        // Datei evtl. zwischenzeitlich geloescht -- ignorieren
+      }
+    }
+  });
+  return total;
+}
 
 function slugifyRoomId(label) {
   const base = label.toString().toLowerCase()
@@ -1441,6 +1466,39 @@ async function main() {
       saveCalendarConfig();
       socket.emit('calendarUrl', calendarUrl);
       fetchCalendar();
+    });
+
+    // --- Server-Status (nur DOM) -------------------------------------------------
+    socket.on('admin:getServerStatus', () => {
+      if (socket.data.role !== 'admin') return;
+      let totalMessages = 0;
+      roomState.forEach((state) => {
+        totalMessages += state.messages.length;
+      });
+
+      let diskFree = null;
+      let diskTotal = null;
+      try {
+        const stats = fs.statfsSync(__dirname);
+        diskFree = stats.bavail * stats.bsize;
+        diskTotal = stats.blocks * stats.bsize;
+      } catch (err) {
+        // statfsSync evtl. nicht verfuegbar (aeltere Node-Version) -- einfach weglassen
+      }
+
+      socket.emit('serverStatus', {
+        uptimeSeconds: process.uptime(),
+        memory: process.memoryUsage(),
+        nodeVersion: process.version,
+        platform: `${os.platform()} ${os.release()}`,
+        connectedSockets: onlineUsers.size,
+        roomCount: ROOMS.length,
+        totalMessages,
+        dataSize: getDirSize(DATA_DIR),
+        uploadsSize: getDirSize(UPLOAD_DIR),
+        diskFree,
+        diskTotal,
+      });
     });
 
     // --- Admin: Nutzer sperren/entsperren ----------------------------------------

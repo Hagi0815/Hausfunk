@@ -418,6 +418,19 @@ Beides gilt nur für den jeweiligen Kanal und wird sofort für alle sichtbar,
 die ihn gerade offen haben. Bilder liegen unter `uploads/room-icons/` bzw.
 `uploads/room-backgrounds/`.
 
+## Server-Status (nur DOM)
+
+Im Admin-Panel (🛡) zeigt „Server-Status" – aktualisiert sich beim Öffnen
+des Panels und über den „Aktualisieren"-Button:
+
+- Laufzeit des Hausfunk-Prozesses (nicht des ganzen Servers)
+- Anzahl aktuell verbundener Geräte
+- Speicherverbrauch des Node-Prozesses (RSS)
+- Anzahl Kanäle
+- Größe von `data/`- und `uploads/`-Ordner
+- Node.js-Version
+- Freier Festplattenspeicher (falls vom Betriebssystem unterstützt)
+
 ## Grenzen (bewusst einfach gehalten)
 
 - Keine Zwei-Faktor-Authentifizierung.

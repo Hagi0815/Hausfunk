@@ -107,6 +107,8 @@ const pendingResetsEmptyEl = document.getElementById('pending-resets-empty');
 const presenceLogListEl = document.getElementById('presence-log-list');
 const presenceLogEmptyEl = document.getElementById('presence-log-empty');
 const adminPanelToggle = document.getElementById('admin-panel-toggle');
+const serverStatusGridEl = document.getElementById('server-status-grid');
+const serverStatusRefreshBtn = document.getElementById('server-status-refresh-btn');
 const adminOverlay = document.getElementById('admin-overlay');
 const adminOverlayClose = document.getElementById('admin-overlay-close');
 const bannedListEl = document.getElementById('banned-list');
@@ -2654,8 +2656,61 @@ socket.on('approvedAccounts', (list) => {
 
 adminPanelToggle.addEventListener('click', () => {
   adminOverlay.classList.remove('hidden');
+  socket.emit('admin:getServerStatus');
 });
 adminOverlayClose.addEventListener('click', () => adminOverlay.classList.add('hidden'));
 adminOverlay.addEventListener('click', (e) => {
   if (e.target === adminOverlay) adminOverlay.classList.add('hidden');
 });
+
+// --- Server-Status ------------------------------------------------------------
+function formatUptime(seconds) {
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (days > 0) return `${days} Tag${days === 1 ? '' : 'e'}, ${hours} Std.`;
+  if (hours > 0) return `${hours} Std., ${minutes} Min.`;
+  return `${minutes} Min.`;
+}
+function formatBytes(bytes) {
+  if (bytes === null || bytes === undefined) return '–';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+function renderServerStatus(status) {
+  serverStatusGridEl.innerHTML = '';
+  const tiles = [
+    ['Laufzeit', formatUptime(status.uptimeSeconds)],
+    ['Verbundene Geräte', String(status.connectedSockets)],
+    ['Speicher (RSS)', formatBytes(status.memory.rss)],
+    ['Kanäle', String(status.roomCount)],
+    ['Nachrichten (aktueller Kanal-Cache)', String(status.totalMessages)],
+    ['data/-Ordner', formatBytes(status.dataSize)],
+    ['uploads/-Ordner', formatBytes(status.uploadsSize)],
+    ['Node.js', status.nodeVersion],
+  ];
+  if (status.diskFree !== null && status.diskTotal !== null) {
+    const usedPct = Math.round((1 - status.diskFree / status.diskTotal) * 100);
+    tiles.push(['Festplatte frei', `${formatBytes(status.diskFree)} (${usedPct}% belegt)`]);
+  }
+
+  tiles.forEach(([label, value]) => {
+    const tile = document.createElement('div');
+    tile.className = 'server-status-tile';
+    const labelEl = document.createElement('div');
+    labelEl.className = 'server-status-tile-label';
+    labelEl.textContent = label.toUpperCase();
+    tile.appendChild(labelEl);
+    const valueEl = document.createElement('div');
+    valueEl.className = 'server-status-tile-value';
+    valueEl.textContent = value;
+    tile.appendChild(valueEl);
+    serverStatusGridEl.appendChild(tile);
+  });
+}
+
+socket.on('serverStatus', renderServerStatus);
+serverStatusRefreshBtn.addEventListener('click', () => socket.emit('admin:getServerStatus'));

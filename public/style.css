@@ -1972,3 +1972,34 @@ html, body {
   color: var(--text-dim);
   flex: none;
 }
+
+.server-status-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.server-status-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.server-status-tile {
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.server-status-tile-label {
+  font-family: var(--font-display);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  margin-bottom: 2px;
+}
+.server-status-tile-value {
+  font-size: 14px;
+  color: var(--text);
+  font-weight: 600;
+}
