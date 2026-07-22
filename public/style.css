@@ -1614,6 +1614,7 @@ html, body {
   .brand-led { animation: none; }
   #mic-btn.recording { animation: none; }
   .confetti-container { display: none; }
+  .led-ticker { display: none !important; }
 }
 
 .confetti-container {
@@ -2004,3 +2005,53 @@ html, body {
   color: var(--text);
   font-weight: 600;
 }
+
+/* --- LED-Laufschrift: einmalige Ankuendigung an alle -------------------------- */
+.led-ticker {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 34px;
+  background: #0a0a0a;
+  border-bottom: 1px solid #2a2a2a;
+  overflow: hidden;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+}
+.led-ticker.hidden { display: none; }
+.led-ticker-text {
+  display: inline-block;
+  white-space: nowrap;
+  font-family: 'Courier New', ui-monospace, monospace;
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: 0.08em;
+  color: #ff9500;
+  text-shadow: 0 0 6px rgba(255, 149, 0, 0.85), 0 0 14px rgba(255, 149, 0, 0.5);
+  padding-left: 100%;
+  animation: led-scroll linear forwards;
+}
+@keyframes led-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-200%); }
+}
+
+.led-message-form {
+  display: flex;
+  gap: 8px;
+}
+.led-message-form input {
+  flex: 1;
+  min-width: 0;
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 14px;
+  padding: 8px 10px;
+  outline: none;
+  box-sizing: border-box;
+}
+.led-message-form input:focus { border-color: var(--accent); }

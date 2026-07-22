@@ -418,6 +418,16 @@ Beides gilt nur für den jeweiligen Kanal und wird sofort für alle sichtbar,
 die ihn gerade offen haben. Bilder liegen unter `uploads/room-icons/` bzw.
 `uploads/room-backgrounds/`.
 
+## LED-Laufschrift (einmalige Ankündigung an alle)
+
+Über das 📟-Symbol oben in der Sidebar kann **jeder** eine kurze Nachricht
+tippen, die sofort für alle verbundenen Geräte als leuchtende LED-Laufschrift
+oben über den Bildschirm läuft (schwarzer Hintergrund, orange-glühende
+Schrift, klassischer Lauftext-Effekt) – egal in welchem Kanal oder Bereich
+gerade jemand ist. Läuft einmal komplett durch und verschwindet dann wieder;
+wird nirgends gespeichert oder im Chatverlauf abgelegt. Respektiert
+„Bewegung reduzieren" (bleibt dann einfach aus).
+
 ## Server-Status (nur DOM)
 
 Im Admin-Panel (🛡) zeigt „Server-Status" – aktualisiert sich beim Öffnen

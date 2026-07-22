@@ -1481,6 +1481,15 @@ async function main() {
       socket.data.lastActivityAt = Math.min(ts, Date.now());
     });
 
+    // --- LED-Laufschrift: einmalige Ankuendigung an alle, wird nirgends
+    //     gespeichert -- nur eine kurze Live-Anzeige. ---------------------------
+    socket.on('ledMessage:send', (payload) => {
+      if (!socket.data.name || !payload) return;
+      const text = (payload.text || '').toString().slice(0, 200).trim();
+      if (!text) return;
+      io.emit('ledMessage', { text, sender: socket.data.name, ts: Date.now() });
+    });
+
     socket.on('admin:getServerStatus', () => {
       if (socket.data.role !== 'admin') return;
       let totalMessages = 0;

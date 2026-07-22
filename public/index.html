@@ -12,6 +12,10 @@
 </head>
 <body>
 
+  <div id="led-ticker" class="led-ticker hidden">
+    <span id="led-ticker-text" class="led-ticker-text"></span>
+  </div>
+
   <div id="login-screen" class="screen">
     <div class="login-panel">
       <div class="brand">
@@ -48,6 +52,7 @@
         <div class="brand-actions">
           <button id="admin-panel-toggle" class="icon-toggle admin-only" title="Admin" aria-label="Admin">🛡</button>
           <button id="gallery-toggle" class="icon-toggle" title="Bilder-Galerie" aria-label="Bilder-Galerie">🖼</button>
+          <button id="led-message-toggle" class="icon-toggle" title="LED-Nachricht senden" aria-label="LED-Nachricht senden">📟</button>
         </div>
       </div>
 
@@ -218,6 +223,19 @@
         <button id="gallery-close" aria-label="Schließen">✕</button>
       </div>
       <div id="gallery-grid" class="gallery-grid"></div>
+    </div>
+  </div>
+
+  <div id="led-message-overlay" class="gallery-overlay hidden">
+    <div class="gallery-panel">
+      <div class="gallery-header">
+        <span>📟 LED-Nachricht an alle</span>
+        <button id="led-message-close" aria-label="Schließen">✕</button>
+      </div>
+      <div class="led-message-form">
+        <input id="led-message-input" type="text" placeholder="z. B. Essen ist fertig!" maxlength="200" />
+        <button id="led-message-send-btn" class="unban-btn" type="button">Senden</button>
+      </div>
     </div>
   </div>
 

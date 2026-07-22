@@ -71,6 +71,13 @@ const pinnedUnpinBtn = document.getElementById('pinned-unpin');
 const themeToggleBtn = document.getElementById('theme-toggle');
 const logoutBtn = document.getElementById('logout-btn');
 const galleryToggleBtn = document.getElementById('gallery-toggle');
+const ledMessageToggleBtn = document.getElementById('led-message-toggle');
+const ledMessageOverlay = document.getElementById('led-message-overlay');
+const ledMessageClose = document.getElementById('led-message-close');
+const ledMessageInput = document.getElementById('led-message-input');
+const ledMessageSendBtn = document.getElementById('led-message-send-btn');
+const ledTickerEl = document.getElementById('led-ticker');
+const ledTickerTextEl = document.getElementById('led-ticker-text');
 const galleryOverlay = document.getElementById('gallery-overlay');
 const roomCustomizeOverlay = document.getElementById('room-customize-overlay');
 const roomCustomizeTitleEl = document.getElementById('room-customize-title');
@@ -2748,3 +2755,49 @@ function renderServerStatus(status) {
 
 socket.on('serverStatus', renderServerStatus);
 serverStatusRefreshBtn.addEventListener('click', () => socket.emit('admin:getServerStatus'));
+
+// --- LED-Laufschrift: Senden + Anzeige ------------------------------------------
+function openLedMessageModal() {
+  ledMessageInput.value = '';
+  ledMessageOverlay.classList.remove('hidden');
+  ledMessageInput.focus();
+}
+function closeLedMessageModal() {
+  ledMessageOverlay.classList.add('hidden');
+}
+ledMessageToggleBtn.addEventListener('click', openLedMessageModal);
+ledMessageClose.addEventListener('click', closeLedMessageModal);
+ledMessageOverlay.addEventListener('click', (e) => {
+  if (e.target === ledMessageOverlay) closeLedMessageModal();
+});
+function sendLedMessage() {
+  const text = ledMessageInput.value.trim();
+  if (!text) { ledMessageInput.focus(); return; }
+  socket.emit('ledMessage:send', { text });
+  closeLedMessageModal();
+}
+ledMessageSendBtn.addEventListener('click', sendLedMessage);
+ledMessageInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); sendLedMessage(); }
+});
+
+let ledTickerHideTimer = null;
+function showLedTicker(text, sender) {
+  const fullText = `📟  ${sender}: ${text}`;
+  ledTickerTextEl.textContent = fullText;
+  const duration = Math.max(8, fullText.length * 0.18);
+
+  // Laufende Animation sauber neu starten (auch wenn schon eine läuft):
+  // Animation kurz entfernen, Reflow erzwingen, dann neu setzen.
+  ledTickerTextEl.style.animation = 'none';
+  // eslint-disable-next-line no-unused-expressions
+  ledTickerTextEl.offsetWidth;
+  ledTickerTextEl.style.animation = `led-scroll ${duration}s linear forwards`;
+
+  ledTickerEl.classList.remove('hidden');
+  clearTimeout(ledTickerHideTimer);
+  ledTickerHideTimer = setTimeout(() => {
+    ledTickerEl.classList.add('hidden');
+  }, duration * 1000 + 300);
+}
+socket.on('ledMessage', ({ text, sender }) => showLedTicker(text, sender));
