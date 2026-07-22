@@ -428,6 +428,13 @@ gerade jemand ist. Läuft einmal komplett durch und verschwindet dann wieder;
 wird nirgends gespeichert oder im Chatverlauf abgelegt. Respektiert
 „Bewegung reduzieren" (bleibt dann einfach aus).
 
+Ist das Browserfenster/Tab gerade nicht im Vordergrund (z. B. Handy
+gesperrt, anderer Tab aktiv), wartet die Laufschrift automatisch, bis das
+Fenster wieder sichtbar wird, und spielt dann ab – so geht keine Ankündigung
+verloren, nur weil man gerade nicht hinschaut. Kommen mehrere Nachrichten
+an, während niemand hinschaut, werden sie der Reihe nach (älteste zuerst)
+nacheinander abgespielt, sobald das Fenster wieder sichtbar ist.
+
 ## Server-Status (nur DOM)
 
 Im Admin-Panel (🛡) zeigt „Server-Status" – aktualisiert sich beim Öffnen

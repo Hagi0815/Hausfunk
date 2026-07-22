@@ -2782,7 +2782,7 @@ ledMessageInput.addEventListener('keydown', (e) => {
 });
 
 let ledTickerHideTimer = null;
-function showLedTicker(text, sender) {
+function showLedTicker(text, sender, onDone) {
   const fullText = `📟  ${sender}: ${text}`;
   ledTickerTextEl.textContent = fullText;
   const duration = Math.max(16, fullText.length * 0.45);
@@ -2798,6 +2798,30 @@ function showLedTicker(text, sender) {
   clearTimeout(ledTickerHideTimer);
   ledTickerHideTimer = setTimeout(() => {
     ledTickerEl.classList.add('hidden');
+    if (onDone) onDone();
   }, duration * 1000 + 300);
 }
-socket.on('ledMessage', ({ text, sender }) => showLedTicker(text, sender));
+
+// Nachrichten, die eintreffen waehrend das Fenster nicht im Vordergrund ist,
+// werden zurueckgehalten und erst abgespielt, sobald es wieder sichtbar ist.
+let ledMessageQueue = [];
+let isLedTickerPlaying = false;
+
+function tryPlayNextLedMessage() {
+  if (isLedTickerPlaying || document.hidden || !ledMessageQueue.length) return;
+  const next = ledMessageQueue.shift();
+  isLedTickerPlaying = true;
+  showLedTicker(next.text, next.sender, () => {
+    isLedTickerPlaying = false;
+    tryPlayNextLedMessage();
+  });
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) tryPlayNextLedMessage();
+});
+
+socket.on('ledMessage', ({ text, sender }) => {
+  ledMessageQueue.push({ text, sender });
+  tryPlayNextLedMessage();
+});
