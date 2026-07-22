@@ -2785,7 +2785,7 @@ let ledTickerHideTimer = null;
 function showLedTicker(text, sender) {
   const fullText = `📟  ${sender}: ${text}`;
   ledTickerTextEl.textContent = fullText;
-  const duration = Math.max(8, fullText.length * 0.18);
+  const duration = Math.max(16, fullText.length * 0.45);
 
   // Laufende Animation sauber neu starten (auch wenn schon eine läuft):
   // Animation kurz entfernen, Reflow erzwingen, dann neu setzen.
