@@ -435,6 +435,10 @@ verloren, nur weil man gerade nicht hinschaut. Kommen mehrere Nachrichten
 an, während niemand hinschaut, werden sie der Reihe nach (älteste zuerst)
 nacheinander abgespielt, sobald das Fenster wieder sichtbar ist.
 
+Beim Start jeder Laufschrift ertönt außerdem eine kleine, aufsteigende
+Tonfolge (eigener Klang, unterscheidbar von normalen Nachrichten-Tönen) –
+respektiert den 🔊/🔇-Ton-Schalter in der Sidebar.
+
 ## Server-Status (nur DOM)
 
 Im Admin-Panel (🛡) zeigt „Server-Status" – aktualisiert sich beim Öffnen

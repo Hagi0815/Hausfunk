@@ -215,6 +215,32 @@ function playNotificationSound(urgent = false) {
   } catch (err) { /* Audio evtl. noch nicht freigegeben */ }
 }
 
+// Eigener, unterscheidbarer Ankuendigungston fuer die LED-Laufschrift --
+// kleine aufsteigende Tonfolge, wie eine altmodische Durchsage-Glocke.
+function playLedTickerSound() {
+  if (!soundEnabled) return;
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const now = audioCtx.currentTime;
+    const beep = (start, freq, dur) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + start);
+      gain.gain.setValueAtTime(0.0001, now + start);
+      gain.gain.exponentialRampToValueAtTime(0.22, now + start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + start + dur);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(now + start);
+      osc.stop(now + start + dur + 0.05);
+    };
+    beep(0, 659, 0.13);
+    beep(0.15, 880, 0.13);
+    beep(0.3, 1109, 0.22);
+  } catch (err) { /* Audio evtl. noch nicht freigegeben */ }
+}
+
 soundToggleBtn.addEventListener('click', () => {
   soundEnabled = !soundEnabled;
   localStorage.setItem(SOUND_KEY, soundEnabled ? 'on' : 'off');
@@ -2786,6 +2812,7 @@ function showLedTicker(text, sender, onDone) {
   const fullText = `📟  ${sender}: ${text}`;
   ledTickerTextEl.textContent = fullText;
   const duration = Math.max(16, fullText.length * 0.45);
+  playLedTickerSound();
 
   // Laufende Animation sauber neu starten (auch wenn schon eine läuft):
   // Animation kurz entfernen, Reflow erzwingen, dann neu setzen.
