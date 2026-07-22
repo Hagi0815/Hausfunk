@@ -135,7 +135,10 @@ html, body {
   gap: 10px;
   margin-bottom: 4px;
 }
-.brand.small { justify-content: flex-start; }
+.brand.small {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
 
 .brand h1 {
   font-family: var(--font-display);
@@ -149,7 +152,13 @@ html, body {
 .brand-actions {
   margin-left: auto;
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+}
+.brand.small .brand-actions {
+  flex-basis: 100%;
+  justify-content: flex-end;
+  margin-left: 0;
 }
 
 .icon-toggle {
@@ -395,6 +404,7 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 18px;
+  overflow-x: hidden;
 }
 
 .sidebar-close-btn {
