@@ -405,7 +405,9 @@ Positions-Synchronisierung):
   dem Hausfunk läuft) – ein Netzlaufwerk/NAS-Freigabe muss dort also schon
   eingebunden sein (z. B. per Mount in der Container-Konfiguration), damit
   Node.js darauf zugreifen kann. „🔄 Neu einlesen" durchsucht den Ordner
-  erneut, z. B. nachdem neue Dateien hinzugekommen sind
+  erneut, z. B. nachdem neue Dateien hinzugekommen sind. Der Scan läuft
+  asynchron im Hintergrund – auch bei einer sehr großen Musiksammlung
+  bleibt der Rest der App währenddessen normal bedienbar
 - Titel aus dem Netzwerkordner sind nur abspielbar, nicht einzeln
   entfernbar (sie kommen ja aus dem Ordner selbst) – hochgeladene Titel
   lassen sich wie gewohnt entfernen

@@ -587,33 +587,38 @@ function saveNetworkMusicConfig() {
 let networkMusicFolder = loadNetworkMusicConfig().path || null;
 let networkTracks = []; // { id, title, relativePath }
 
-function scanNetworkMusicFolder() {
-  networkTracks = [];
-  if (!networkMusicFolder) return;
-
-  function walk(dir, relBase) {
-    let entries;
-    try {
-      entries = fs.readdirSync(dir, { withFileTypes: true });
-    } catch (err) {
-      return; // Ordner (temporaer) nicht erreichbar -- z.B. Netzlaufwerk getrennt
-    }
-    entries.forEach((entry) => {
-      const fullPath = path.join(dir, entry.name);
-      const relPath = relBase ? `${relBase}/${entry.name}` : entry.name;
-      if (entry.isDirectory()) {
-        walk(fullPath, relPath);
-      } else if (entry.isFile() && AUDIO_FILE_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
-        networkTracks.push({
-          id: `net-${crypto.createHash('md5').update(relPath).digest('hex')}`,
-          title: path.basename(entry.name, path.extname(entry.name)),
-          relativePath: relPath,
-        });
+async function scanNetworkMusicFolder() {
+  const collected = [];
+  if (networkMusicFolder) {
+    async function walk(dir, relBase) {
+      let entries;
+      try {
+        entries = await fs.promises.readdir(dir, { withFileTypes: true });
+      } catch (err) {
+        return; // Ordner (temporaer) nicht erreichbar -- z.B. Netzlaufwerk getrennt
       }
-    });
+      // Nacheinander abarbeiten (nicht Promise.all), damit bei sehr grossen
+      // Sammlungen der Server zwischendurch immer wieder Luft hat, andere
+      // Anfragen zu bedienen, statt in einem Rutsch durchzurauschen.
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        const relPath = relBase ? `${relBase}/${entry.name}` : entry.name;
+        if (entry.isDirectory()) {
+          // eslint-disable-next-line no-await-in-loop
+          await walk(fullPath, relPath);
+        } else if (entry.isFile() && AUDIO_FILE_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
+          collected.push({
+            id: `net-${crypto.createHash('md5').update(relPath).digest('hex')}`,
+            title: path.basename(entry.name, path.extname(entry.name)),
+            relativePath: relPath,
+          });
+        }
+      }
+    }
+    await walk(networkMusicFolder, '');
+    collected.sort((a, b) => a.title.localeCompare(b.title, 'de'));
   }
-  walk(networkMusicFolder, '');
-  networkTracks.sort((a, b) => a.title.localeCompare(b.title, 'de'));
+  networkTracks = collected;
 }
 scanNetworkMusicFolder();
 
@@ -1657,7 +1662,7 @@ async function main() {
     });
 
     // --- Netzwerkordner mit Musikdateien festlegen/neu einlesen (nur DOM) -------
-    socket.on('admin:setNetworkMusicFolder', (payload) => {
+    socket.on('admin:setNetworkMusicFolder', async (payload) => {
       if (socket.data.role !== 'admin' || !payload) return;
       const folderPath = (payload.path || '').toString().trim();
       if (!folderPath) {
@@ -1678,7 +1683,7 @@ async function main() {
       }
       let stat;
       try {
-        stat = fs.statSync(folderPath);
+        stat = await fs.promises.stat(folderPath);
       } catch (err) {
         socket.emit('musicActionError', 'Der angegebene Ordner existiert nicht oder ist auf dem Server nicht lesbar.');
         return;
@@ -1689,14 +1694,14 @@ async function main() {
       }
       networkMusicFolder = folderPath;
       saveNetworkMusicConfig();
-      scanNetworkMusicFolder();
       socket.emit('networkMusicFolder', networkMusicFolder);
+      await scanNetworkMusicFolder();
       io.emit('playlistUpdate', getFullPlaylist());
     });
 
-    socket.on('admin:rescanNetworkMusicFolder', () => {
+    socket.on('admin:rescanNetworkMusicFolder', async () => {
       if (socket.data.role !== 'admin') return;
-      scanNetworkMusicFolder();
+      await scanNetworkMusicFolder();
       io.emit('playlistUpdate', getFullPlaylist());
     });
 
