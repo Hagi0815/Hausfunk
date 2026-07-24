@@ -100,7 +100,15 @@ const DEFAULT_RADIO_STATIONS = [
   { name: 'hr3', url: 'https://hr-hr3-live.cast.addradio.de/hr/hr3/live/mp3/128/stream.mp3' },
   { name: 'MDR Jump', url: 'https://mdr-jump-live.cast.addradio.de/mdr/jump/live/mp3/128/stream.mp3' },
 ];
-if (!fs.existsSync(RADIO_STATIONS_FILE)) {
+function radioStationsFileIsEmpty() {
+  try {
+    const content = JSON.parse(fs.readFileSync(RADIO_STATIONS_FILE, 'utf-8'));
+    return Array.isArray(content) && content.length === 0;
+  } catch (err) {
+    return true;
+  }
+}
+if (!fs.existsSync(RADIO_STATIONS_FILE) || radioStationsFileIsEmpty()) {
   const seeded = DEFAULT_RADIO_STATIONS.map((s) => ({
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name: s.name, url: s.url, addedBy: 'Standard',
   }));
