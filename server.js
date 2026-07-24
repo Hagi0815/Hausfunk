@@ -1668,6 +1668,14 @@ async function main() {
         io.emit('playlistUpdate', getFullPlaylist());
         return;
       }
+      // Windows-Freigabepfade (\\server\freigabe\...) kann Node.js unter Linux
+      // nicht direkt lesen -- die Freigabe muss zuerst im Dateisystem des
+      // Servers eingebunden (gemountet) werden. Klare Fehlermeldung statt
+      // eines generischen "existiert nicht".
+      if (/^\\\\/.test(folderPath) || /^\/\/[^/]+\//.test(folderPath)) {
+        socket.emit('musicActionError', 'Das ist ein Windows-Freigabepfad (\\\\server\\freigabe\\...). Node.js auf dem Server kann darauf nicht direkt zugreifen -- die Freigabe muss zuerst auf dem Server selbst eingebunden (gemountet) werden, z.B. mit "mount -t cifs //SERVER/Freigabe /mnt/musik". Trag danach den lokalen Einhängepunkt ein (z.B. /mnt/musik), nicht den \\\\-Pfad.');
+        return;
+      }
       let stat;
       try {
         stat = fs.statSync(folderPath);
