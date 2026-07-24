@@ -2064,3 +2064,89 @@ html, body {
   box-sizing: border-box;
 }
 .led-message-form input:focus { border-color: var(--accent); }
+
+/* --- Radio & Musik ------------------------------------------------------------ */
+.radio-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.radio-section:last-child { border-bottom: none; margin-bottom: 0; }
+.radio-add-form, .playlist-add-form {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.radio-add-form input, .playlist-add-form input[type="text"] {
+  flex: 1;
+  min-width: 100px;
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+  padding: 7px 9px;
+  outline: none;
+  box-sizing: border-box;
+}
+.radio-add-form input:focus, .playlist-add-form input:focus { border-color: var(--accent); }
+.radio-station-row, .playlist-track-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.radio-station-row span, .playlist-track-row span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.radio-play-btn, .playlist-play-btn {
+  flex: none;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  font-size: 13px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+.radio-play-btn:hover, .playlist-play-btn:hover { border-color: var(--accent); color: var(--accent); }
+.radio-play-btn.active, .playlist-play-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #1a1204;
+}
+.radio-now-playing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--text);
+}
+.radio-now-playing.hidden { display: none; }
+#radio-now-playing-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#radio-volume { flex: 0 0 90px; accent-color: var(--accent); }
+.playlist-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.playlist-now-playing {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+#playlist-playpause-btn { font-size: 16px; min-width: 40px; }

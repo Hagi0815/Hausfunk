@@ -64,6 +64,7 @@
       <div class="shopping-nav-section">
         <button id="shopping-nav-btn" class="shopping-nav-btn" type="button">🛒 Einkaufsliste</button>
         <button id="calendar-nav-btn" class="shopping-nav-btn" type="button">📅 Kalender</button>
+        <button id="radio-nav-btn" class="shopping-nav-btn" type="button">📻 Radio &amp; Musik</button>
       </div>
 
       <div class="online-label">ONLINE &middot; <span id="online-count">0</span></div>
@@ -204,6 +205,48 @@
             <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
           </div>
           <div id="calendar-grid" class="calendar-grid"></div>
+        </aside>
+
+        <aside id="radio-panel" class="checklist-panel hidden">
+          <div class="checklist-panel-header">
+            <span>📻 Radio &amp; Musik</span>
+          </div>
+
+          <div class="radio-section">
+            <div class="online-label">INTERNETRADIO</div>
+            <div class="radio-add-form">
+              <input id="radio-name-input" type="text" placeholder="Sendername" maxlength="60" />
+              <input id="radio-url-input" type="text" placeholder="Stream-URL (https://...)" />
+              <button id="radio-add-btn" class="unban-btn" type="button">+ Sender</button>
+            </div>
+            <ul id="radio-station-list" class="banned-list"></ul>
+            <div id="radio-empty" class="gallery-empty hidden">Noch keine Sender eingetragen.</div>
+            <audio id="radio-audio" preload="none"></audio>
+            <div id="radio-now-playing" class="radio-now-playing hidden">
+              <span id="radio-now-playing-name"></span>
+              <input id="radio-volume" type="range" min="0" max="100" value="80" />
+              <button id="radio-stop-btn" class="unban-btn" type="button">■ Stopp</button>
+            </div>
+          </div>
+
+          <div class="radio-section">
+            <div class="online-label">GETEILTE PLAYLIST (für alle synchron)</div>
+            <div class="playlist-add-form">
+              <input id="playlist-title-input" type="text" placeholder="Titel" maxlength="150" />
+              <button id="playlist-upload-btn" class="unban-btn" type="button">📁 Datei hochladen</button>
+              <input id="playlist-file-input" type="file" accept="audio/*" class="visually-hidden-file-input" />
+            </div>
+            <div id="playlist-error" class="join-error hidden"></div>
+            <ul id="playlist-track-list" class="banned-list"></ul>
+            <div id="playlist-empty" class="gallery-empty hidden">Noch keine Titel in der Playlist.</div>
+            <audio id="playlist-audio" preload="none"></audio>
+            <div class="playlist-controls">
+              <button id="playlist-prev-btn" class="unban-btn" type="button">⏮</button>
+              <button id="playlist-playpause-btn" class="unban-btn" type="button">▶</button>
+              <button id="playlist-next-btn" class="unban-btn" type="button">⏭</button>
+              <span id="playlist-now-playing" class="playlist-now-playing"></span>
+            </div>
+          </div>
         </aside>
       </div>
     </main>

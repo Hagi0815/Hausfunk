@@ -19,6 +19,29 @@ const calendarPrevMonthBtn = document.getElementById('calendar-prev-month');
 const calendarNextMonthBtn = document.getElementById('calendar-next-month');
 const calendarTodayBtn = document.getElementById('calendar-today-btn');
 const calendarGridEl = document.getElementById('calendar-grid');
+const radioNavBtn = document.getElementById('radio-nav-btn');
+const radioPanelEl = document.getElementById('radio-panel');
+const radioNameInput = document.getElementById('radio-name-input');
+const radioUrlInput = document.getElementById('radio-url-input');
+const radioAddBtn = document.getElementById('radio-add-btn');
+const radioStationListEl = document.getElementById('radio-station-list');
+const radioEmptyEl = document.getElementById('radio-empty');
+const radioAudioEl = document.getElementById('radio-audio');
+const radioNowPlayingEl = document.getElementById('radio-now-playing');
+const radioNowPlayingNameEl = document.getElementById('radio-now-playing-name');
+const radioVolumeInput = document.getElementById('radio-volume');
+const radioStopBtn = document.getElementById('radio-stop-btn');
+const playlistTitleInput = document.getElementById('playlist-title-input');
+const playlistUploadBtn = document.getElementById('playlist-upload-btn');
+const playlistFileInput = document.getElementById('playlist-file-input');
+const playlistErrorEl = document.getElementById('playlist-error');
+const playlistTrackListEl = document.getElementById('playlist-track-list');
+const playlistEmptyEl = document.getElementById('playlist-empty');
+const playlistAudioEl = document.getElementById('playlist-audio');
+const playlistPrevBtn = document.getElementById('playlist-prev-btn');
+const playlistPlayPauseBtn = document.getElementById('playlist-playpause-btn');
+const playlistNextBtn = document.getElementById('playlist-next-btn');
+const playlistNowPlayingEl = document.getElementById('playlist-now-playing');
 const checklistGroupsEl = document.getElementById('checklist-groups');
 const checklistCountEl = document.getElementById('checklist-count');
 const checklistClearDoneBtn = document.getElementById('checklist-clear-done');
@@ -1374,6 +1397,7 @@ function renderRoomList() {
 
   shoppingNavBtn.classList.toggle('active', viewMode === 'shopping');
   calendarNavBtn.classList.toggle('active', viewMode === 'calendar');
+  radioNavBtn.classList.toggle('active', viewMode === 'radio');
 }
 
 socket.on('rooms', (list) => {
@@ -1430,14 +1454,18 @@ socket.on('roomChanged', (roomId) => {
 function updateViewModeUI() {
   const isShopping = viewMode === 'shopping';
   const isCalendar = viewMode === 'calendar';
-  const isChat = !isShopping && !isCalendar;
+  const isRadio = viewMode === 'radio';
+  const isChat = !isShopping && !isCalendar && !isRadio;
   chatColumnEl.classList.toggle('hidden', !isChat);
   checklistPanelEl.classList.toggle('hidden', !isShopping);
   calendarPanelEl.classList.toggle('hidden', !isCalendar);
+  radioPanelEl.classList.toggle('hidden', !isRadio);
   if (isShopping) {
     roomTitleEl.textContent = '🛒 Einkaufsliste';
   } else if (isCalendar) {
     roomTitleEl.textContent = '📅 Kalender';
+  } else if (isRadio) {
+    roomTitleEl.textContent = '📻 Radio & Musik';
   } else {
     const room = rooms.find((r) => r.id === currentRoom);
     roomTitleEl.innerHTML = '';
@@ -1455,6 +1483,221 @@ function updateViewModeUI() {
   document.body.classList.toggle('theme-fun', isChat && currentRoom === 'fun');
   applyRoomBackground();
 }
+
+radioNavBtn.addEventListener('click', () => {
+  viewMode = 'radio';
+  renderRoomList();
+  updateViewModeUI();
+  sidebar.classList.remove('open');
+});
+
+// --- Internetradio: Senderliste (geteilt), Wiedergabe laeuft pro Person
+//     individuell -- da es ein Live-Stream ist, braucht es keine
+//     Positions-Synchronisierung. ------------------------------------------
+let radioStations = [];
+let currentRadioStationId = null;
+
+function renderRadioStations() {
+  radioStationListEl.innerHTML = '';
+  radioEmptyEl.classList.toggle('hidden', radioStations.length > 0);
+  radioStations.forEach((station) => {
+    const li = document.createElement('li');
+
+    const row = document.createElement('div');
+    row.className = 'radio-station-row';
+
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = station.name;
+    row.appendChild(nameSpan);
+
+    const playBtn = document.createElement('button');
+    playBtn.type = 'button';
+    playBtn.className = 'radio-play-btn';
+    const isActive = station.id === currentRadioStationId;
+    if (isActive) playBtn.classList.add('active');
+    playBtn.textContent = isActive ? '⏸' : '▶';
+    playBtn.addEventListener('click', () => {
+      if (isActive) {
+        radioStopBtn.click();
+      } else {
+        playRadioStation(station);
+      }
+    });
+    row.appendChild(playBtn);
+
+    li.appendChild(row);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'unban-btn';
+    removeBtn.textContent = '✕';
+    removeBtn.addEventListener('click', () => socket.emit('radio:removeStation', { id: station.id }));
+    li.appendChild(removeBtn);
+
+    radioStationListEl.appendChild(li);
+  });
+}
+
+function playRadioStation(station) {
+  currentRadioStationId = station.id;
+  radioAudioEl.src = station.url;
+  radioAudioEl.volume = Number(radioVolumeInput.value) / 100;
+  radioAudioEl.play().catch(() => { /* Autoplay evtl. blockiert, bis Nutzer erneut klickt */ });
+  radioNowPlayingNameEl.textContent = station.name;
+  radioNowPlayingEl.classList.remove('hidden');
+  renderRadioStations();
+}
+
+radioStopBtn.addEventListener('click', () => {
+  radioAudioEl.pause();
+  radioAudioEl.removeAttribute('src');
+  radioAudioEl.load();
+  currentRadioStationId = null;
+  radioNowPlayingEl.classList.add('hidden');
+  renderRadioStations();
+});
+
+radioVolumeInput.addEventListener('input', () => {
+  radioAudioEl.volume = Number(radioVolumeInput.value) / 100;
+});
+
+radioAddBtn.addEventListener('click', () => {
+  const name = radioNameInput.value.trim();
+  const url = radioUrlInput.value.trim();
+  if (!name) { radioNameInput.focus(); return; }
+  if (!url) { radioUrlInput.focus(); return; }
+  socket.emit('radio:addStation', { name, url });
+  radioNameInput.value = '';
+  radioUrlInput.value = '';
+});
+
+socket.on('radioStations', (stations) => {
+  radioStations = stations;
+  renderRadioStations();
+});
+
+// --- Geteilte Musik-Playlist: fuer alle synchron (Position + Play/Pause) --
+let playlistTracks = [];
+let currentPlayerState = {
+  trackId: null, isPlaying: false, positionSeconds: 0, serverTime: Date.now(),
+};
+
+function renderPlaylist() {
+  playlistTrackListEl.innerHTML = '';
+  playlistEmptyEl.classList.toggle('hidden', playlistTracks.length > 0);
+  playlistTracks.forEach((track) => {
+    const li = document.createElement('li');
+    const isActive = track.id === currentPlayerState.trackId;
+
+    const row = document.createElement('div');
+    row.className = 'playlist-track-row';
+
+    const titleSpan = document.createElement('span');
+    titleSpan.textContent = track.title;
+    row.appendChild(titleSpan);
+
+    const playBtn = document.createElement('button');
+    playBtn.type = 'button';
+    playBtn.className = 'playlist-play-btn';
+    if (isActive && currentPlayerState.isPlaying) playBtn.classList.add('active');
+    playBtn.textContent = isActive && currentPlayerState.isPlaying ? '⏸' : '▶';
+    playBtn.addEventListener('click', () => {
+      if (isActive) {
+        if (currentPlayerState.isPlaying) socket.emit('music:pause');
+        else socket.emit('music:resume');
+      } else {
+        socket.emit('music:play', { trackId: track.id, positionSeconds: 0 });
+      }
+    });
+    row.appendChild(playBtn);
+
+    li.appendChild(row);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'unban-btn';
+    removeBtn.textContent = '✕';
+    removeBtn.addEventListener('click', () => socket.emit('music:removeTrack', { id: track.id }));
+    li.appendChild(removeBtn);
+
+    playlistTrackListEl.appendChild(li);
+  });
+}
+
+function applyPlayerState(state) {
+  currentPlayerState = state;
+  const track = playlistTracks.find((t) => t.id === state.trackId);
+
+  if (!track) {
+    playlistAudioEl.pause();
+    playlistAudioEl.removeAttribute('src');
+    delete playlistAudioEl.dataset.trackId;
+    playlistNowPlayingEl.textContent = '';
+    playlistPlayPauseBtn.textContent = '▶';
+    renderPlaylist();
+    return;
+  }
+
+  if (playlistAudioEl.dataset.trackId !== track.id) {
+    playlistAudioEl.src = track.url;
+    playlistAudioEl.dataset.trackId = track.id;
+  }
+
+  // Zielposition anhand der seit dem Server-Update vergangenen Zeit berechnen,
+  // damit alle ungefaehr an derselben Stelle sind (Sync-Toleranz: 1,5 Sek.).
+  const elapsedSinceUpdate = state.isPlaying ? Math.max(0, (Date.now() - state.serverTime) / 1000) : 0;
+  const targetPosition = state.positionSeconds + elapsedSinceUpdate;
+  if (Math.abs((playlistAudioEl.currentTime || 0) - targetPosition) > 1.5) {
+    playlistAudioEl.currentTime = targetPosition;
+  }
+
+  if (state.isPlaying) {
+    playlistAudioEl.play().catch(() => { /* Autoplay evtl. blockiert */ });
+    playlistPlayPauseBtn.textContent = '⏸';
+  } else {
+    playlistAudioEl.pause();
+    playlistPlayPauseBtn.textContent = '▶';
+  }
+  playlistNowPlayingEl.textContent = track.title;
+  renderPlaylist();
+}
+
+socket.on('playlistUpdate', (tracks) => {
+  playlistTracks = tracks;
+  renderPlaylist();
+});
+socket.on('playerState', applyPlayerState);
+socket.on('musicActionError', (msg) => {
+  playlistErrorEl.textContent = msg;
+  playlistErrorEl.classList.remove('hidden');
+});
+
+playlistPlayPauseBtn.addEventListener('click', () => {
+  if (!currentPlayerState.trackId) {
+    if (playlistTracks.length) socket.emit('music:play', { trackId: playlistTracks[0].id, positionSeconds: 0 });
+    return;
+  }
+  if (currentPlayerState.isPlaying) socket.emit('music:pause');
+  else socket.emit('music:resume');
+});
+playlistPrevBtn.addEventListener('click', () => socket.emit('music:skip', { direction: 'prev' }));
+playlistNextBtn.addEventListener('click', () => socket.emit('music:skip', { direction: 'next' }));
+playlistAudioEl.addEventListener('ended', () => socket.emit('music:skip', { direction: 'next' }));
+
+playlistUploadBtn.addEventListener('click', () => playlistFileInput.click());
+playlistFileInput.addEventListener('change', () => {
+  const file = playlistFileInput.files[0];
+  if (!file) return;
+  playlistErrorEl.classList.add('hidden');
+  const title = playlistTitleInput.value.trim() || file.name.replace(/\.[^.]+$/, '');
+  const reader = new FileReader();
+  reader.onload = () => {
+    socket.emit('music:addTrack', { title, dataUrl: reader.result });
+    playlistTitleInput.value = '';
+    playlistFileInput.value = '';
+  };
+  reader.readAsDataURL(file);
+});
 
 shoppingNavBtn.addEventListener('click', () => {
   viewMode = 'shopping';

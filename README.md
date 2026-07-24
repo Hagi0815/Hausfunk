@@ -367,6 +367,27 @@ Enthält eine Nachricht bestimmte Wörter oder Emojis (z. B. „Geburtstag",
 Konfetti über den Bildschirm – rein clientseitig, ohne Server-Logik. Bei
 aktivierter „Bewegung reduzieren"-Einstellung im Betriebssystem bleibt es aus.
 
+## Radio & Musik
+
+„📻 Radio & Musik" steht als eigener Bereich in der Sidebar, genauso wie
+Einkaufsliste/Kalender unabhängig von Kanälen.
+
+**Internetradio** (geteilte Senderliste, Wiedergabe läuft pro Person
+einzeln – da es ohnehin ein Live-Stream ist, braucht es keine
+Positions-Synchronisierung):
+- Jeder kann Sender mit Name + Stream-URL eintragen oder entfernen
+- Lautstärkeregler, Stopp-Knopf
+
+**Geteilte Musik-Playlist** (läuft für alle synchron mit):
+- Musikdateien hochladen (MP3/WAV/OGG/M4A, max. 15 MB pro Datei)
+- Play/Pause/Weiter/Zurück wirkt sich auf **alle** verbundenen Geräte aus –
+  Wiedergabeposition und Play-Status werden vom Server verwaltet und an
+  alle verteilt, mit kleiner Toleranz (± 1,5 Sek.), damit alle ungefähr an
+  derselben Stelle hören
+- Springt automatisch zum nächsten Titel, wenn einer zu Ende ist
+- Titel entfernen kann jeder – wie bei der Einkaufsliste kein
+  admin-beschränktes Feature
+
 ## Kalender (iCal)
 
 „📅 Kalender" steht als eigener Bereich unter „🛒 Einkaufsliste" in der

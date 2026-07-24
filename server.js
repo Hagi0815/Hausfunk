@@ -24,6 +24,9 @@ const ROOMS_CONFIG_FILE = path.join(DATA_DIR, 'rooms-config.json');
 const SHOPPING_LIST_FILE = path.join(DATA_DIR, 'shopping-list.json');
 const SHOPPING_CATEGORIES_FILE = path.join(DATA_DIR, 'shopping-list-categories.json');
 const CALENDAR_CONFIG_FILE = path.join(DATA_DIR, 'calendar-config.json');
+const RADIO_STATIONS_FILE = path.join(DATA_DIR, 'radio-stations.json');
+const PLAYLIST_FILE = path.join(DATA_DIR, 'playlist.json');
+const MUSIC_DIR = path.join(UPLOAD_DIR, 'music');
 const CALENDAR_REFRESH_MS = 30 * 60 * 1000; // alle 30 Minuten neu abrufen
 const CALENDAR_LOOKAHEAD_DAYS = 60;
 const CALENDAR_LOOKBACK_DAYS = 60;
@@ -71,7 +74,7 @@ const DEFAULT_ROOMS = [
 ];
 
 // --- Ordner sicherstellen ----------------------------------------------------
-[DATA_DIR, ROOMS_DIR, UPLOAD_DIR, AVATAR_DIR, ROOM_BG_DIR, ROOM_ICON_DIR].forEach((dir) => {
+[DATA_DIR, ROOMS_DIR, UPLOAD_DIR, AVATAR_DIR, ROOM_BG_DIR, ROOM_ICON_DIR, MUSIC_DIR].forEach((dir) => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 if (!fs.existsSync(AVATARS_FILE)) fs.writeFileSync(AVATARS_FILE, '{}');
@@ -83,6 +86,8 @@ if (!fs.existsSync(ADMIN_CONFIG_FILE)) {
 if (!fs.existsSync(PUSH_SUBS_FILE)) fs.writeFileSync(PUSH_SUBS_FILE, '{}');
 if (!fs.existsSync(SESSIONS_FILE)) fs.writeFileSync(SESSIONS_FILE, '{}');
 if (!fs.existsSync(CALENDAR_CONFIG_FILE)) fs.writeFileSync(CALENDAR_CONFIG_FILE, JSON.stringify({ url: null }));
+if (!fs.existsSync(RADIO_STATIONS_FILE)) fs.writeFileSync(RADIO_STATIONS_FILE, '[]');
+if (!fs.existsSync(PLAYLIST_FILE)) fs.writeFileSync(PLAYLIST_FILE, '[]');
 if (!fs.existsSync(PRESENCE_LOG_FILE)) fs.writeFileSync(PRESENCE_LOG_FILE, '[]');
 if (!fs.existsSync(PROTECTED_USERS_FILE)) fs.writeFileSync(PROTECTED_USERS_FILE, '{}');
 
@@ -477,6 +482,50 @@ function saveCalendarConfig() {
   fs.writeFileSync(CALENDAR_CONFIG_FILE, JSON.stringify({ url: calendarUrl }, null, 2));
 }
 let calendarUrl = loadCalendarConfig().url || null;
+
+// --- Internetradio-Sender (offen fuer alle, laeuft naturgemaess synchron,
+//     da es ein Live-Stream ist -- keine Positions-Synchronisierung noetig) -
+function loadRadioStations() {
+  try {
+    return JSON.parse(fs.readFileSync(RADIO_STATIONS_FILE, 'utf-8'));
+  } catch (err) {
+    return [];
+  }
+}
+function saveRadioStations() {
+  fs.writeFileSync(RADIO_STATIONS_FILE, JSON.stringify(radioStations, null, 2));
+}
+let radioStations = loadRadioStations(); // { id, name, url, addedBy }
+
+// --- Geteilte Musik-Playlist (echte Synchronisierung: Position/Play-Status
+//     fuer alle gleich) -------------------------------------------------------
+function loadPlaylist() {
+  try {
+    return JSON.parse(fs.readFileSync(PLAYLIST_FILE, 'utf-8'));
+  } catch (err) {
+    return [];
+  }
+}
+function savePlaylist() {
+  fs.writeFileSync(PLAYLIST_FILE, JSON.stringify(playlist, null, 2));
+}
+let playlist = loadPlaylist(); // { id, title, url, addedBy }
+let playerState = {
+  trackId: null, isPlaying: false, positionSeconds: 0, lastUpdateTs: Date.now(),
+};
+
+function getCurrentPosition() {
+  if (!playerState.isPlaying) return playerState.positionSeconds;
+  return playerState.positionSeconds + (Date.now() - playerState.lastUpdateTs) / 1000;
+}
+function playerStatePayload() {
+  return {
+    trackId: playerState.trackId,
+    isPlaying: playerState.isPlaying,
+    positionSeconds: getCurrentPosition(),
+    serverTime: Date.now(),
+  };
+}
 let calendarEvents = [];
 
 // --- Zustand pro Kanal laden/speichern ---------------------------------------
@@ -516,7 +565,7 @@ async function main() {
   const app = express();
   const server = http.createServer(app);
   const io = new Server(server, {
-    maxHttpBufferSize: 12 * 1024 * 1024,
+    maxHttpBufferSize: 22 * 1024 * 1024,
   });
 
   app.use(express.static(path.join(__dirname, 'public')));
@@ -852,6 +901,9 @@ async function main() {
     if (weatherCache) socket.emit('weatherUpdate', weatherCache);
     socket.emit('shoppingListUpdate', { items: shoppingItems, categories: shoppingCategories });
     socket.emit('calendarUpdate', { events: calendarEvents, updatedAt: Date.now(), error: null });
+    socket.emit('radioStations', radioStations);
+    socket.emit('playlistUpdate', playlist);
+    socket.emit('playerState', playerStatePayload());
 
     socket.on('join', (payload) => {
       const raw = typeof payload === 'string' ? { name: payload } : (payload || {});
@@ -1488,6 +1540,120 @@ async function main() {
       const text = (payload.text || '').toString().slice(0, 200).trim();
       if (!text) return;
       io.emit('ledMessage', { text, sender: socket.data.name, ts: Date.now() });
+    });
+
+    // --- Internetradio: Sender verwalten (offen fuer alle) ----------------------
+    socket.on('radio:addStation', (payload) => {
+      if (!socket.data.name || !payload) return;
+      const name = (payload.name || '').toString().slice(0, 60).trim();
+      const url = (payload.url || '').toString().slice(0, 500).trim();
+      if (!name || !url || !/^https?:\/\//i.test(url)) return;
+      radioStations.push({
+        id: makeId(), name, url, addedBy: socket.data.name,
+      });
+      saveRadioStations();
+      io.emit('radioStations', radioStations);
+    });
+
+    socket.on('radio:removeStation', (payload) => {
+      if (!socket.data.name || !payload) return;
+      const before = radioStations.length;
+      radioStations = radioStations.filter((s) => s.id !== payload.id);
+      if (radioStations.length === before) return;
+      saveRadioStations();
+      io.emit('radioStations', radioStations);
+    });
+
+    // --- Geteilte Musik-Playlist: Titel hochladen/entfernen, Wiedergabe steuern -
+    socket.on('music:addTrack', (payload) => {
+      if (!socket.data.name || !payload) return;
+      const title = (payload.title || '').toString().slice(0, 150).trim();
+      const dataUrl = (payload.dataUrl || '').toString();
+      const match = /^data:audio\/(mpeg|mp3|wav|ogg|webm|m4a|x-m4a|mp4);base64,(.+)$/.exec(dataUrl);
+      if (!title || !match) {
+        socket.emit('musicActionError', 'Nur Audiodateien (MP3/WAV/OGG/M4A) sind erlaubt.');
+        return;
+      }
+      const extMap = {
+        mpeg: 'mp3', mp3: 'mp3', wav: 'wav', ogg: 'ogg', webm: 'webm', m4a: 'm4a', 'x-m4a': 'm4a', mp4: 'm4a',
+      };
+      const ext = extMap[match[1]] || 'mp3';
+      const buffer = Buffer.from(match[2], 'base64');
+      if (buffer.length > 15 * 1024 * 1024) {
+        socket.emit('musicActionError', 'Die Datei ist zu groß (max. 15 MB).');
+        return;
+      }
+      const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      fs.writeFileSync(path.join(MUSIC_DIR, filename), buffer);
+      playlist.push({
+        id: makeId(), title, url: `/uploads/music/${filename}`, addedBy: socket.data.name,
+      });
+      savePlaylist();
+      io.emit('playlistUpdate', playlist);
+    });
+
+    socket.on('music:removeTrack', (payload) => {
+      if (!socket.data.name || !payload) return;
+      const before = playlist.length;
+      playlist = playlist.filter((t) => t.id !== payload.id);
+      if (playlist.length === before) return;
+      savePlaylist();
+      io.emit('playlistUpdate', playlist);
+      if (playerState.trackId === payload.id) {
+        playerState = {
+          trackId: null, isPlaying: false, positionSeconds: 0, lastUpdateTs: Date.now(),
+        };
+        io.emit('playerState', playerStatePayload());
+      }
+    });
+
+    socket.on('music:play', (payload) => {
+      if (!socket.data.name || !payload) return;
+      const track = playlist.find((t) => t.id === payload.trackId);
+      if (!track) return;
+      playerState = {
+        trackId: track.id,
+        isPlaying: true,
+        positionSeconds: Number(payload.positionSeconds) || 0,
+        lastUpdateTs: Date.now(),
+      };
+      io.emit('playerState', playerStatePayload());
+    });
+
+    socket.on('music:pause', () => {
+      if (!socket.data.name) return;
+      playerState.positionSeconds = getCurrentPosition();
+      playerState.isPlaying = false;
+      playerState.lastUpdateTs = Date.now();
+      io.emit('playerState', playerStatePayload());
+    });
+
+    socket.on('music:resume', () => {
+      if (!socket.data.name || !playerState.trackId) return;
+      playerState.isPlaying = true;
+      playerState.lastUpdateTs = Date.now();
+      io.emit('playerState', playerStatePayload());
+    });
+
+    socket.on('music:seek', (payload) => {
+      if (!socket.data.name || !playerState.trackId) return;
+      const pos = Number(payload.positionSeconds);
+      if (!Number.isFinite(pos) || pos < 0) return;
+      playerState.positionSeconds = pos;
+      playerState.lastUpdateTs = Date.now();
+      io.emit('playerState', playerStatePayload());
+    });
+
+    socket.on('music:skip', (payload) => {
+      if (!socket.data.name || !playlist.length) return;
+      const direction = payload && payload.direction === 'prev' ? -1 : 1;
+      const currentIdx = playlist.findIndex((t) => t.id === playerState.trackId);
+      const nextIdx = (((currentIdx === -1 ? 0 : currentIdx) + direction) + playlist.length) % playlist.length;
+      const nextTrack = playlist[nextIdx];
+      playerState = {
+        trackId: nextTrack.id, isPlaying: true, positionSeconds: 0, lastUpdateTs: Date.now(),
+      };
+      io.emit('playerState', playerStatePayload());
     });
 
     socket.on('admin:getServerStatus', () => {
