@@ -1509,7 +1509,16 @@ function renderRadioStations() {
   const filtered = radioSearchTerm
     ? radioStations.filter((s) => s.name.toLowerCase().includes(radioSearchTerm))
     : radioStations;
-  radioEmptyEl.classList.toggle('hidden', filtered.length > 0);
+  radioEmptyEl.classList.toggle('hidden', radioStations.length > 0);
+
+  if (radioStations.length > 0 && filtered.length === 0) {
+    const noMatch = document.createElement('li');
+    noMatch.className = 'radio-dropdown-no-match';
+    noMatch.textContent = 'Keine Treffer.';
+    radioStationListEl.appendChild(noMatch);
+    return;
+  }
+
   filtered.forEach((station) => {
     const li = document.createElement('li');
 
@@ -1555,6 +1564,9 @@ function playRadioStation(station) {
   radioAudioEl.play().catch(() => { /* Autoplay evtl. blockiert, bis Nutzer erneut klickt */ });
   radioNowPlayingNameEl.textContent = station.name;
   radioNowPlayingEl.classList.remove('hidden');
+  radioSearchTerm = '';
+  radioSearchInput.value = '';
+  radioStationListEl.classList.add('hidden');
   renderRadioStations();
 }
 
@@ -1584,6 +1596,21 @@ radioAddBtn.addEventListener('click', () => {
 radioSearchInput.addEventListener('input', () => {
   radioSearchTerm = radioSearchInput.value.trim().toLowerCase();
   renderRadioStations();
+  radioStationListEl.classList.remove('hidden');
+});
+radioSearchInput.addEventListener('focus', () => {
+  radioStationListEl.classList.remove('hidden');
+});
+document.addEventListener('click', (e) => {
+  if (!radioSearchInput.contains(e.target) && !radioStationListEl.contains(e.target)) {
+    radioStationListEl.classList.add('hidden');
+  }
+});
+radioSearchInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    radioStationListEl.classList.add('hidden');
+    radioSearchInput.blur();
+  }
 });
 
 socket.on('radioStations', (stations) => {

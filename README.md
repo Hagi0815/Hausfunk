@@ -383,10 +383,10 @@ Positions-Synchronisierung):
   entfernen und die aktuelle Adresse des Senders neu eintragen. Wurden
   bereits eigene Sender hinzugefügt, bleibt die Liste bei einem Update
   garantiert unangetastet (nur eine reine Standard-Liste wird erweitert)
-- Sender lassen sich über das Suchfeld direkt filtern
-- Werden als kompaktes Raster (mehrere pro Zeile, mit Bildlauf ab einer
-  bestimmten Höhe) statt als lange Liste untereinander dargestellt – spart
-  bei vielen Sendern deutlich Platz
+- Sender lassen sich über das Suchfeld direkt filtern; die Liste erscheint
+  als aufklappbares Dropdown darunter (öffnet beim Klick/Tippen ins
+  Suchfeld, schließt automatisch nach Auswahl oder Klick daneben) – nimmt
+  dadurch dauerhaft kaum Platz weg, egal wie viele Sender es sind
 - Jeder kann weitere Sender mit Name + Stream-URL eintragen oder
   vorhandene entfernen
 - Lautstärkeregler, Stopp-Knopf
