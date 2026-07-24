@@ -737,6 +737,30 @@ html, body {
   font-family: var(--font-display);
 }
 
+.now-playing-widget {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 220px;
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 10px;
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+}
+.now-playing-widget:hover { border-color: var(--accent); color: var(--accent); }
+.now-playing-widget.hidden { display: none; }
+.now-playing-icon { flex: none; }
+.now-playing-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .weather-popover {
   position: absolute;
   top: 52px;
@@ -1616,6 +1640,7 @@ html, body {
   .calendar-day-cell { height: 70px; padding: 3px; }
   .calendar-day-event { font-size: 9px; }
   .calendar-month-label { min-width: 0; font-size: 13px; }
+  .now-playing-widget { max-width: 110px; }
   .calendar-today-btn { font-size: 11px; padding: 3px 6px; }
 }
 

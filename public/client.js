@@ -86,6 +86,8 @@ const mentionDropdown = document.getElementById('mention-dropdown');
 const searchToggleBtn = document.getElementById('search-toggle');
 const weatherToggleBtn = document.getElementById('weather-toggle');
 const weatherCurrentEl = document.getElementById('weather-current');
+const nowPlayingWidgetEl = document.getElementById('now-playing-widget');
+const nowPlayingTextEl = document.getElementById('now-playing-text');
 const weatherPopover = document.getElementById('weather-popover');
 const weatherPopoverCurrentEl = document.getElementById('weather-popover-current');
 const weatherPopoverHourlyEl = document.getElementById('weather-popover-hourly');
@@ -1502,6 +1504,28 @@ radioNavBtn.addEventListener('click', () => {
 let radioStations = [];
 let currentRadioStationId = null;
 
+// --- Jetzt-läuft-Anzeige im Header (Radiosender oder Playlist-Titel) ----------
+function updateNowPlayingWidget() {
+  if (currentRadioStationId) {
+    const station = radioStations.find((s) => s.id === currentRadioStationId);
+    if (station) {
+      nowPlayingTextEl.textContent = station.name;
+      nowPlayingWidgetEl.classList.remove('hidden');
+      return;
+    }
+  }
+  if (currentPlayerState.trackId && currentPlayerState.isPlaying) {
+    const track = playlistTracks.find((t) => t.id === currentPlayerState.trackId);
+    if (track) {
+      nowPlayingTextEl.textContent = track.title;
+      nowPlayingWidgetEl.classList.remove('hidden');
+      return;
+    }
+  }
+  nowPlayingWidgetEl.classList.add('hidden');
+}
+nowPlayingWidgetEl.addEventListener('click', () => radioNavBtn.click());
+
 let radioSearchTerm = '';
 
 function renderRadioStations() {
@@ -1568,6 +1592,7 @@ function playRadioStation(station) {
   radioSearchInput.value = '';
   radioStationListEl.classList.add('hidden');
   renderRadioStations();
+  updateNowPlayingWidget();
 }
 
 radioStopBtn.addEventListener('click', () => {
@@ -1577,6 +1602,7 @@ radioStopBtn.addEventListener('click', () => {
   currentRadioStationId = null;
   radioNowPlayingEl.classList.add('hidden');
   renderRadioStations();
+  updateNowPlayingWidget();
 });
 
 radioVolumeInput.addEventListener('input', () => {
@@ -1679,6 +1705,7 @@ function applyPlayerState(state) {
     playlistNowPlayingEl.textContent = '';
     playlistPlayPauseBtn.textContent = '▶';
     renderPlaylist();
+    updateNowPlayingWidget();
     return;
   }
 
@@ -1704,6 +1731,7 @@ function applyPlayerState(state) {
   }
   playlistNowPlayingEl.textContent = track.title;
   renderPlaylist();
+  updateNowPlayingWidget();
 }
 
 socket.on('playlistUpdate', (tracks) => {

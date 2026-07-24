@@ -372,6 +372,11 @@ aktivierter „Bewegung reduzieren"-Einstellung im Betriebssystem bleibt es aus.
 „📻 Radio & Musik" steht als eigener Bereich in der Sidebar, genauso wie
 Einkaufsliste/Kalender unabhängig von Kanälen.
 
+Läuft gerade ein Sender oder Playlist-Titel, erscheint oben im Header eine
+kleine „Jetzt läuft"-Anzeige (🎵 + Name/Titel) – sichtbar egal in welchem
+Kanal oder Bereich man sich gerade befindet. Ein Klick darauf springt
+direkt zu „Radio & Musik".
+
 **Internetradio** (geteilte Senderliste, Wiedergabe läuft pro Person
 einzeln – da es ohnehin ein Live-Stream ist, braucht es keine
 Positions-Synchronisierung):
