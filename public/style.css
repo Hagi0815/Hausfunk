@@ -2094,6 +2094,40 @@ html, body {
   box-sizing: border-box;
 }
 .radio-add-form input:focus, .playlist-add-form input:focus { border-color: var(--accent); }
+.radio-search-input {
+  display: block;
+  width: 100%;
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+  padding: 7px 9px;
+  outline: none;
+  box-sizing: border-box;
+  margin-bottom: 6px;
+}
+.radio-search-input:focus { border-color: var(--accent); }
+
+/* Kompaktes Raster statt einer langen Liste untereinander -- spart deutlich
+   Platz bei vielen Sendern. */
+#radio-station-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+#radio-station-list li {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 6px 8px;
+}
+#radio-station-list .radio-station-row span {
+  font-size: 12px;
+}
+
 .radio-station-row, .playlist-track-row {
   display: flex;
   align-items: center;

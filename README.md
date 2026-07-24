@@ -375,11 +375,18 @@ Einkaufsliste/Kalender unabhängig von Kanälen.
 **Internetradio** (geteilte Senderliste, Wiedergabe läuft pro Person
 einzeln – da es ohnehin ein Live-Stream ist, braucht es keine
 Positions-Synchronisierung):
-- Beim allerersten Start bereits mit 10 bekannten deutschen Sendern
-  vorbefüllt (Deutschlandfunk, Deutschlandfunk Kultur/Nova, 1LIVE, WDR 2,
-  NDR 2, Bayern 3, SWR3, hr3, MDR Jump) – Stream-Adressen können sich bei
-  den Sendern gelegentlich ändern; funktioniert ein Sender nicht mehr,
-  einfach entfernen und die aktuelle Adresse des Senders neu eintragen
+- Beim allerersten Start bereits mit 31 bekannten deutschen Sendern
+  vorbefüllt (Deutschlandfunk-Familie, 1LIVE, WDR, NDR, Bayern 1/3, SWR,
+  hr, MDR, rbb, Antenne Bayern, radio ffn, bigFM, Rock Antenne, Klassik
+  Radio, sunshine live u. a.) – Stream-Adressen können sich bei den
+  Sendern gelegentlich ändern; funktioniert ein Sender nicht mehr, einfach
+  entfernen und die aktuelle Adresse des Senders neu eintragen. Wurden
+  bereits eigene Sender hinzugefügt, bleibt die Liste bei einem Update
+  garantiert unangetastet (nur eine reine Standard-Liste wird erweitert)
+- Sender lassen sich über das Suchfeld direkt filtern
+- Werden als kompaktes Raster (mehrere pro Zeile, mit Bildlauf ab einer
+  bestimmten Höhe) statt als lange Liste untereinander dargestellt – spart
+  bei vielen Sendern deutlich Platz
 - Jeder kann weitere Sender mit Name + Stream-URL eintragen oder
   vorhandene entfernen
 - Lautstärkeregler, Stopp-Knopf

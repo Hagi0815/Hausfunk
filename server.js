@@ -93,22 +93,48 @@ const DEFAULT_RADIO_STATIONS = [
   { name: 'Deutschlandfunk Kultur', url: 'https://st02.sslstream.dlf.de/dlf/02/128/mp3/stream.mp3' },
   { name: 'Deutschlandfunk Nova', url: 'https://st03.sslstream.dlf.de/dlf/03/128/mp3/stream.mp3' },
   { name: '1LIVE', url: 'https://wdr-1live-live.icecastssl.wdr.de/wdr/1live/live/mp3/128/stream.mp3' },
+  { name: '1LIVE Diggi', url: 'https://wdr-1live-diggi.icecastssl.wdr.de/wdr/1live/diggi/mp3/128/stream.mp3' },
   { name: 'WDR 2', url: 'https://wdr-wdr2-rheinland.icecastssl.wdr.de/wdr/wdr2/rheinland/mp3/128/stream.mp3' },
+  { name: 'WDR 4', url: 'https://wdr-wdr4-live.icecastssl.wdr.de/wdr/wdr4/live/mp3/128/stream.mp3' },
+  { name: 'WDR 5', url: 'https://wdr-wdr5-live.icecastssl.wdr.de/wdr/wdr5/live/mp3/128/stream.mp3' },
   { name: 'NDR 2', url: 'https://icecast.ndr.de/ndr/ndr2/niedersachsen/mp3/128/stream.mp3' },
+  { name: 'NDR Kultur', url: 'https://icecast.ndr.de/ndr/ndrkultur/live/mp3/128/stream.mp3' },
+  { name: 'N-JOY', url: 'https://icecast.ndr.de/ndr/njoy/live/mp3/128/stream.mp3' },
   { name: 'Bayern 3', url: 'https://dispatcher.rndfnk.com/br/br3/live/mp3/mid' },
+  { name: 'Bayern 1', url: 'https://dispatcher.rndfnk.com/br/br1/obb/mp3/mid' },
+  { name: 'SWR1', url: 'https://liveradio.swr.de/sw282p3/swr1bw/play.mp3' },
   { name: 'SWR3', url: 'https://liveradio.swr.de/sw282p3/swr3/play.mp3' },
+  { name: 'SWR4', url: 'https://liveradio.swr.de/sw282p3/swr4bw/play.mp3' },
+  { name: 'hr1', url: 'https://hr-hr1-live.cast.addradio.de/hr/hr1/live/mp3/128/stream.mp3' },
   { name: 'hr3', url: 'https://hr-hr3-live.cast.addradio.de/hr/hr3/live/mp3/128/stream.mp3' },
+  { name: 'hr4', url: 'https://hr-hr4-live.cast.addradio.de/hr/hr4/live/mp3/128/stream.mp3' },
+  { name: 'YOU FM', url: 'https://hr-youfm-live.cast.addradio.de/hr/youfm/live/mp3/128/stream.mp3' },
   { name: 'MDR Jump', url: 'https://mdr-jump-live.cast.addradio.de/mdr/jump/live/mp3/128/stream.mp3' },
+  { name: 'MDR Sachsen', url: 'https://mdr-sachsen-live.cast.addradio.de/mdr/sachsen/live/mp3/128/stream.mp3' },
+  { name: 'MDR Kultur', url: 'https://mdr-mdrkultur-live.cast.addradio.de/mdr/mdrkultur/live/mp3/128/stream.mp3' },
+  { name: 'rbb 88.8', url: 'https://d.rbb-online.de/rbb888/rbb888_2.mp3' },
+  { name: 'Fritz', url: 'https://d.rbb-online.de/fritz/fritz_2.mp3' },
+  { name: 'Antenne Bayern', url: 'https://stream.antenne.de/antenne' },
+  { name: 'radio ffn', url: 'https://stream.ffn.de/ffn/mp3-192/stream.mp3' },
+  { name: 'bigFM', url: 'https://streams.bigfm.de/bigfm-deutschland-128-mp3' },
+  { name: 'Rock Antenne', url: 'https://stream.rockantenne.de/rockantenne/stream/mp3' },
+  { name: 'Klassik Radio', url: 'https://stream.klassikradio.de/klassikradio/stream/mp3' },
+  { name: 'sunshine live', url: 'https://stream.sunshine-live.de/live/mp3-192/stream.mp3' },
 ];
-function radioStationsFileIsEmpty() {
+function shouldSeedOrUpgradeRadioStations() {
+  if (!fs.existsSync(RADIO_STATIONS_FILE)) return true;
   try {
     const content = JSON.parse(fs.readFileSync(RADIO_STATIONS_FILE, 'utf-8'));
-    return Array.isArray(content) && content.length === 0;
+    if (!Array.isArray(content) || content.length === 0) return true;
+    // Nur ersetzen/erweitern, wenn AUSSCHLIESSLICH automatisch vorbefuellte
+    // Sender vorhanden sind (niemand hat eigene hinzugefuegt) -- so bleiben
+    // eigene Ergaenzungen/Aenderungen garantiert immer unangetastet.
+    return content.every((s) => s.addedBy === 'Standard');
   } catch (err) {
     return true;
   }
 }
-if (!fs.existsSync(RADIO_STATIONS_FILE) || radioStationsFileIsEmpty()) {
+if (shouldSeedOrUpgradeRadioStations()) {
   const seeded = DEFAULT_RADIO_STATIONS.map((s) => ({
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name: s.name, url: s.url, addedBy: 'Standard',
   }));

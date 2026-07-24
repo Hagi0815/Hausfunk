@@ -28,6 +28,7 @@ const radioPanelEl = document.getElementById('radio-panel');
 const radioNameInput = document.getElementById('radio-name-input');
 const radioUrlInput = document.getElementById('radio-url-input');
 const radioAddBtn = document.getElementById('radio-add-btn');
+const radioSearchInput = document.getElementById('radio-search-input');
 const radioStationListEl = document.getElementById('radio-station-list');
 const radioEmptyEl = document.getElementById('radio-empty');
 const radioAudioEl = document.getElementById('radio-audio');
@@ -1501,10 +1502,15 @@ radioNavBtn.addEventListener('click', () => {
 let radioStations = [];
 let currentRadioStationId = null;
 
+let radioSearchTerm = '';
+
 function renderRadioStations() {
   radioStationListEl.innerHTML = '';
-  radioEmptyEl.classList.toggle('hidden', radioStations.length > 0);
-  radioStations.forEach((station) => {
+  const filtered = radioSearchTerm
+    ? radioStations.filter((s) => s.name.toLowerCase().includes(radioSearchTerm))
+    : radioStations;
+  radioEmptyEl.classList.toggle('hidden', filtered.length > 0);
+  filtered.forEach((station) => {
     const li = document.createElement('li');
 
     const row = document.createElement('div');
@@ -1573,6 +1579,11 @@ radioAddBtn.addEventListener('click', () => {
   socket.emit('radio:addStation', { name, url });
   radioNameInput.value = '';
   radioUrlInput.value = '';
+});
+
+radioSearchInput.addEventListener('input', () => {
+  radioSearchTerm = radioSearchInput.value.trim().toLowerCase();
+  renderRadioStations();
 });
 
 socket.on('radioStations', (stations) => {
