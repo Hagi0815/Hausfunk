@@ -27,6 +27,8 @@ const CALENDAR_CONFIG_FILE = path.join(DATA_DIR, 'calendar-config.json');
 const RADIO_STATIONS_FILE = path.join(DATA_DIR, 'radio-stations.json');
 const PLAYLIST_FILE = path.join(DATA_DIR, 'playlist.json');
 const MUSIC_DIR = path.join(UPLOAD_DIR, 'music');
+const NETWORK_MUSIC_CONFIG_FILE = path.join(DATA_DIR, 'network-music-folder.json');
+const AUDIO_FILE_EXTENSIONS = new Set(['.mp3', '.m4a', '.ogg', '.wav', '.flac', '.aac']);
 const CALENDAR_REFRESH_MS = 30 * 60 * 1000; // alle 30 Minuten neu abrufen
 const CALENDAR_LOOKAHEAD_DAYS = 60;
 const CALENDAR_LOOKBACK_DAYS = 60;
@@ -86,8 +88,26 @@ if (!fs.existsSync(ADMIN_CONFIG_FILE)) {
 if (!fs.existsSync(PUSH_SUBS_FILE)) fs.writeFileSync(PUSH_SUBS_FILE, '{}');
 if (!fs.existsSync(SESSIONS_FILE)) fs.writeFileSync(SESSIONS_FILE, '{}');
 if (!fs.existsSync(CALENDAR_CONFIG_FILE)) fs.writeFileSync(CALENDAR_CONFIG_FILE, JSON.stringify({ url: null }));
-if (!fs.existsSync(RADIO_STATIONS_FILE)) fs.writeFileSync(RADIO_STATIONS_FILE, '[]');
+const DEFAULT_RADIO_STATIONS = [
+  { name: 'Deutschlandfunk', url: 'https://st01.sslstream.dlf.de/dlf/01/128/mp3/stream.mp3' },
+  { name: 'Deutschlandfunk Kultur', url: 'https://st02.sslstream.dlf.de/dlf/02/128/mp3/stream.mp3' },
+  { name: 'Deutschlandfunk Nova', url: 'https://st03.sslstream.dlf.de/dlf/03/128/mp3/stream.mp3' },
+  { name: '1LIVE', url: 'https://wdr-1live-live.icecastssl.wdr.de/wdr/1live/live/mp3/128/stream.mp3' },
+  { name: 'WDR 2', url: 'https://wdr-wdr2-rheinland.icecastssl.wdr.de/wdr/wdr2/rheinland/mp3/128/stream.mp3' },
+  { name: 'NDR 2', url: 'https://icecast.ndr.de/ndr/ndr2/niedersachsen/mp3/128/stream.mp3' },
+  { name: 'Bayern 3', url: 'https://dispatcher.rndfnk.com/br/br3/live/mp3/mid' },
+  { name: 'SWR3', url: 'https://liveradio.swr.de/sw282p3/swr3/play.mp3' },
+  { name: 'hr3', url: 'https://hr-hr3-live.cast.addradio.de/hr/hr3/live/mp3/128/stream.mp3' },
+  { name: 'MDR Jump', url: 'https://mdr-jump-live.cast.addradio.de/mdr/jump/live/mp3/128/stream.mp3' },
+];
+if (!fs.existsSync(RADIO_STATIONS_FILE)) {
+  const seeded = DEFAULT_RADIO_STATIONS.map((s) => ({
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name: s.name, url: s.url, addedBy: 'Standard',
+  }));
+  fs.writeFileSync(RADIO_STATIONS_FILE, JSON.stringify(seeded, null, 2));
+}
 if (!fs.existsSync(PLAYLIST_FILE)) fs.writeFileSync(PLAYLIST_FILE, '[]');
+if (!fs.existsSync(NETWORK_MUSIC_CONFIG_FILE)) fs.writeFileSync(NETWORK_MUSIC_CONFIG_FILE, JSON.stringify({ path: null }));
 if (!fs.existsSync(PRESENCE_LOG_FILE)) fs.writeFileSync(PRESENCE_LOG_FILE, '[]');
 if (!fs.existsSync(PROTECTED_USERS_FILE)) fs.writeFileSync(PROTECTED_USERS_FILE, '{}');
 
@@ -509,7 +529,7 @@ function loadPlaylist() {
 function savePlaylist() {
   fs.writeFileSync(PLAYLIST_FILE, JSON.stringify(playlist, null, 2));
 }
-let playlist = loadPlaylist(); // { id, title, url, addedBy }
+let playlist = loadPlaylist(); // { id, title, url, addedBy } -- hochgeladene Titel
 let playerState = {
   trackId: null, isPlaying: false, positionSeconds: 0, lastUpdateTs: Date.now(),
 };
@@ -517,6 +537,64 @@ let playerState = {
 function getCurrentPosition() {
   if (!playerState.isPlaying) return playerState.positionSeconds;
   return playerState.positionSeconds + (Date.now() - playerState.lastUpdateTs) / 1000;
+}
+
+// --- Netzwerkordner mit Musikdateien (z.B. ein gemountetes NAS-Verzeichnis) --
+function loadNetworkMusicConfig() {
+  try {
+    return JSON.parse(fs.readFileSync(NETWORK_MUSIC_CONFIG_FILE, 'utf-8'));
+  } catch (err) {
+    return { path: null };
+  }
+}
+function saveNetworkMusicConfig() {
+  fs.writeFileSync(NETWORK_MUSIC_CONFIG_FILE, JSON.stringify({ path: networkMusicFolder }, null, 2));
+}
+let networkMusicFolder = loadNetworkMusicConfig().path || null;
+let networkTracks = []; // { id, title, relativePath }
+
+function scanNetworkMusicFolder() {
+  networkTracks = [];
+  if (!networkMusicFolder) return;
+
+  function walk(dir, relBase) {
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (err) {
+      return; // Ordner (temporaer) nicht erreichbar -- z.B. Netzlaufwerk getrennt
+    }
+    entries.forEach((entry) => {
+      const fullPath = path.join(dir, entry.name);
+      const relPath = relBase ? `${relBase}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        walk(fullPath, relPath);
+      } else if (entry.isFile() && AUDIO_FILE_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
+        networkTracks.push({
+          id: `net-${crypto.createHash('md5').update(relPath).digest('hex')}`,
+          title: path.basename(entry.name, path.extname(entry.name)),
+          relativePath: relPath,
+        });
+      }
+    });
+  }
+  walk(networkMusicFolder, '');
+  networkTracks.sort((a, b) => a.title.localeCompare(b.title, 'de'));
+}
+scanNetworkMusicFolder();
+
+// Kombinierte Liste (Netzwerkordner + hochgeladene Titel) -- Grundlage fuer
+// Anzeige UND fuer alle Wiedergabe-Befehle (play/skip etc.), damit beide
+// Quellen gleichermassen synchron abspielbar sind.
+function getFullPlaylist() {
+  const networkAsDisplay = networkTracks.map((t) => ({
+    id: t.id,
+    title: t.title,
+    url: `/network-music/${encodeURIComponent(t.relativePath)}`,
+    source: 'network',
+  }));
+  const uploadedAsDisplay = playlist.map((t) => ({ ...t, source: 'upload' }));
+  return [...networkAsDisplay, ...uploadedAsDisplay];
 }
 function playerStatePayload() {
   return {
@@ -570,6 +648,28 @@ async function main() {
 
   app.use(express.static(path.join(__dirname, 'public')));
   app.use('/uploads', express.static(UPLOAD_DIR));
+
+  // --- Musikdateien aus dem konfigurierten Netzwerkordner ausliefern -----------
+  // (dynamisch, da der Ordnerpfad sich zur Laufzeit aendern kann -- daher kein
+  //  fester express.static-Mount, sondern eine eigene Route mit Pfadpruefung)
+  app.get('/network-music/:encodedPath', (req, res) => {
+    if (!networkMusicFolder) return res.status(404).end();
+    let relPath;
+    try {
+      relPath = decodeURIComponent(req.params.encodedPath);
+    } catch (err) {
+      return res.status(400).end();
+    }
+    const resolvedBase = path.resolve(networkMusicFolder);
+    const resolvedTarget = path.resolve(resolvedBase, relPath);
+    // Pfad-Traversal verhindern: das Ziel muss innerhalb des konfigurierten Ordners liegen.
+    if (resolvedTarget !== resolvedBase && !resolvedTarget.startsWith(resolvedBase + path.sep)) {
+      return res.status(403).end();
+    }
+    return res.sendFile(resolvedTarget, (err) => {
+      if (err && !res.headersSent) res.status(404).end();
+    });
+  });
 
   // --- Bild-Upload -----------------------------------------------------------
   const storage = multer.diskStorage({
@@ -880,6 +980,7 @@ async function main() {
       socket.emit('pendingResets', getPendingResetsList());
       socket.emit('presenceLog', presenceLog);
       socket.emit('calendarUrl', calendarUrl);
+      socket.emit('networkMusicFolder', networkMusicFolder);
     }
     broadcastRoomUsers(roomId);
     broadcastGlobalUsers();
@@ -902,7 +1003,7 @@ async function main() {
     socket.emit('shoppingListUpdate', { items: shoppingItems, categories: shoppingCategories });
     socket.emit('calendarUpdate', { events: calendarEvents, updatedAt: Date.now(), error: null });
     socket.emit('radioStations', radioStations);
-    socket.emit('playlistUpdate', playlist);
+    socket.emit('playlistUpdate', getFullPlaylist());
     socket.emit('playerState', playerStatePayload());
 
     socket.on('join', (payload) => {
@@ -1521,6 +1622,42 @@ async function main() {
       fetchCalendar();
     });
 
+    // --- Netzwerkordner mit Musikdateien festlegen/neu einlesen (nur DOM) -------
+    socket.on('admin:setNetworkMusicFolder', (payload) => {
+      if (socket.data.role !== 'admin' || !payload) return;
+      const folderPath = (payload.path || '').toString().trim();
+      if (!folderPath) {
+        networkMusicFolder = null;
+        networkTracks = [];
+        saveNetworkMusicConfig();
+        socket.emit('networkMusicFolder', networkMusicFolder);
+        io.emit('playlistUpdate', getFullPlaylist());
+        return;
+      }
+      let stat;
+      try {
+        stat = fs.statSync(folderPath);
+      } catch (err) {
+        socket.emit('musicActionError', 'Der angegebene Ordner existiert nicht oder ist auf dem Server nicht lesbar.');
+        return;
+      }
+      if (!stat.isDirectory()) {
+        socket.emit('musicActionError', 'Der angegebene Pfad ist kein Ordner.');
+        return;
+      }
+      networkMusicFolder = folderPath;
+      saveNetworkMusicConfig();
+      scanNetworkMusicFolder();
+      socket.emit('networkMusicFolder', networkMusicFolder);
+      io.emit('playlistUpdate', getFullPlaylist());
+    });
+
+    socket.on('admin:rescanNetworkMusicFolder', () => {
+      if (socket.data.role !== 'admin') return;
+      scanNetworkMusicFolder();
+      io.emit('playlistUpdate', getFullPlaylist());
+    });
+
     // --- Server-Status (nur DOM) -------------------------------------------------
     // --- Aktivitaets-Meldung (letzte Maus-/Tastatur-Interaktion), fuer den
     //     Server-Status im Admin-Panel ------------------------------------------
@@ -1589,7 +1726,7 @@ async function main() {
         id: makeId(), title, url: `/uploads/music/${filename}`, addedBy: socket.data.name,
       });
       savePlaylist();
-      io.emit('playlistUpdate', playlist);
+      io.emit('playlistUpdate', getFullPlaylist());
     });
 
     socket.on('music:removeTrack', (payload) => {
@@ -1598,7 +1735,7 @@ async function main() {
       playlist = playlist.filter((t) => t.id !== payload.id);
       if (playlist.length === before) return;
       savePlaylist();
-      io.emit('playlistUpdate', playlist);
+      io.emit('playlistUpdate', getFullPlaylist());
       if (playerState.trackId === payload.id) {
         playerState = {
           trackId: null, isPlaying: false, positionSeconds: 0, lastUpdateTs: Date.now(),
@@ -1609,7 +1746,7 @@ async function main() {
 
     socket.on('music:play', (payload) => {
       if (!socket.data.name || !payload) return;
-      const track = playlist.find((t) => t.id === payload.trackId);
+      const track = getFullPlaylist().find((t) => t.id === payload.trackId);
       if (!track) return;
       playerState = {
         trackId: track.id,
@@ -1645,11 +1782,13 @@ async function main() {
     });
 
     socket.on('music:skip', (payload) => {
-      if (!socket.data.name || !playlist.length) return;
+      if (!socket.data.name) return;
+      const fullList = getFullPlaylist();
+      if (!fullList.length) return;
       const direction = payload && payload.direction === 'prev' ? -1 : 1;
-      const currentIdx = playlist.findIndex((t) => t.id === playerState.trackId);
-      const nextIdx = (((currentIdx === -1 ? 0 : currentIdx) + direction) + playlist.length) % playlist.length;
-      const nextTrack = playlist[nextIdx];
+      const currentIdx = fullList.findIndex((t) => t.id === playerState.trackId);
+      const nextIdx = (((currentIdx === -1 ? 0 : currentIdx) + direction) + fullList.length) % fullList.length;
+      const nextTrack = fullList[nextIdx];
       playerState = {
         trackId: nextTrack.id, isPlaying: true, positionSeconds: 0, lastUpdateTs: Date.now(),
       };

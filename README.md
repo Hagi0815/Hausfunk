@@ -375,17 +375,34 @@ Einkaufsliste/Kalender unabhängig von Kanälen.
 **Internetradio** (geteilte Senderliste, Wiedergabe läuft pro Person
 einzeln – da es ohnehin ein Live-Stream ist, braucht es keine
 Positions-Synchronisierung):
-- Jeder kann Sender mit Name + Stream-URL eintragen oder entfernen
+- Beim allerersten Start bereits mit 10 bekannten deutschen Sendern
+  vorbefüllt (Deutschlandfunk, Deutschlandfunk Kultur/Nova, 1LIVE, WDR 2,
+  NDR 2, Bayern 3, SWR3, hr3, MDR Jump) – Stream-Adressen können sich bei
+  den Sendern gelegentlich ändern; funktioniert ein Sender nicht mehr,
+  einfach entfernen und die aktuelle Adresse des Senders neu eintragen
+- Jeder kann weitere Sender mit Name + Stream-URL eintragen oder
+  vorhandene entfernen
 - Lautstärkeregler, Stopp-Knopf
 
 **Geteilte Musik-Playlist** (läuft für alle synchron mit):
 - Musikdateien hochladen (MP3/WAV/OGG/M4A, max. 15 MB pro Datei)
+- **Oder: ein Musik-Netzwerkordner** – DOM trägt im Admin-Panel (🛡) einen
+  Ordnerpfad ein (z. B. `/mnt/musik`), der Server durchsucht ihn samt
+  Unterordnern nach Musikdateien und nimmt sie automatisch in die Playlist
+  auf. Der Pfad bezieht sich auf den Server selbst (den LXC-Container, in
+  dem Hausfunk läuft) – ein Netzlaufwerk/NAS-Freigabe muss dort also schon
+  eingebunden sein (z. B. per Mount in der Container-Konfiguration), damit
+  Node.js darauf zugreifen kann. „🔄 Neu einlesen" durchsucht den Ordner
+  erneut, z. B. nachdem neue Dateien hinzugekommen sind
+- Titel aus dem Netzwerkordner sind nur abspielbar, nicht einzeln
+  entfernbar (sie kommen ja aus dem Ordner selbst) – hochgeladene Titel
+  lassen sich wie gewohnt entfernen
 - Play/Pause/Weiter/Zurück wirkt sich auf **alle** verbundenen Geräte aus –
   Wiedergabeposition und Play-Status werden vom Server verwaltet und an
   alle verteilt, mit kleiner Toleranz (± 1,5 Sek.), damit alle ungefähr an
   derselben Stelle hören
 - Springt automatisch zum nächsten Titel, wenn einer zu Ende ist
-- Titel entfernen kann jeder – wie bei der Einkaufsliste kein
+- Hochgeladene Titel entfernen kann jeder – wie bei der Einkaufsliste kein
   admin-beschränktes Feature
 
 ## Kalender (iCal)

@@ -1992,6 +1992,7 @@ html, body {
   margin-bottom: 8px;
 }
 .server-status-activity-label { margin-top: 12px; margin-bottom: 6px; }
+.network-music-rescan-btn { margin-top: 6px; }
 .server-status-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

@@ -13,6 +13,10 @@ const calendarNavBtn = document.getElementById('calendar-nav-btn');
 const calendarPanelEl = document.getElementById('calendar-panel');
 const calendarUrlInput = document.getElementById('calendar-url-input');
 const calendarUrlSaveBtn = document.getElementById('calendar-url-save-btn');
+const networkMusicPathInput = document.getElementById('network-music-path-input');
+const networkMusicSaveBtn = document.getElementById('network-music-save-btn');
+const networkMusicRescanBtn = document.getElementById('network-music-rescan-btn');
+const networkMusicErrorEl = document.getElementById('network-music-error');
 const calendarErrorEl = document.getElementById('calendar-error');
 const calendarMonthLabelEl = document.getElementById('calendar-month-label');
 const calendarPrevMonthBtn = document.getElementById('calendar-prev-month');
@@ -1613,12 +1617,14 @@ function renderPlaylist() {
 
     li.appendChild(row);
 
-    const removeBtn = document.createElement('button');
-    removeBtn.type = 'button';
-    removeBtn.className = 'unban-btn';
-    removeBtn.textContent = '✕';
-    removeBtn.addEventListener('click', () => socket.emit('music:removeTrack', { id: track.id }));
-    li.appendChild(removeBtn);
+    if (track.source !== 'network') {
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'unban-btn';
+      removeBtn.textContent = '✕';
+      removeBtn.addEventListener('click', () => socket.emit('music:removeTrack', { id: track.id }));
+      li.appendChild(removeBtn);
+    }
 
     playlistTrackListEl.appendChild(li);
   });
@@ -1670,6 +1676,8 @@ socket.on('playerState', applyPlayerState);
 socket.on('musicActionError', (msg) => {
   playlistErrorEl.textContent = msg;
   playlistErrorEl.classList.remove('hidden');
+  networkMusicErrorEl.textContent = msg;
+  networkMusicErrorEl.classList.remove('hidden');
 });
 
 playlistPlayPauseBtn.addEventListener('click', () => {
@@ -2528,6 +2536,18 @@ socket.on('calendarUrl', (url) => {
 
 calendarUrlSaveBtn.addEventListener('click', () => {
   socket.emit('admin:setCalendarUrl', { url: calendarUrlInput.value.trim() });
+});
+
+// --- Musik-Netzwerkordner (nur DOM) --------------------------------------------
+networkMusicSaveBtn.addEventListener('click', () => {
+  networkMusicErrorEl.classList.add('hidden');
+  socket.emit('admin:setNetworkMusicFolder', { path: networkMusicPathInput.value.trim() });
+});
+networkMusicRescanBtn.addEventListener('click', () => {
+  socket.emit('admin:rescanNetworkMusicFolder');
+});
+socket.on('networkMusicFolder', (folderPath) => {
+  networkMusicPathInput.value = folderPath || '';
 });
 
 // --- Kanal anpassen (Icon + Hintergrundbild, nur Admin) -----------------------
