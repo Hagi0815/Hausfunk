@@ -397,13 +397,16 @@ chmod +x go2rtc
 
 **2. Konfigurationsdatei anlegen** (`/opt/go2rtc/go2rtc.yaml`), mit einer
 Zeile pro Kamera – der Name links (z. B. `einfahrt`) ist später der
-„Stream-Name", den du in Hausfunk einträgst:
+„Stream-Name", den du in Hausfunk einträgst. **`base_path` ist wichtig** –
+ohne diese Zeile erzeugt go2rtc interne Links ohne das `/go2rtc`-Präfix,
+die dann am Hausfunk-Proxy vorbeigehen und ins Leere laufen:
 ```yaml
 streams:
   einfahrt: rtsp://benutzer:passwort@192.168.178.x:554/stream1
   garten: rtsp://benutzer:passwort@192.168.178.y:554/stream1
 api:
   listen: ":1984"
+  base_path: "/go2rtc"
 ```
 
 **3. Als Dienst einrichten**, damit go2rtc automatisch startet

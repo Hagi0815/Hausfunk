@@ -714,7 +714,10 @@ async function main() {
   const GO2RTC_PORT = Number(process.env.HAUSFUNK_GO2RTC_PORT) || 1984;
   server.on('upgrade', (req, socket, head) => {
     if (!req.url.startsWith('/go2rtc/')) return; // Socket.IO uebernimmt den Rest
-    const targetPath = req.url.replace(/^\/go2rtc/, '') || '/';
+    // Praefix NICHT entfernen: go2rtc weiss dank "base_path: /go2rtc" in der
+    // eigenen Konfiguration selbst, dass es unter diesem Pfad laeuft, und
+    // erwartet ihn deshalb auch in eingehenden Anfragen.
+    const targetPath = req.url;
     const forwardHeaders = { ...req.headers };
     delete forwardHeaders.host;
 
@@ -772,7 +775,10 @@ async function main() {
   // reicht Hausfunk das hier intern durch -- dadurch muss an Caddy ueberhaupt
   // nichts geaendert werden, alles laeuft ueber die bestehende Hausfunk-Domain.
   app.use('/go2rtc', (req, res) => {
-    const targetPath = req.originalUrl.replace(/^\/go2rtc/, '') || '/';
+    // Praefix NICHT entfernen: go2rtc weiss dank "base_path: /go2rtc" in der
+    // eigenen Konfiguration selbst, dass es unter diesem Pfad laeuft, und
+    // erwartet ihn deshalb auch in eingehenden Anfragen.
+    const targetPath = req.originalUrl;
     const forwardHeaders = { ...req.headers };
     delete forwardHeaders.host;
     delete forwardHeaders.connection;
