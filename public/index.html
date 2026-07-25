@@ -264,14 +264,14 @@
 
           <div id="camera-admin-form" class="radio-add-form admin-only">
             <input id="camera-name-input" type="text" placeholder="Kameraname" maxlength="60" />
-            <input id="camera-url-input" type="text" placeholder="MJPEG-Stream-URL (http://...)" />
+            <input id="camera-url-input" type="text" placeholder="go2rtc-Stream-Name (z. B. einfahrt)" />
             <button id="camera-add-btn" class="unban-btn" type="button">+ Kamera</button>
           </div>
 
           <div id="camera-empty" class="gallery-empty hidden">Noch keine Kameras eingetragen.</div>
           <div id="camera-switch-row" class="camera-switch-row"></div>
           <div class="camera-view-wrap">
-            <img id="camera-view-img" class="camera-view-img hidden" alt="Kamera-Stream" />
+            <video id="camera-view-img" class="camera-view-img hidden" autoplay muted playsinline controls></video>
             <div id="camera-view-empty" class="gallery-empty">Kamera auswählen, um den Live-Stream zu sehen.</div>
           </div>
         </aside>
@@ -427,6 +427,7 @@
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.17/hls.min.js"></script>
   <script src="/client.js"></script>
 </body>
 </html>

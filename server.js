@@ -1,6 +1,5 @@
 const express = require('express');
 const http = require('http');
-const https = require('https');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -731,52 +730,10 @@ async function main() {
     });
   });
 
-  // --- Kamera-Stream durchleiten (MJPEG) ---------------------------------------
-  // Die Kamera-Adresse bleibt dadurch serverseitig -- Familienmitglieder sehen
-  // nur "/camera-stream/<id>", nie die eigentliche Kamera-URL/Zugangsdaten.
-  // Funktioniert dadurch auch von unterwegs (\u00fcber die Domain), nicht nur im Heimnetz.
-  app.get('/camera-stream/:id', (req, res) => {
-    const camera = cameras.find((c) => c.id === req.params.id);
-    if (!camera) return res.status(404).end();
-
-    let targetUrl;
-    try {
-      targetUrl = new URL(camera.url);
-    } catch (err) {
-      return res.status(400).end();
-    }
-    const client = targetUrl.protocol === 'https:' ? https : http;
-    const headers = {};
-    if (targetUrl.username) {
-      const cred = `${decodeURIComponent(targetUrl.username)}:${decodeURIComponent(targetUrl.password)}`;
-      headers.Authorization = `Basic ${Buffer.from(cred).toString('base64')}`;
-    }
-
-    const upstreamReq = client.get({
-      hostname: targetUrl.hostname,
-      port: targetUrl.port || (targetUrl.protocol === 'https:' ? 443 : 80),
-      path: targetUrl.pathname + targetUrl.search,
-      headers,
-      timeout: 10000,
-    }, (upstreamRes) => {
-      if (res.destroyed) {
-        upstreamRes.destroy();
-        return;
-      }
-      res.writeHead(upstreamRes.statusCode, {
-        'Content-Type': upstreamRes.headers['content-type'] || 'multipart/x-mixed-replace',
-        'Cache-Control': 'no-cache',
-      });
-      upstreamRes.pipe(res);
-    });
-    upstreamReq.on('error', () => {
-      if (!res.headersSent) res.status(502).end();
-    });
-    upstreamReq.on('timeout', () => upstreamReq.destroy());
-    // Wenn der Client (Browser-Tab, Kamerawechsel) die Verbindung schliesst,
-    // die Verbindung zur Kamera ebenfalls sauber beenden.
-    req.on('close', () => upstreamReq.destroy());
-  });
+  // --- Kamera-Streams laufen jetzt ueber go2rtc + Caddy (siehe README) --------
+  // Kein eigener Proxy in Hausfunk mehr noetig: RTSP-Kameras liefern kein
+  // browserfaehiges Format, daher wandelt go2rtc sie in HLS um, und Caddy
+  // leitet "/go2rtc/*" direkt dorthin weiter.
 
   // --- Bild-Upload -----------------------------------------------------------
   const storage = multer.diskStorage({
@@ -1821,10 +1778,13 @@ async function main() {
     socket.on('camera:add', (payload) => {
       if (socket.data.role !== 'admin' || !payload) return;
       const name = (payload.name || '').toString().slice(0, 60).trim();
-      const url = (payload.url || '').toString().slice(0, 500).trim();
-      if (!name || !url || !/^https?:\/\//i.test(url)) return;
+      // "url" ist bei go2rtc-Kameras eigentlich der Stream-Name aus der
+      // go2rtc-Konfiguration, keine echte URL -- nur grobe Plausibilitaet
+      // pruefen (kein Leerraum/Sonderzeichen, die in der Abfrage Probleme machen).
+      const streamName = (payload.url || '').toString().slice(0, 100).trim();
+      if (!name || !streamName || !/^[a-zA-Z0-9_-]+$/.test(streamName)) return;
       cameras.push({
-        id: makeId(), name, url, addedBy: socket.data.name,
+        id: makeId(), name, url: streamName, addedBy: socket.data.name,
       });
       saveCameras();
       io.emit('camerasUpdate', cameras);

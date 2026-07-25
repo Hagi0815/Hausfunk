@@ -1524,9 +1524,34 @@ cameraNavBtn.addEventListener('click', () => {
 let cameras = [];
 let currentCameraId = null;
 
+let currentHls = null;
+
+function stopCameraPlayback() {
+  if (currentHls) {
+    currentHls.destroy();
+    currentHls = null;
+  }
+  cameraViewImgEl.pause();
+  cameraViewImgEl.removeAttribute('src');
+  cameraViewImgEl.load();
+}
+
 function selectCamera(camera) {
   currentCameraId = camera.id;
-  cameraViewImgEl.src = `/camera-stream/${camera.id}`;
+  stopCameraPlayback();
+
+  // camera.url enthaelt bei RTSP-Kameras den go2rtc-Stream-Namen, nicht eine
+  // direkte URL -- go2rtc wandelt RTSP dafuer in browserfaehiges HLS um.
+  const src = `/go2rtc/api/stream.m3u8?src=${encodeURIComponent(camera.url)}`;
+  if (window.Hls && window.Hls.isSupported()) {
+    currentHls = new window.Hls();
+    currentHls.loadSource(src);
+    currentHls.attachMedia(cameraViewImgEl);
+  } else if (cameraViewImgEl.canPlayType('application/vnd.apple.mpegurl')) {
+    // Safari kann HLS nativ ohne hls.js abspielen
+    cameraViewImgEl.src = src;
+  }
+
   cameraViewImgEl.classList.remove('hidden');
   cameraViewEmptyEl.classList.add('hidden');
   renderCameraSwitchRow();
@@ -1564,8 +1589,8 @@ function renderCameraSwitchRow() {
   // Falls die aktuell gezeigte Kamera entfernt wurde, Anzeige zuruecksetzen.
   if (currentCameraId && !cameras.some((c) => c.id === currentCameraId)) {
     currentCameraId = null;
+    stopCameraPlayback();
     cameraViewImgEl.classList.add('hidden');
-    cameraViewImgEl.removeAttribute('src');
     cameraViewEmptyEl.classList.remove('hidden');
   }
 }

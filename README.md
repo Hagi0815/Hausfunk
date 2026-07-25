@@ -367,25 +367,78 @@ Enthält eine Nachricht bestimmte Wörter oder Emojis (z. B. „Geburtstag",
 Konfetti über den Bildschirm – rein clientseitig, ohne Server-Logik. Bei
 aktivierter „Bewegung reduzieren"-Einstellung im Betriebssystem bleibt es aus.
 
-## Kameras
+## Kameras (RTSP über go2rtc)
 
 „📹 Kameras" steht als eigener Bereich in der Sidebar, genauso wie
-Radio & Musik unabhängig von Kanälen. Gedacht für Netzwerkkameras, die
-direkt einen MJPEG-Stream ausgeben (URL endet oft auf `.cgi` oder `.mjpg`).
+Radio & Musik unabhängig von Kanälen. Da Browser RTSP-Streams (das
+Format der meisten IP-Kameras wie Reolink, Hikvision, Dahua) grundsätzlich
+nicht abspielen können, braucht es einen kleinen Zwischen-Dienst: **go2rtc**
+wandelt RTSP in browserfähiges HLS um, Hausfunk zeigt diesen Stream dann
+per `hls.js` an.
 
-- DOM trägt im Kamera-Bereich Name + Stream-URL ein (z. B.
-  `http://user:passwort@192.168.178.x/video.cgi`) – nur DOM kann Kameras
-  hinzufügen/entfernen, alle können zwischen den eingetragenen Kameras per
-  Knopfdruck wechseln
-- **Der Stream läuft durch den Hausfunk-Server durch** (nicht direkt vom
-  Browser zur Kamera) – dadurch bleiben Kamera-Adresse und eventuelle
-  Zugangsdaten ausschließlich serverseitig, und die Kameras sind auch von
-  unterwegs (über deine Domain) sichtbar, nicht nur im Heimnetz
-- Für RTSP-Kameras (die meisten Marken-IP-Kameras wie Reolink, Hikvision,
-  Dahua) reicht das nicht aus – Browser können RTSP grundsätzlich nicht
-  direkt abspielen. Dafür bräuchte es einen zusätzlichen kleinen Dienst
-  (z. B. `go2rtc` oder `MediaMTX`), der RTSP in ein browserfähiges Format
-  (HLS/WebRTC) umwandelt – sag Bescheid, falls das für dich relevant wird
+### Einmalige Einrichtung auf dem Server
+
+**1. go2rtc installieren** (einzelne, kleine Programmdatei, kein Docker
+nötig – am einfachsten in einem eigenen kleinen LXC-Container, kann aber
+auch im Hausfunk-Container selbst laufen):
+```bash
+mkdir -p /opt/go2rtc && cd /opt/go2rtc
+curl -L -o go2rtc https://github.com/AlexxIT/go2rtc/releases/latest/download/go2rtc_linux_amd64
+chmod +x go2rtc
+```
+
+**2. Konfigurationsdatei anlegen** (`/opt/go2rtc/go2rtc.yaml`), mit einer
+Zeile pro Kamera – der Name links (z. B. `einfahrt`) ist später der
+„Stream-Name", den du in Hausfunk einträgst:
+```yaml
+streams:
+  einfahrt: rtsp://benutzer:passwort@192.168.178.x:554/stream1
+  garten: rtsp://benutzer:passwort@192.168.178.y:554/stream1
+api:
+  listen: ":1984"
+```
+
+**3. Als Dienst einrichten**, damit go2rtc automatisch startet
+(`/etc/systemd/system/go2rtc.service`):
+```ini
+[Unit]
+Description=go2rtc
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/go2rtc
+ExecStart=/opt/go2rtc/go2rtc
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+Dann: `systemctl daemon-reload && systemctl enable --now go2rtc`
+
+**4. In der Caddyfile ergänzen** (im selben Block wie
+`hausfunk.christian-hagedorn.de`, oberhalb von `reverse_proxy
+<hausfunk-ip>:3210`):
+```
+handle_path /go2rtc/* {
+    reverse_proxy <go2rtc-ip>:1984
+}
+reverse_proxy <hausfunk-ip>:3210
+```
+Danach `systemctl reload caddy`.
+
+### Nutzung in Hausfunk
+
+- DOM trägt im Kamera-Bereich Name + den **Stream-Namen aus der
+  go2rtc.yaml** ein (z. B. `einfahrt`, nicht die RTSP-Adresse selbst) –
+  nur DOM kann Kameras hinzufügen/entfernen, alle können zwischen den
+  eingetragenen Kameras per Knopfdruck wechseln
+- Die eigentlichen RTSP-Adressen (inkl. Zugangsdaten) liegen ausschließlich
+  in der go2rtc-Konfiguration auf dem Server, nie in Hausfunk selbst
+- Funktioniert über `/go2rtc/…` und Caddy auch von unterwegs über deine
+  Domain, nicht nur im Heimnetz
+- HLS hat naturgemäß ein paar Sekunden Verzögerung (kein Problem fürs
+  gelegentliche Draufschauen, für sehr niedrige Latenz könnte man go2rtc
+  später zusätzlich auf WebRTC umstellen)
 
 ## Radio & Musik
 
