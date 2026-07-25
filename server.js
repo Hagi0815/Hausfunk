@@ -224,6 +224,21 @@ function slugifyRoomId(label) {
   return candidate;
 }
 
+function slugifyCameraStreamName(label, existingNames) {
+  const base = label.toString().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  const root = base || 'kamera';
+  let candidate = root;
+  let suffix = 1;
+  while (existingNames.has(candidate)) {
+    suffix += 1;
+    candidate = `${root}-${suffix}`;
+  }
+  return candidate;
+}
+
 // --- Gesperrte Namen (persistent) --------------------------------------------
 function loadBanned() {
   try {
@@ -582,7 +597,29 @@ function loadCameras() {
 function saveCameras() {
   fs.writeFileSync(CAMERAS_FILE, JSON.stringify(cameras, null, 2));
 }
-let cameras = loadCameras(); // { id, name, url, addedBy }
+let cameras = loadCameras(); // { id, name, url, addedBy } -- "url" ist der go2rtc-Stream-Name
+
+// go2rtc-eigene API anfragen (Sender direkt hinzufuegen/entfernen, ohne die
+// go2rtc.yaml von Hand bearbeiten zu muessen -- go2rtc speichert Aenderungen
+// ueber diese API selbststaendig in seiner Konfigurationsdatei).
+function go2rtcApiRequest(method, apiPath) {
+  return new Promise((resolve, reject) => {
+    const req = http.request({
+      hostname: 'localhost',
+      port: Number(process.env.HAUSFUNK_GO2RTC_PORT) || 1984,
+      path: apiPath,
+      method,
+      timeout: 8000,
+    }, (res) => {
+      let body = '';
+      res.on('data', (chunk) => { body += chunk; });
+      res.on('end', () => resolve({ statusCode: res.statusCode, body }));
+    });
+    req.on('timeout', () => req.destroy(new Error('Zeitüberschreitung')));
+    req.on('error', reject);
+    req.end();
+  });
+}
 
 function getCurrentPosition() {
   if (!playerState.isPlaying) return playerState.positionSeconds;
@@ -1806,25 +1843,36 @@ async function main() {
     });
 
     // --- Netzwerkkameras verwalten (nur DOM) -------------------------------------
-    socket.on('camera:add', (payload) => {
+    socket.on('camera:add', async (payload) => {
       if (socket.data.role !== 'admin' || !payload) return;
       const name = (payload.name || '').toString().slice(0, 60).trim();
-      // "url" ist bei go2rtc-Kameras eigentlich der Stream-Name aus der
-      // go2rtc-Konfiguration, keine echte URL -- nur grobe Plausibilitaet
-      // pruefen (kein Leerraum/Sonderzeichen, die in der Abfrage Probleme machen).
-      const streamName = (payload.url || '').toString().slice(0, 100).trim();
+      const rtspUrl = (payload.url || '').toString().slice(0, 500).trim();
       if (!name) {
         socket.emit('cameraActionError', 'Bitte einen Kameranamen eingeben.');
         return;
       }
-      if (!streamName) {
-        socket.emit('cameraActionError', 'Bitte den go2rtc-Stream-Namen eingeben.');
+      if (!rtspUrl || !/^rtsp:\/\//i.test(rtspUrl)) {
+        socket.emit('cameraActionError', 'Bitte eine gültige RTSP-Adresse eingeben (beginnt mit rtsp://).');
         return;
       }
-      if (!/^[a-zA-Z0-9_-]+$/.test(streamName)) {
-        socket.emit('cameraActionError', `„${streamName}" ist kein gültiger Stream-Name -- nur Buchstaben, Zahlen, „-" und „_" sind erlaubt (keine Leerzeichen, Doppelpunkte oder Schrägstriche). Das muss exakt der Name links vom Doppelpunkt in der go2rtc.yaml sein, nicht die RTSP-Adresse selbst.`);
+
+      const existingStreamNames = new Set(cameras.map((c) => c.url));
+      const streamName = slugifyCameraStreamName(name, existingStreamNames);
+
+      try {
+        const res = await go2rtcApiRequest(
+          'PUT',
+          `/api/streams?name=${encodeURIComponent(streamName)}&src=${encodeURIComponent(rtspUrl)}`,
+        );
+        if (res.statusCode >= 300) {
+          socket.emit('cameraActionError', `go2rtc hat die Kamera abgelehnt (Status ${res.statusCode}). Ist die RTSP-Adresse korrekt?`);
+          return;
+        }
+      } catch (err) {
+        socket.emit('cameraActionError', 'go2rtc ist auf diesem Server nicht erreichbar (Port 1984). Läuft der Dienst?');
         return;
       }
+
       cameras.push({
         id: makeId(), name, url: streamName, addedBy: socket.data.name,
       });
@@ -1832,13 +1880,21 @@ async function main() {
       io.emit('camerasUpdate', cameras);
     });
 
-    socket.on('camera:remove', (payload) => {
+    socket.on('camera:remove', async (payload) => {
       if (socket.data.role !== 'admin' || !payload) return;
-      const before = cameras.length;
+      const camera = cameras.find((c) => c.id === payload.id);
+      if (!camera) return;
       cameras = cameras.filter((c) => c.id !== payload.id);
-      if (cameras.length === before) return;
       saveCameras();
       io.emit('camerasUpdate', cameras);
+      // Den zugehoerigen go2rtc-Sender ebenfalls entfernen (bestmoeglich --
+      // falls go2rtc gerade nicht erreichbar ist, bleibt die Hausfunk-Liste
+      // trotzdem bereinigt, das darf das Entfernen nicht blockieren).
+      try {
+        await go2rtcApiRequest('DELETE', `/api/streams?src=${encodeURIComponent(camera.url)}`);
+      } catch (err) {
+        // ignorieren
+      }
     });
 
     // --- Geteilte Musik-Playlist: Titel hochladen/entfernen, Wiedergabe steuern -

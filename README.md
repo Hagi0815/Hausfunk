@@ -395,15 +395,13 @@ curl -L -o go2rtc https://github.com/AlexxIT/go2rtc/releases/latest/download/go2
 chmod +x go2rtc
 ```
 
-**2. Konfigurationsdatei anlegen** (`/opt/go2rtc/go2rtc.yaml`), mit einer
-Zeile pro Kamera – der Name links (z. B. `einfahrt`) ist später der
-„Stream-Name", den du in Hausfunk einträgst. **`base_path` ist wichtig** –
-ohne diese Zeile erzeugt go2rtc interne Links ohne das `/go2rtc`-Präfix,
-die dann am Hausfunk-Proxy vorbeigehen und ins Leere laufen:
+**2. Konfigurationsdatei anlegen** (`/opt/go2rtc/go2rtc.yaml`) – die
+`streams:`-Liste kann komplett weggelassen werden, Kameras lassen sich
+künftig direkt in Hausfunk hinzufügen (siehe unten). **`base_path` ist
+wichtig** – ohne diese Zeile erzeugt go2rtc interne Links ohne das
+`/go2rtc`-Präfix, die dann am Hausfunk-Proxy vorbeigehen und ins Leere
+laufen:
 ```yaml
-streams:
-  einfahrt: rtsp://benutzer:passwort@192.168.178.x:554/stream1
-  garten: rtsp://benutzer:passwort@192.168.178.y:554/stream1
 api:
   listen: ":1984"
   base_path: "/go2rtc"
@@ -433,15 +431,20 @@ Hausfunk-Datenverkehr durchleitet.
 
 ### Nutzung in Hausfunk
 
-- DOM trägt im Kamera-Bereich Name + den **Stream-Namen aus der
-  go2rtc.yaml** ein (z. B. `einfahrt`, nicht die RTSP-Adresse selbst) –
-  nur DOM kann Kameras hinzufügen/entfernen
+- **Kameras werden direkt in Hausfunk verwaltet, kein manuelles Bearbeiten
+  der go2rtc.yaml mehr nötig**: DOM trägt im Kamera-Bereich Name + die
+  **RTSP-Adresse** ein (z. B. `rtsp://benutzer:passwort@192.168.178.x:554/stream1`)
+  – Hausfunk registriert den Sender automatisch bei go2rtc (über dessen
+  eigene API) und speichert die Kamera in der eigenen Liste. Löschen einer
+  Kamera entfernt den Sender ebenso automatisch wieder aus go2rtc
+- Nur DOM kann Kameras hinzufügen/entfernen
 - **Mehrere Kameras gleichzeitig sichtbar**: jede Kamera lässt sich per
   Knopfdruck einzeln ein-/ausblenden (Mehrfachauswahl, keine feste Anzahl)
   – die ausgewählten Kameras erscheinen als Raster, das sich automatisch an
   die Anzahl anpasst. Jede Kachel hat ein eigenes „✕" zum Abwählen
-- Die eigentlichen RTSP-Adressen (inkl. Zugangsdaten) liegen ausschließlich
-  in der go2rtc-Konfiguration auf dem Server, nie in Hausfunk selbst
+- Die RTSP-Adressen (inkl. Zugangsdaten) liegen weiterhin ausschließlich in
+  der go2rtc-Konfiguration auf dem Server – Hausfunk selbst speichert nur
+  den go2rtc-Stream-Namen, den es beim Hinzufügen automatisch generiert
 - Funktioniert über `/go2rtc/…` auch von unterwegs über deine Domain, nicht
   nur im Heimnetz
 
