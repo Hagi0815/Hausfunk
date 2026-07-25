@@ -34,7 +34,7 @@ const cameraAddBtn = document.getElementById('camera-add-btn');
 const cameraEmptyEl = document.getElementById('camera-empty');
 const cameraErrorEl = document.getElementById('camera-error');
 const cameraSwitchRowEl = document.getElementById('camera-switch-row');
-const cameraViewImgEl = document.getElementById('camera-view-img');
+const cameraViewImgEl = document.getElementById('camera-view-frame');
 const cameraViewEmptyEl = document.getElementById('camera-view-empty');
 const radioNameInput = document.getElementById('radio-name-input');
 const radioUrlInput = document.getElementById('radio-url-input');
@@ -1525,33 +1525,18 @@ cameraNavBtn.addEventListener('click', () => {
 let cameras = [];
 let currentCameraId = null;
 
-let currentHls = null;
-
 function stopCameraPlayback() {
-  if (currentHls) {
-    currentHls.destroy();
-    currentHls = null;
-  }
-  cameraViewImgEl.pause();
-  cameraViewImgEl.removeAttribute('src');
-  cameraViewImgEl.load();
+  cameraViewImgEl.src = 'about:blank';
 }
 
 function selectCamera(camera) {
   currentCameraId = camera.id;
-  stopCameraPlayback();
 
   // camera.url enthaelt bei RTSP-Kameras den go2rtc-Stream-Namen, nicht eine
-  // direkte URL -- go2rtc wandelt RTSP dafuer in browserfaehiges HLS um.
-  const src = `/go2rtc/api/stream.m3u8?src=${encodeURIComponent(camera.url)}`;
-  if (window.Hls && window.Hls.isSupported()) {
-    currentHls = new window.Hls();
-    currentHls.loadSource(src);
-    currentHls.attachMedia(cameraViewImgEl);
-  } else if (cameraViewImgEl.canPlayType('application/vnd.apple.mpegurl')) {
-    // Safari kann HLS nativ ohne hls.js abspielen
-    cameraViewImgEl.src = src;
-  }
+  // direkte URL -- go2rtc's eigene Wiedergabeseite waehlt automatisch die am
+  // besten passende Wiedergabetechnik (WebRTC/MSE/etc.) fuer die jeweilige
+  // Kamera, robuster als ein selbstgebauter HLS-Player.
+  cameraViewImgEl.src = `/go2rtc/stream.html?src=${encodeURIComponent(camera.url)}`;
 
   cameraViewImgEl.classList.remove('hidden');
   cameraViewEmptyEl.classList.add('hidden');

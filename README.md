@@ -373,8 +373,10 @@ aktivierter „Bewegung reduzieren"-Einstellung im Betriebssystem bleibt es aus.
 Radio & Musik unabhängig von Kanälen. Da Browser RTSP-Streams (das
 Format der meisten IP-Kameras wie Reolink, Hikvision, Dahua) grundsätzlich
 nicht abspielen können, braucht es einen kleinen Zwischen-Dienst: **go2rtc**
-wandelt RTSP in browserfähiges HLS um, Hausfunk zeigt diesen Stream dann
-per `hls.js` an.
+wandelt RTSP in ein browserfähiges Format um. Hausfunk bettet dafür
+einfach go2rtc's eigene, bereits fertige Wiedergabeseite ein (per iframe)
+– die wählt selbst automatisch die passende Technik (WebRTC/MSE/etc.) für
+die jeweilige Kamera, robuster als ein selbstgebauter HLS-Player.
 
 **Wichtig: go2rtc muss auf demselben Server laufen wie Hausfunk** (also im
 selben LXC-Container) – Hausfunk reicht die Anfragen intern an
