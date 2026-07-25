@@ -1,5 +1,6 @@
 const express = require('express');
 const http = require('http');
+const httpProxy = require('http-proxy');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -705,43 +706,25 @@ async function main() {
     maxHttpBufferSize: 22 * 1024 * 1024,
   });
 
-  // --- WebSocket-Verbindungen unter /go2rtc/* zu go2rtc durchreichen -----------
-  // go2rtc nutzt fuer WebRTC/MSE-Signalisierung teils WebSockets, nicht nur
-  // normale HTTP-Anfragen -- dafuer reicht ein einfacher http.request()-Proxy
-  // nicht aus, das "upgrade"-Event muss eigens behandelt werden. Socket.IO
-  // haengt sich am selben Server-Event auf; da beide nur fuer ihre jeweils
-  // eigenen Pfade aktiv werden, stoert sich das nicht gegenseitig.
+  // --- Kamera-Streams: robuster Proxy zu go2rtc via http-proxy ----------------
+  // go2rtc nutzt fuer WebRTC/MSE-Signalisierung WebSockets, nicht nur normale
+  // HTTP-Anfragen. Statt das WebSocket-Handshake-Protokoll selbst nachzubauen
+  // (fehleranfaellig), nutzen wir die bewaehrte "http-proxy"-Bibliothek, die
+  // sowohl normale Anfragen als auch WebSocket-Upgrades zuverlaessig durchreicht.
   const GO2RTC_PORT = Number(process.env.HAUSFUNK_GO2RTC_PORT) || 1984;
+  const go2rtcProxy = httpProxy.createProxyServer({
+    target: `http://localhost:${GO2RTC_PORT}`,
+    ws: true,
+  });
+  go2rtcProxy.on('error', (err, req, res) => {
+    if (res && res.writeHead && !res.headersSent) {
+      res.writeHead(502);
+      res.end();
+    }
+  });
   server.on('upgrade', (req, socket, head) => {
     if (!req.url.startsWith('/go2rtc/')) return; // Socket.IO uebernimmt den Rest
-    // Praefix NICHT entfernen: go2rtc weiss dank "base_path: /go2rtc" in der
-    // eigenen Konfiguration selbst, dass es unter diesem Pfad laeuft, und
-    // erwartet ihn deshalb auch in eingehenden Anfragen.
-    const targetPath = req.url;
-    const forwardHeaders = { ...req.headers };
-    delete forwardHeaders.host;
-
-    const upstreamReq = http.request({
-      hostname: 'localhost',
-      port: GO2RTC_PORT,
-      path: targetPath,
-      method: req.method,
-      headers: forwardHeaders,
-    });
-    upstreamReq.on('upgrade', (upstreamRes, upstreamSocket, upstreamHead) => {
-      const statusLine = `HTTP/1.1 101 Switching Protocols\r\n`;
-      const headerLines = Object.entries(upstreamRes.headers)
-        .map(([key, value]) => `${key}: ${value}`)
-        .join('\r\n');
-      socket.write(`${statusLine}${headerLines}\r\n\r\n`);
-      if (upstreamHead && upstreamHead.length) socket.write(upstreamHead);
-      if (head && head.length) upstreamSocket.write(head);
-      upstreamSocket.pipe(socket);
-      socket.pipe(upstreamSocket);
-    });
-    upstreamReq.on('error', () => socket.destroy());
-    socket.on('error', () => upstreamReq.destroy());
-    upstreamReq.end();
+    go2rtcProxy.ws(req, socket, head);
   });
 
   app.use(express.static(path.join(__dirname, 'public')));
@@ -775,39 +758,12 @@ async function main() {
   // reicht Hausfunk das hier intern durch -- dadurch muss an Caddy ueberhaupt
   // nichts geaendert werden, alles laeuft ueber die bestehende Hausfunk-Domain.
   app.use('/go2rtc', (req, res) => {
-    // Praefix NICHT entfernen: go2rtc weiss dank "base_path: /go2rtc" in der
-    // eigenen Konfiguration selbst, dass es unter diesem Pfad laeuft, und
-    // erwartet ihn deshalb auch in eingehenden Anfragen.
-    const targetPath = req.originalUrl;
-    const forwardHeaders = { ...req.headers };
-    delete forwardHeaders.host;
-    delete forwardHeaders.connection;
-
-    const upstreamReq = http.request({
-      hostname: 'localhost',
-      port: GO2RTC_PORT,
-      path: targetPath,
-      method: req.method,
-      headers: forwardHeaders,
-    }, (upstreamRes) => {
-      if (res.destroyed) {
-        upstreamRes.destroy();
-        return;
-      }
-      res.writeHead(upstreamRes.statusCode, upstreamRes.headers);
-      upstreamRes.pipe(res);
-    });
-    upstreamReq.on('error', () => {
-      if (!res.headersSent) res.status(502).end();
-    });
-    // GET/HEAD haben keinen Body -- direkt beenden statt zu "pipen", das ist
-    // robuster als req.pipe() bei einem leeren Request.
-    if (req.method === 'GET' || req.method === 'HEAD') {
-      upstreamReq.end();
-    } else {
-      req.pipe(upstreamReq);
-    }
-    req.on('close', () => upstreamReq.destroy());
+    // Express entfernt bei app.use('/go2rtc', ...) den Praefix bereits aus
+    // req.url, bevor der Handler laeuft -- http-proxy nutzt aber req.url
+    // (nicht req.originalUrl) zum Aufbau des weitergeleiteten Pfads. Praefix
+    // hier wiederherstellen, damit go2rtc (dank base_path) ihn auch bekommt.
+    req.url = req.originalUrl;
+    go2rtcProxy.web(req, res);
   });
 
   // --- Bild-Upload -----------------------------------------------------------
