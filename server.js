@@ -626,13 +626,18 @@ scanNetworkMusicFolder();
 // Anzeige UND fuer alle Wiedergabe-Befehle (play/skip etc.), damit beide
 // Quellen gleichermassen synchron abspielbar sind.
 function getFullPlaylist() {
-  const networkAsDisplay = networkTracks.map((t) => ({
-    id: t.id,
-    title: t.title,
-    url: `/network-music/${encodeURIComponent(t.relativePath)}`,
-    source: 'network',
-  }));
-  const uploadedAsDisplay = playlist.map((t) => ({ ...t, source: 'upload' }));
+  const networkAsDisplay = networkTracks.map((t) => {
+    const parts = t.relativePath.split('/');
+    const folder = parts.length > 1 ? parts[0] : null;
+    return {
+      id: t.id,
+      title: t.title,
+      url: `/network-music/${encodeURIComponent(t.relativePath)}`,
+      source: 'network',
+      folder,
+    };
+  });
+  const uploadedAsDisplay = playlist.map((t) => ({ ...t, source: 'upload', folder: null }));
   return [...networkAsDisplay, ...uploadedAsDisplay];
 }
 function playerStatePayload() {

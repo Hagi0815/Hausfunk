@@ -1650,47 +1650,87 @@ let currentPlayerState = {
   trackId: null, isPlaying: false, positionSeconds: 0, serverTime: Date.now(),
 };
 
+function buildPlaylistTrackLi(track) {
+  const li = document.createElement('li');
+  const isActive = track.id === currentPlayerState.trackId;
+
+  const row = document.createElement('div');
+  row.className = 'playlist-track-row';
+
+  const titleSpan = document.createElement('span');
+  titleSpan.textContent = track.title;
+  row.appendChild(titleSpan);
+
+  const playBtn = document.createElement('button');
+  playBtn.type = 'button';
+  playBtn.className = 'playlist-play-btn';
+  if (isActive && currentPlayerState.isPlaying) playBtn.classList.add('active');
+  playBtn.textContent = isActive && currentPlayerState.isPlaying ? '⏸' : '▶';
+  playBtn.addEventListener('click', () => {
+    if (isActive) {
+      if (currentPlayerState.isPlaying) socket.emit('music:pause');
+      else socket.emit('music:resume');
+    } else {
+      socket.emit('music:play', { trackId: track.id, positionSeconds: 0 });
+    }
+  });
+  row.appendChild(playBtn);
+
+  li.appendChild(row);
+
+  if (track.source !== 'network') {
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'unban-btn';
+    removeBtn.textContent = '✕';
+    removeBtn.addEventListener('click', () => socket.emit('music:removeTrack', { id: track.id }));
+    li.appendChild(removeBtn);
+  }
+  return li;
+}
+
+// Nach oberstem Ordner gruppieren (z.B. Bandname beim Netzwerkordner) --
+// aufklappbar statt einer langen flachen Liste. Hochgeladene Titel (ohne
+// Ordner) landen gemeinsam in einer eigenen Gruppe.
 function renderPlaylist() {
   playlistTrackListEl.innerHTML = '';
   playlistEmptyEl.classList.toggle('hidden', playlistTracks.length > 0);
+
+  const groups = new Map(); // Gruppenname -> Titel[]
   playlistTracks.forEach((track) => {
-    const li = document.createElement('li');
-    const isActive = track.id === currentPlayerState.trackId;
+    const groupName = track.folder || 'Hochgeladen';
+    if (!groups.has(groupName)) groups.set(groupName, []);
+    groups.get(groupName).push(track);
+  });
 
-    const row = document.createElement('div');
-    row.className = 'playlist-track-row';
+  [...groups.keys()].sort((a, b) => a.localeCompare(b, 'de')).forEach((groupName) => {
+    const tracks = groups.get(groupName);
+    const groupHasActiveTrack = tracks.some((t) => t.id === currentPlayerState.trackId);
 
-    const titleSpan = document.createElement('span');
-    titleSpan.textContent = track.title;
-    row.appendChild(titleSpan);
+    const groupWrap = document.createElement('li');
+    groupWrap.className = 'playlist-group';
 
-    const playBtn = document.createElement('button');
-    playBtn.type = 'button';
-    playBtn.className = 'playlist-play-btn';
-    if (isActive && currentPlayerState.isPlaying) playBtn.classList.add('active');
-    playBtn.textContent = isActive && currentPlayerState.isPlaying ? '⏸' : '▶';
-    playBtn.addEventListener('click', () => {
-      if (isActive) {
-        if (currentPlayerState.isPlaying) socket.emit('music:pause');
-        else socket.emit('music:resume');
-      } else {
-        socket.emit('music:play', { trackId: track.id, positionSeconds: 0 });
-      }
-    });
-    row.appendChild(playBtn);
+    const header = document.createElement('button');
+    header.type = 'button';
+    header.className = 'playlist-group-header';
 
-    li.appendChild(row);
+    const groupList = document.createElement('ul');
+    groupList.className = 'playlist-group-tracks';
+    if (!groupHasActiveTrack) groupList.classList.add('hidden');
+    tracks.forEach((track) => groupList.appendChild(buildPlaylistTrackLi(track)));
 
-    if (track.source !== 'network') {
-      const removeBtn = document.createElement('button');
-      removeBtn.type = 'button';
-      removeBtn.className = 'unban-btn';
-      removeBtn.textContent = '✕';
-      removeBtn.addEventListener('click', () => socket.emit('music:removeTrack', { id: track.id }));
-      li.appendChild(removeBtn);
+    function updateHeaderLabel() {
+      header.textContent = `${groupList.classList.contains('hidden') ? '▸' : '▾'} ${groupName} (${tracks.length})`;
     }
+    updateHeaderLabel();
+    header.addEventListener('click', () => {
+      groupList.classList.toggle('hidden');
+      updateHeaderLabel();
+    });
 
-    playlistTrackListEl.appendChild(li);
+    groupWrap.appendChild(header);
+    groupWrap.appendChild(groupList);
+    playlistTrackListEl.appendChild(groupWrap);
   });
 }
 
