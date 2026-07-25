@@ -1,5 +1,6 @@
 const express = require('express');
 const http = require('http');
+const https = require('https');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -25,6 +26,7 @@ const SHOPPING_LIST_FILE = path.join(DATA_DIR, 'shopping-list.json');
 const SHOPPING_CATEGORIES_FILE = path.join(DATA_DIR, 'shopping-list-categories.json');
 const CALENDAR_CONFIG_FILE = path.join(DATA_DIR, 'calendar-config.json');
 const RADIO_STATIONS_FILE = path.join(DATA_DIR, 'radio-stations.json');
+const CAMERAS_FILE = path.join(DATA_DIR, 'cameras.json');
 const PLAYLIST_FILE = path.join(DATA_DIR, 'playlist.json');
 const MUSIC_DIR = path.join(UPLOAD_DIR, 'music');
 const NETWORK_MUSIC_CONFIG_FILE = path.join(DATA_DIR, 'network-music-folder.json');
@@ -141,6 +143,7 @@ if (shouldSeedOrUpgradeRadioStations()) {
   fs.writeFileSync(RADIO_STATIONS_FILE, JSON.stringify(seeded, null, 2));
 }
 if (!fs.existsSync(PLAYLIST_FILE)) fs.writeFileSync(PLAYLIST_FILE, '[]');
+if (!fs.existsSync(CAMERAS_FILE)) fs.writeFileSync(CAMERAS_FILE, '[]');
 if (!fs.existsSync(NETWORK_MUSIC_CONFIG_FILE)) fs.writeFileSync(NETWORK_MUSIC_CONFIG_FILE, JSON.stringify({ path: null }));
 if (!fs.existsSync(PRESENCE_LOG_FILE)) fs.writeFileSync(PRESENCE_LOG_FILE, '[]');
 if (!fs.existsSync(PROTECTED_USERS_FILE)) fs.writeFileSync(PROTECTED_USERS_FILE, '{}');
@@ -568,6 +571,19 @@ let playerState = {
   trackId: null, isPlaying: false, positionSeconds: 0, lastUpdateTs: Date.now(),
 };
 
+// --- Netzwerkkameras (MJPEG, per Server durchgeleitet) -----------------------
+function loadCameras() {
+  try {
+    return JSON.parse(fs.readFileSync(CAMERAS_FILE, 'utf-8'));
+  } catch (err) {
+    return [];
+  }
+}
+function saveCameras() {
+  fs.writeFileSync(CAMERAS_FILE, JSON.stringify(cameras, null, 2));
+}
+let cameras = loadCameras(); // { id, name, url, addedBy }
+
 function getCurrentPosition() {
   if (!playerState.isPlaying) return playerState.positionSeconds;
   return playerState.positionSeconds + (Date.now() - playerState.lastUpdateTs) / 1000;
@@ -713,6 +729,53 @@ async function main() {
     return res.sendFile(resolvedTarget, (err) => {
       if (err && !res.headersSent) res.status(404).end();
     });
+  });
+
+  // --- Kamera-Stream durchleiten (MJPEG) ---------------------------------------
+  // Die Kamera-Adresse bleibt dadurch serverseitig -- Familienmitglieder sehen
+  // nur "/camera-stream/<id>", nie die eigentliche Kamera-URL/Zugangsdaten.
+  // Funktioniert dadurch auch von unterwegs (\u00fcber die Domain), nicht nur im Heimnetz.
+  app.get('/camera-stream/:id', (req, res) => {
+    const camera = cameras.find((c) => c.id === req.params.id);
+    if (!camera) return res.status(404).end();
+
+    let targetUrl;
+    try {
+      targetUrl = new URL(camera.url);
+    } catch (err) {
+      return res.status(400).end();
+    }
+    const client = targetUrl.protocol === 'https:' ? https : http;
+    const headers = {};
+    if (targetUrl.username) {
+      const cred = `${decodeURIComponent(targetUrl.username)}:${decodeURIComponent(targetUrl.password)}`;
+      headers.Authorization = `Basic ${Buffer.from(cred).toString('base64')}`;
+    }
+
+    const upstreamReq = client.get({
+      hostname: targetUrl.hostname,
+      port: targetUrl.port || (targetUrl.protocol === 'https:' ? 443 : 80),
+      path: targetUrl.pathname + targetUrl.search,
+      headers,
+      timeout: 10000,
+    }, (upstreamRes) => {
+      if (res.destroyed) {
+        upstreamRes.destroy();
+        return;
+      }
+      res.writeHead(upstreamRes.statusCode, {
+        'Content-Type': upstreamRes.headers['content-type'] || 'multipart/x-mixed-replace',
+        'Cache-Control': 'no-cache',
+      });
+      upstreamRes.pipe(res);
+    });
+    upstreamReq.on('error', () => {
+      if (!res.headersSent) res.status(502).end();
+    });
+    upstreamReq.on('timeout', () => upstreamReq.destroy());
+    // Wenn der Client (Browser-Tab, Kamerawechsel) die Verbindung schliesst,
+    // die Verbindung zur Kamera ebenfalls sauber beenden.
+    req.on('close', () => upstreamReq.destroy());
   });
 
   // --- Bild-Upload -----------------------------------------------------------
@@ -1049,6 +1112,7 @@ async function main() {
     socket.emit('radioStations', radioStations);
     socket.emit('playlistUpdate', getFullPlaylist());
     socket.emit('playerState', playerStatePayload());
+    socket.emit('camerasUpdate', cameras);
 
     socket.on('join', (payload) => {
       const raw = typeof payload === 'string' ? { name: payload } : (payload || {});
@@ -1751,6 +1815,28 @@ async function main() {
       if (radioStations.length === before) return;
       saveRadioStations();
       io.emit('radioStations', radioStations);
+    });
+
+    // --- Netzwerkkameras verwalten (nur DOM) -------------------------------------
+    socket.on('camera:add', (payload) => {
+      if (socket.data.role !== 'admin' || !payload) return;
+      const name = (payload.name || '').toString().slice(0, 60).trim();
+      const url = (payload.url || '').toString().slice(0, 500).trim();
+      if (!name || !url || !/^https?:\/\//i.test(url)) return;
+      cameras.push({
+        id: makeId(), name, url, addedBy: socket.data.name,
+      });
+      saveCameras();
+      io.emit('camerasUpdate', cameras);
+    });
+
+    socket.on('camera:remove', (payload) => {
+      if (socket.data.role !== 'admin' || !payload) return;
+      const before = cameras.length;
+      cameras = cameras.filter((c) => c.id !== payload.id);
+      if (cameras.length === before) return;
+      saveCameras();
+      io.emit('camerasUpdate', cameras);
     });
 
     // --- Geteilte Musik-Playlist: Titel hochladen/entfernen, Wiedergabe steuern -

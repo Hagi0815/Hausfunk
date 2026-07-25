@@ -25,6 +25,16 @@ const calendarTodayBtn = document.getElementById('calendar-today-btn');
 const calendarGridEl = document.getElementById('calendar-grid');
 const radioNavBtn = document.getElementById('radio-nav-btn');
 const radioPanelEl = document.getElementById('radio-panel');
+const cameraNavBtn = document.getElementById('camera-nav-btn');
+const cameraPanelEl = document.getElementById('camera-panel');
+const cameraAdminForm = document.getElementById('camera-admin-form');
+const cameraNameInput = document.getElementById('camera-name-input');
+const cameraUrlInput = document.getElementById('camera-url-input');
+const cameraAddBtn = document.getElementById('camera-add-btn');
+const cameraEmptyEl = document.getElementById('camera-empty');
+const cameraSwitchRowEl = document.getElementById('camera-switch-row');
+const cameraViewImgEl = document.getElementById('camera-view-img');
+const cameraViewEmptyEl = document.getElementById('camera-view-empty');
 const radioNameInput = document.getElementById('radio-name-input');
 const radioUrlInput = document.getElementById('radio-url-input');
 const radioAddBtn = document.getElementById('radio-add-btn');
@@ -1405,6 +1415,7 @@ function renderRoomList() {
   shoppingNavBtn.classList.toggle('active', viewMode === 'shopping');
   calendarNavBtn.classList.toggle('active', viewMode === 'calendar');
   radioNavBtn.classList.toggle('active', viewMode === 'radio');
+  cameraNavBtn.classList.toggle('active', viewMode === 'camera');
 }
 
 socket.on('rooms', (list) => {
@@ -1462,17 +1473,21 @@ function updateViewModeUI() {
   const isShopping = viewMode === 'shopping';
   const isCalendar = viewMode === 'calendar';
   const isRadio = viewMode === 'radio';
-  const isChat = !isShopping && !isCalendar && !isRadio;
+  const isCamera = viewMode === 'camera';
+  const isChat = !isShopping && !isCalendar && !isRadio && !isCamera;
   chatColumnEl.classList.toggle('hidden', !isChat);
   checklistPanelEl.classList.toggle('hidden', !isShopping);
   calendarPanelEl.classList.toggle('hidden', !isCalendar);
   radioPanelEl.classList.toggle('hidden', !isRadio);
+  cameraPanelEl.classList.toggle('hidden', !isCamera);
   if (isShopping) {
     roomTitleEl.textContent = '🛒 Einkaufsliste';
   } else if (isCalendar) {
     roomTitleEl.textContent = '📅 Kalender';
   } else if (isRadio) {
     roomTitleEl.textContent = '📻 Radio & Musik';
+  } else if (isCamera) {
+    roomTitleEl.textContent = '📹 Kameras';
   } else {
     const room = rooms.find((r) => r.id === currentRoom);
     roomTitleEl.innerHTML = '';
@@ -1496,6 +1511,78 @@ radioNavBtn.addEventListener('click', () => {
   renderRoomList();
   updateViewModeUI();
   sidebar.classList.remove('open');
+});
+
+cameraNavBtn.addEventListener('click', () => {
+  viewMode = 'camera';
+  renderRoomList();
+  updateViewModeUI();
+  sidebar.classList.remove('open');
+});
+
+// --- Netzwerkkameras: Umschalt-Buttons, Stream per Server durchgeleitet ------
+let cameras = [];
+let currentCameraId = null;
+
+function selectCamera(camera) {
+  currentCameraId = camera.id;
+  cameraViewImgEl.src = `/camera-stream/${camera.id}`;
+  cameraViewImgEl.classList.remove('hidden');
+  cameraViewEmptyEl.classList.add('hidden');
+  renderCameraSwitchRow();
+}
+
+function renderCameraSwitchRow() {
+  cameraSwitchRowEl.innerHTML = '';
+  cameraEmptyEl.classList.toggle('hidden', cameras.length > 0);
+
+  cameras.forEach((camera) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'camera-switch-btn';
+    if (camera.id === currentCameraId) btn.classList.add('active');
+
+    const label = document.createElement('span');
+    label.textContent = camera.name;
+    btn.appendChild(label);
+
+    if (document.body.classList.contains('is-admin')) {
+      const removeX = document.createElement('span');
+      removeX.className = 'camera-remove-x';
+      removeX.textContent = '✕';
+      removeX.addEventListener('click', (e) => {
+        e.stopPropagation();
+        socket.emit('camera:remove', { id: camera.id });
+      });
+      btn.appendChild(removeX);
+    }
+
+    btn.addEventListener('click', () => selectCamera(camera));
+    cameraSwitchRowEl.appendChild(btn);
+  });
+
+  // Falls die aktuell gezeigte Kamera entfernt wurde, Anzeige zuruecksetzen.
+  if (currentCameraId && !cameras.some((c) => c.id === currentCameraId)) {
+    currentCameraId = null;
+    cameraViewImgEl.classList.add('hidden');
+    cameraViewImgEl.removeAttribute('src');
+    cameraViewEmptyEl.classList.remove('hidden');
+  }
+}
+
+cameraAddBtn.addEventListener('click', () => {
+  const name = cameraNameInput.value.trim();
+  const url = cameraUrlInput.value.trim();
+  if (!name) { cameraNameInput.focus(); return; }
+  if (!url) { cameraUrlInput.focus(); return; }
+  socket.emit('camera:add', { name, url });
+  cameraNameInput.value = '';
+  cameraUrlInput.value = '';
+});
+
+socket.on('camerasUpdate', (list) => {
+  cameras = list;
+  renderCameraSwitchRow();
 });
 
 // --- Internetradio: Senderliste (geteilt), Wiedergabe laeuft pro Person

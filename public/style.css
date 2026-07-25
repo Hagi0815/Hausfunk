@@ -2264,3 +2264,54 @@ html, body {
   color: var(--text-dim);
 }
 #playlist-playpause-btn { font-size: 16px; min-width: 40px; }
+
+/* --- Kameras -------------------------------------------------------------- */
+.camera-switch-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0;
+}
+.camera-switch-btn {
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 13px;
+  padding: 6px 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.camera-switch-btn:hover { border-color: var(--accent); color: var(--accent); }
+.camera-switch-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #1a1204;
+  font-weight: 600;
+}
+.camera-switch-btn .camera-remove-x {
+  opacity: 0.6;
+  font-size: 11px;
+}
+.camera-switch-btn .camera-remove-x:hover { opacity: 1; }
+.camera-view-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 200px;
+  background: #000;
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.camera-view-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.camera-view-img.hidden { display: none; }
+.camera-view-wrap .gallery-empty { color: var(--text-dim); font-size: 13px; }

@@ -367,6 +367,26 @@ Enthält eine Nachricht bestimmte Wörter oder Emojis (z. B. „Geburtstag",
 Konfetti über den Bildschirm – rein clientseitig, ohne Server-Logik. Bei
 aktivierter „Bewegung reduzieren"-Einstellung im Betriebssystem bleibt es aus.
 
+## Kameras
+
+„📹 Kameras" steht als eigener Bereich in der Sidebar, genauso wie
+Radio & Musik unabhängig von Kanälen. Gedacht für Netzwerkkameras, die
+direkt einen MJPEG-Stream ausgeben (URL endet oft auf `.cgi` oder `.mjpg`).
+
+- DOM trägt im Kamera-Bereich Name + Stream-URL ein (z. B.
+  `http://user:passwort@192.168.178.x/video.cgi`) – nur DOM kann Kameras
+  hinzufügen/entfernen, alle können zwischen den eingetragenen Kameras per
+  Knopfdruck wechseln
+- **Der Stream läuft durch den Hausfunk-Server durch** (nicht direkt vom
+  Browser zur Kamera) – dadurch bleiben Kamera-Adresse und eventuelle
+  Zugangsdaten ausschließlich serverseitig, und die Kameras sind auch von
+  unterwegs (über deine Domain) sichtbar, nicht nur im Heimnetz
+- Für RTSP-Kameras (die meisten Marken-IP-Kameras wie Reolink, Hikvision,
+  Dahua) reicht das nicht aus – Browser können RTSP grundsätzlich nicht
+  direkt abspielen. Dafür bräuchte es einen zusätzlichen kleinen Dienst
+  (z. B. `go2rtc` oder `MediaMTX`), der RTSP in ein browserfähiges Format
+  (HLS/WebRTC) umwandelt – sag Bescheid, falls das für dich relevant wird
+
 ## Radio & Musik
 
 „📻 Radio & Musik" steht als eigener Bereich in der Sidebar, genauso wie

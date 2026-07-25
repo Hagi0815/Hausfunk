@@ -65,6 +65,7 @@
         <button id="shopping-nav-btn" class="shopping-nav-btn" type="button">🛒 Einkaufsliste</button>
         <button id="calendar-nav-btn" class="shopping-nav-btn" type="button">📅 Kalender</button>
         <button id="radio-nav-btn" class="shopping-nav-btn" type="button">📻 Radio &amp; Musik</button>
+        <button id="camera-nav-btn" class="shopping-nav-btn" type="button">📹 Kameras</button>
       </div>
 
       <div class="online-label">ONLINE &middot; <span id="online-count">0</span></div>
@@ -253,6 +254,25 @@
               <button id="playlist-next-btn" class="unban-btn" type="button">⏭</button>
               <span id="playlist-now-playing" class="playlist-now-playing"></span>
             </div>
+          </div>
+        </aside>
+
+        <aside id="camera-panel" class="checklist-panel hidden">
+          <div class="checklist-panel-header">
+            <span>📹 Kameras</span>
+          </div>
+
+          <div id="camera-admin-form" class="radio-add-form admin-only">
+            <input id="camera-name-input" type="text" placeholder="Kameraname" maxlength="60" />
+            <input id="camera-url-input" type="text" placeholder="MJPEG-Stream-URL (http://...)" />
+            <button id="camera-add-btn" class="unban-btn" type="button">+ Kamera</button>
+          </div>
+
+          <div id="camera-empty" class="gallery-empty hidden">Noch keine Kameras eingetragen.</div>
+          <div id="camera-switch-row" class="camera-switch-row"></div>
+          <div class="camera-view-wrap">
+            <img id="camera-view-img" class="camera-view-img hidden" alt="Kamera-Stream" />
+            <div id="camera-view-empty" class="gallery-empty">Kamera auswählen, um den Live-Stream zu sehen.</div>
           </div>
         </aside>
       </div>
