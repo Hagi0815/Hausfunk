@@ -376,11 +376,17 @@ nicht abspielen können, braucht es einen kleinen Zwischen-Dienst: **go2rtc**
 wandelt RTSP in browserfähiges HLS um, Hausfunk zeigt diesen Stream dann
 per `hls.js` an.
 
+**Wichtig: go2rtc muss auf demselben Server laufen wie Hausfunk** (also im
+selben LXC-Container) – Hausfunk reicht die Anfragen intern an
+`localhost:1984` durch. Läuft go2rtc stattdessen auf einem anderen Server,
+ginge das nur mit einer zusätzlichen Caddy-Konfiguration und der
+Umgebungsvariable `HAUSFUNK_GO2RTC_PORT`/einem eigenen Proxy-Ziel – für den
+Normalfall (alles auf einem Server) ist das nicht nötig.
+
 ### Einmalige Einrichtung auf dem Server
 
 **1. go2rtc installieren** (einzelne, kleine Programmdatei, kein Docker
-nötig – am einfachsten in einem eigenen kleinen LXC-Container, kann aber
-auch im Hausfunk-Container selbst laufen):
+nötig) – im Hausfunk-Container:
 ```bash
 mkdir -p /opt/go2rtc && cd /opt/go2rtc
 curl -L -o go2rtc https://github.com/AlexxIT/go2rtc/releases/latest/download/go2rtc_linux_amd64
@@ -415,16 +421,10 @@ WantedBy=multi-user.target
 ```
 Dann: `systemctl daemon-reload && systemctl enable --now go2rtc`
 
-**4. In der Caddyfile ergänzen** (im selben Block wie
-`hausfunk.christian-hagedorn.de`, oberhalb von `reverse_proxy
-<hausfunk-ip>:3210`):
-```
-handle_path /go2rtc/* {
-    reverse_proxy <go2rtc-ip>:1984
-}
-reverse_proxy <hausfunk-ip>:3210
-```
-Danach `systemctl reload caddy`.
+Das war's schon – **an Caddy muss nichts geändert werden**, da Hausfunk
+selbst die Anfragen unter `/go2rtc/…` an go2rtc auf demselben Server
+(`localhost:1984`) weiterreicht und Caddy ohnehin schon den kompletten
+Hausfunk-Datenverkehr durchleitet.
 
 ### Nutzung in Hausfunk
 
@@ -434,8 +434,8 @@ Danach `systemctl reload caddy`.
   eingetragenen Kameras per Knopfdruck wechseln
 - Die eigentlichen RTSP-Adressen (inkl. Zugangsdaten) liegen ausschließlich
   in der go2rtc-Konfiguration auf dem Server, nie in Hausfunk selbst
-- Funktioniert über `/go2rtc/…` und Caddy auch von unterwegs über deine
-  Domain, nicht nur im Heimnetz
+- Funktioniert über `/go2rtc/…` auch von unterwegs über deine Domain, nicht
+  nur im Heimnetz
 - HLS hat naturgemäß ein paar Sekunden Verzögerung (kein Problem fürs
   gelegentliche Draufschauen, für sehr niedrige Latenz könnte man go2rtc
   später zusätzlich auf WebRTC umstellen)

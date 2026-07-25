@@ -730,10 +730,44 @@ async function main() {
     });
   });
 
-  // --- Kamera-Streams laufen jetzt ueber go2rtc + Caddy (siehe README) --------
-  // Kein eigener Proxy in Hausfunk mehr noetig: RTSP-Kameras liefern kein
-  // browserfaehiges Format, daher wandelt go2rtc sie in HLS um, und Caddy
-  // leitet "/go2rtc/*" direkt dorthin weiter.
+  // --- Kamera-Streams: internen Proxy zu go2rtc (selber Server, Port 1984) ----
+  // RTSP-Kameras liefern kein browserfaehiges Format, daher wandelt go2rtc sie
+  // in HLS um. Da go2rtc auf demselben Server laeuft wie Hausfunk selbst,
+  // reicht Hausfunk das hier intern durch -- dadurch muss an Caddy ueberhaupt
+  // nichts geaendert werden, alles laeuft ueber die bestehende Hausfunk-Domain.
+  const GO2RTC_PORT = Number(process.env.HAUSFUNK_GO2RTC_PORT) || 1984;
+  app.use('/go2rtc', (req, res) => {
+    const targetPath = req.originalUrl.replace(/^\/go2rtc/, '') || '/';
+    const forwardHeaders = { ...req.headers };
+    delete forwardHeaders.host;
+    delete forwardHeaders.connection;
+
+    const upstreamReq = http.request({
+      hostname: 'localhost',
+      port: GO2RTC_PORT,
+      path: targetPath,
+      method: req.method,
+      headers: forwardHeaders,
+    }, (upstreamRes) => {
+      if (res.destroyed) {
+        upstreamRes.destroy();
+        return;
+      }
+      res.writeHead(upstreamRes.statusCode, upstreamRes.headers);
+      upstreamRes.pipe(res);
+    });
+    upstreamReq.on('error', () => {
+      if (!res.headersSent) res.status(502).end();
+    });
+    // GET/HEAD haben keinen Body -- direkt beenden statt zu "pipen", das ist
+    // robuster als req.pipe() bei einem leeren Request.
+    if (req.method === 'GET' || req.method === 'HEAD') {
+      upstreamReq.end();
+    } else {
+      req.pipe(upstreamReq);
+    }
+    req.on('close', () => upstreamReq.destroy());
+  });
 
   // --- Bild-Upload -----------------------------------------------------------
   const storage = multer.diskStorage({
