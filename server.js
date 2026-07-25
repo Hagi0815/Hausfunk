@@ -607,7 +607,7 @@ function go2rtcApiRequest(method, apiPath) {
     const req = http.request({
       hostname: 'localhost',
       port: Number(process.env.HAUSFUNK_GO2RTC_PORT) || 1984,
-      path: apiPath,
+      path: `/go2rtc${apiPath}`,
       method,
       timeout: 8000,
     }, (res) => {
