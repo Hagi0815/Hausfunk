@@ -35,6 +35,7 @@ const cameraEmptyEl = document.getElementById('camera-empty');
 const cameraErrorEl = document.getElementById('camera-error');
 const cameraSwitchRowEl = document.getElementById('camera-switch-row');
 const cameraGridEl = document.getElementById('camera-grid');
+const cameraColumnsButtonsEl = document.getElementById('camera-columns-buttons');
 const cameraViewEmptyEl = document.getElementById('camera-view-empty');
 const radioNameInput = document.getElementById('radio-name-input');
 const radioUrlInput = document.getElementById('radio-url-input');
@@ -1554,6 +1555,24 @@ function buildCameraTile(camera) {
 
   return tile;
 }
+
+const CAMERA_COLUMNS_KEY = 'hausfunk-camera-columns';
+let cameraColumns = Math.min(4, Math.max(1, Number(localStorage.getItem(CAMERA_COLUMNS_KEY)) || 2));
+
+function applyCameraColumns() {
+  cameraGridEl.style.gridTemplateColumns = `repeat(${cameraColumns}, 1fr)`;
+  [...cameraColumnsButtonsEl.children].forEach((btn) => {
+    btn.classList.toggle('active', Number(btn.dataset.cols) === cameraColumns);
+  });
+}
+[...cameraColumnsButtonsEl.children].forEach((btn) => {
+  btn.addEventListener('click', () => {
+    cameraColumns = Number(btn.dataset.cols);
+    localStorage.setItem(CAMERA_COLUMNS_KEY, String(cameraColumns));
+    applyCameraColumns();
+  });
+});
+applyCameraColumns();
 
 function renderCameraGrid() {
   cameraGridEl.innerHTML = '';

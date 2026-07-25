@@ -440,8 +440,10 @@ Hausfunk-Datenverkehr durchleitet.
 - Nur DOM kann Kameras hinzufügen/entfernen
 - **Mehrere Kameras gleichzeitig sichtbar**: jede Kamera lässt sich per
   Knopfdruck einzeln ein-/ausblenden (Mehrfachauswahl, keine feste Anzahl)
-  – die ausgewählten Kameras erscheinen als Raster, das sich automatisch an
-  die Anzahl anpasst. Jede Kachel hat ein eigenes „✕" zum Abwählen
+  – die ausgewählten Kameras erscheinen als Raster. Jede Kachel hat ein
+  eigenes „✕" zum Abwählen
+- **Spaltenzahl (1–4) über Buttons wählbar** – wird pro Gerät gemerkt
+  (Browser-Speicher), bleibt also auch nach dem nächsten Öffnen erhalten
 - Die RTSP-Adressen (inkl. Zugangsdaten) liegen weiterhin ausschließlich in
   der go2rtc-Konfiguration auf dem Server – Hausfunk selbst speichert nur
   den go2rtc-Stream-Namen, den es beim Hinzufügen automatisch generiert
