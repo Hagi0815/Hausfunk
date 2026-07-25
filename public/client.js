@@ -32,6 +32,7 @@ const cameraNameInput = document.getElementById('camera-name-input');
 const cameraUrlInput = document.getElementById('camera-url-input');
 const cameraAddBtn = document.getElementById('camera-add-btn');
 const cameraEmptyEl = document.getElementById('camera-empty');
+const cameraErrorEl = document.getElementById('camera-error');
 const cameraSwitchRowEl = document.getElementById('camera-switch-row');
 const cameraViewImgEl = document.getElementById('camera-view-img');
 const cameraViewEmptyEl = document.getElementById('camera-view-empty');
@@ -1600,13 +1601,19 @@ cameraAddBtn.addEventListener('click', () => {
   const url = cameraUrlInput.value.trim();
   if (!name) { cameraNameInput.focus(); return; }
   if (!url) { cameraUrlInput.focus(); return; }
+  cameraErrorEl.classList.add('hidden');
   socket.emit('camera:add', { name, url });
-  cameraNameInput.value = '';
-  cameraUrlInput.value = '';
+});
+
+socket.on('cameraActionError', (msg) => {
+  cameraErrorEl.textContent = msg;
+  cameraErrorEl.classList.remove('hidden');
 });
 
 socket.on('camerasUpdate', (list) => {
   cameras = list;
+  cameraNameInput.value = '';
+  cameraUrlInput.value = '';
   renderCameraSwitchRow();
 });
 

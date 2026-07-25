@@ -1782,7 +1782,18 @@ async function main() {
       // go2rtc-Konfiguration, keine echte URL -- nur grobe Plausibilitaet
       // pruefen (kein Leerraum/Sonderzeichen, die in der Abfrage Probleme machen).
       const streamName = (payload.url || '').toString().slice(0, 100).trim();
-      if (!name || !streamName || !/^[a-zA-Z0-9_-]+$/.test(streamName)) return;
+      if (!name) {
+        socket.emit('cameraActionError', 'Bitte einen Kameranamen eingeben.');
+        return;
+      }
+      if (!streamName) {
+        socket.emit('cameraActionError', 'Bitte den go2rtc-Stream-Namen eingeben.');
+        return;
+      }
+      if (!/^[a-zA-Z0-9_-]+$/.test(streamName)) {
+        socket.emit('cameraActionError', `„${streamName}" ist kein gültiger Stream-Name -- nur Buchstaben, Zahlen, „-" und „_" sind erlaubt (keine Leerzeichen, Doppelpunkte oder Schrägstriche). Das muss exakt der Name links vom Doppelpunkt in der go2rtc.yaml sein, nicht die RTSP-Adresse selbst.`);
+        return;
+      }
       cameras.push({
         id: makeId(), name, url: streamName, addedBy: socket.data.name,
       });
