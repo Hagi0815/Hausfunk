@@ -705,6 +705,42 @@ async function main() {
     maxHttpBufferSize: 22 * 1024 * 1024,
   });
 
+  // --- WebSocket-Verbindungen unter /go2rtc/* zu go2rtc durchreichen -----------
+  // go2rtc nutzt fuer WebRTC/MSE-Signalisierung teils WebSockets, nicht nur
+  // normale HTTP-Anfragen -- dafuer reicht ein einfacher http.request()-Proxy
+  // nicht aus, das "upgrade"-Event muss eigens behandelt werden. Socket.IO
+  // haengt sich am selben Server-Event auf; da beide nur fuer ihre jeweils
+  // eigenen Pfade aktiv werden, stoert sich das nicht gegenseitig.
+  const GO2RTC_PORT = Number(process.env.HAUSFUNK_GO2RTC_PORT) || 1984;
+  server.on('upgrade', (req, socket, head) => {
+    if (!req.url.startsWith('/go2rtc/')) return; // Socket.IO uebernimmt den Rest
+    const targetPath = req.url.replace(/^\/go2rtc/, '') || '/';
+    const forwardHeaders = { ...req.headers };
+    delete forwardHeaders.host;
+
+    const upstreamReq = http.request({
+      hostname: 'localhost',
+      port: GO2RTC_PORT,
+      path: targetPath,
+      method: req.method,
+      headers: forwardHeaders,
+    });
+    upstreamReq.on('upgrade', (upstreamRes, upstreamSocket, upstreamHead) => {
+      const statusLine = `HTTP/1.1 101 Switching Protocols\r\n`;
+      const headerLines = Object.entries(upstreamRes.headers)
+        .map(([key, value]) => `${key}: ${value}`)
+        .join('\r\n');
+      socket.write(`${statusLine}${headerLines}\r\n\r\n`);
+      if (upstreamHead && upstreamHead.length) socket.write(upstreamHead);
+      if (head && head.length) upstreamSocket.write(head);
+      upstreamSocket.pipe(socket);
+      socket.pipe(upstreamSocket);
+    });
+    upstreamReq.on('error', () => socket.destroy());
+    socket.on('error', () => upstreamReq.destroy());
+    upstreamReq.end();
+  });
+
   app.use(express.static(path.join(__dirname, 'public')));
   app.use('/uploads', express.static(UPLOAD_DIR));
 
@@ -735,7 +771,6 @@ async function main() {
   // in HLS um. Da go2rtc auf demselben Server laeuft wie Hausfunk selbst,
   // reicht Hausfunk das hier intern durch -- dadurch muss an Caddy ueberhaupt
   // nichts geaendert werden, alles laeuft ueber die bestehende Hausfunk-Domain.
-  const GO2RTC_PORT = Number(process.env.HAUSFUNK_GO2RTC_PORT) || 1984;
   app.use('/go2rtc', (req, res) => {
     const targetPath = req.originalUrl.replace(/^\/go2rtc/, '') || '/';
     const forwardHeaders = { ...req.headers };
