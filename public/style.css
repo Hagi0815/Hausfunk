@@ -2266,6 +2266,7 @@ html, body {
 #playlist-playpause-btn { font-size: 16px; min-width: 40px; }
 
 /* --- Kameras -------------------------------------------------------------- */
+.camera-panel { max-width: 1100px; }
 .camera-switch-row {
   display: flex;
   flex-wrap: wrap;
@@ -2296,22 +2297,56 @@ html, body {
   font-size: 11px;
 }
 .camera-switch-btn .camera-remove-x:hover { opacity: 1; }
-.camera-view-wrap {
+
+/* Raster fuer mehrere gleichzeitig ausgewaehlte Kameras -- Spaltenzahl passt
+   sich automatisch der Anzahl an (1 Kamera = groesse Einzelansicht, mehr
+   Kameras = mehrere Spalten). */
+.camera-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 10px;
+}
+.camera-grid:empty { display: none; }
+.camera-tile {
   position: relative;
-  flex: 1;
-  min-height: 200px;
+  display: flex;
+  flex-direction: column;
   background: #000;
   border-radius: 10px;
   overflow: hidden;
+  aspect-ratio: 16 / 9;
+}
+.camera-tile-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 5px 8px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.7), transparent);
+  color: #fff;
+  font-size: 12px;
 }
-.camera-view-img {
+.camera-tile-close {
+  background: none;
+  border: none;
+  color: #fff;
+  opacity: 0.8;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0 2px;
+}
+.camera-tile-close:hover { opacity: 1; }
+.camera-tile iframe {
+  flex: 1;
   width: 100%;
   height: 100%;
   border: none;
   display: block;
 }
-.camera-view-img.hidden { display: none; }
-.camera-view-wrap .gallery-empty { color: var(--text-dim); font-size: 13px; }
+#camera-view-empty { color: var(--text-dim); font-size: 13px; }
+#camera-view-empty.hidden { display: none; }

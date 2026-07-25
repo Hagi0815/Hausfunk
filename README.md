@@ -435,15 +435,15 @@ Hausfunk-Datenverkehr durchleitet.
 
 - DOM trägt im Kamera-Bereich Name + den **Stream-Namen aus der
   go2rtc.yaml** ein (z. B. `einfahrt`, nicht die RTSP-Adresse selbst) –
-  nur DOM kann Kameras hinzufügen/entfernen, alle können zwischen den
-  eingetragenen Kameras per Knopfdruck wechseln
+  nur DOM kann Kameras hinzufügen/entfernen
+- **Mehrere Kameras gleichzeitig sichtbar**: jede Kamera lässt sich per
+  Knopfdruck einzeln ein-/ausblenden (Mehrfachauswahl, keine feste Anzahl)
+  – die ausgewählten Kameras erscheinen als Raster, das sich automatisch an
+  die Anzahl anpasst. Jede Kachel hat ein eigenes „✕" zum Abwählen
 - Die eigentlichen RTSP-Adressen (inkl. Zugangsdaten) liegen ausschließlich
   in der go2rtc-Konfiguration auf dem Server, nie in Hausfunk selbst
 - Funktioniert über `/go2rtc/…` auch von unterwegs über deine Domain, nicht
   nur im Heimnetz
-- HLS hat naturgemäß ein paar Sekunden Verzögerung (kein Problem fürs
-  gelegentliche Draufschauen, für sehr niedrige Latenz könnte man go2rtc
-  später zusätzlich auf WebRTC umstellen)
 
 ## Radio & Musik
 

@@ -34,7 +34,7 @@ const cameraAddBtn = document.getElementById('camera-add-btn');
 const cameraEmptyEl = document.getElementById('camera-empty');
 const cameraErrorEl = document.getElementById('camera-error');
 const cameraSwitchRowEl = document.getElementById('camera-switch-row');
-const cameraViewImgEl = document.getElementById('camera-view-frame');
+const cameraGridEl = document.getElementById('camera-grid');
 const cameraViewEmptyEl = document.getElementById('camera-view-empty');
 const radioNameInput = document.getElementById('radio-name-input');
 const radioUrlInput = document.getElementById('radio-url-input');
@@ -1523,23 +1523,52 @@ cameraNavBtn.addEventListener('click', () => {
 
 // --- Netzwerkkameras: Umschalt-Buttons, Stream per Server durchgeleitet ------
 let cameras = [];
-let currentCameraId = null;
+let selectedCameraIds = new Set();
 
-function stopCameraPlayback() {
-  cameraViewImgEl.src = 'about:blank';
-}
+function buildCameraTile(camera) {
+  const tile = document.createElement('div');
+  tile.className = 'camera-tile';
 
-function selectCamera(camera) {
-  currentCameraId = camera.id;
+  const label = document.createElement('div');
+  label.className = 'camera-tile-label';
+  const nameSpan = document.createElement('span');
+  nameSpan.textContent = camera.name;
+  label.appendChild(nameSpan);
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'camera-tile-close';
+  closeBtn.textContent = '✕';
+  closeBtn.title = 'Aus der Ansicht entfernen';
+  closeBtn.addEventListener('click', () => toggleCamera(camera));
+  label.appendChild(closeBtn);
+  tile.appendChild(label);
 
+  const frame = document.createElement('iframe');
+  frame.title = `Kamera-Stream: ${camera.name}`;
   // camera.url enthaelt bei RTSP-Kameras den go2rtc-Stream-Namen, nicht eine
   // direkte URL -- go2rtc's eigene Wiedergabeseite waehlt automatisch die am
   // besten passende Wiedergabetechnik (WebRTC/MSE/etc.) fuer die jeweilige
   // Kamera, robuster als ein selbstgebauter HLS-Player.
-  cameraViewImgEl.src = `/go2rtc/stream.html?src=${encodeURIComponent(camera.url)}`;
+  frame.src = `/go2rtc/stream.html?src=${encodeURIComponent(camera.url)}`;
+  tile.appendChild(frame);
 
-  cameraViewImgEl.classList.remove('hidden');
-  cameraViewEmptyEl.classList.add('hidden');
+  return tile;
+}
+
+function renderCameraGrid() {
+  cameraGridEl.innerHTML = '';
+  const activeCameras = cameras.filter((c) => selectedCameraIds.has(c.id));
+  activeCameras.forEach((camera) => cameraGridEl.appendChild(buildCameraTile(camera)));
+  cameraViewEmptyEl.classList.toggle('hidden', activeCameras.length > 0);
+}
+
+function toggleCamera(camera) {
+  if (selectedCameraIds.has(camera.id)) {
+    selectedCameraIds.delete(camera.id);
+  } else {
+    selectedCameraIds.add(camera.id);
+  }
+  renderCameraGrid();
   renderCameraSwitchRow();
 }
 
@@ -1551,7 +1580,7 @@ function renderCameraSwitchRow() {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'camera-switch-btn';
-    if (camera.id === currentCameraId) btn.classList.add('active');
+    if (selectedCameraIds.has(camera.id)) btn.classList.add('active');
 
     const label = document.createElement('span');
     label.textContent = camera.name;
@@ -1568,17 +1597,19 @@ function renderCameraSwitchRow() {
       btn.appendChild(removeX);
     }
 
-    btn.addEventListener('click', () => selectCamera(camera));
+    btn.addEventListener('click', () => toggleCamera(camera));
     cameraSwitchRowEl.appendChild(btn);
   });
 
-  // Falls die aktuell gezeigte Kamera entfernt wurde, Anzeige zuruecksetzen.
-  if (currentCameraId && !cameras.some((c) => c.id === currentCameraId)) {
-    currentCameraId = null;
-    stopCameraPlayback();
-    cameraViewImgEl.classList.add('hidden');
-    cameraViewEmptyEl.classList.remove('hidden');
-  }
+  // Entfernte Kameras auch aus der Auswahl/Ansicht herausnehmen.
+  let changed = false;
+  [...selectedCameraIds].forEach((id) => {
+    if (!cameras.some((c) => c.id === id)) {
+      selectedCameraIds.delete(id);
+      changed = true;
+    }
+  });
+  if (changed) renderCameraGrid();
 }
 
 cameraAddBtn.addEventListener('click', () => {
