@@ -578,7 +578,7 @@ function fetchRadioLogo(stationName) {
   return new Promise((resolve) => {
     const req = https.get({
       hostname: 'de1.api.radio-browser.info',
-      path: `/json/stations/search?name=${encodeURIComponent(stationName)}&limit=5&hidebroken=true`,
+      path: `/json/stations/search?name=${encodeURIComponent(stationName.trim())}&limit=30&hidebroken=true`,
       headers: { 'User-Agent': 'Hausfunk/1.0' },
       timeout: 6000,
     }, (res) => {
@@ -587,8 +587,22 @@ function fetchRadioLogo(stationName) {
       res.on('end', () => {
         try {
           const results = JSON.parse(body);
-          const match = Array.isArray(results) ? results.find((s) => s.favicon && s.favicon.trim()) : null;
-          resolve(match ? match.favicon.trim() : null);
+          if (!Array.isArray(results) || results.length === 0) {
+            resolve(null);
+            return;
+          }
+          const withFavicon = results.filter((s) => s.favicon && s.favicon.trim());
+          if (withFavicon.length === 0) {
+            resolve(null);
+            return;
+          }
+          // Zuerst eine exakte Namensuebereinstimmung mit Favicon bevorzugen
+          // (die Suche selbst ist ein unscharfer Substring-Treffer und liefert
+          // sonst z.B. bei "hr3" auch viele thematisch unpassende Ergebnisse
+          // zuerst zurueck), sonst einfach den ersten Treffer mit Favicon.
+          const targetLower = stationName.trim().toLowerCase();
+          const exact = withFavicon.find((s) => (s.name || '').trim().toLowerCase() === targetLower);
+          resolve((exact || withFavicon[0]).favicon.trim());
         } catch (err) {
           resolve(null);
         }
