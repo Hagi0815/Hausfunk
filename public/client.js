@@ -40,6 +40,8 @@ const cameraViewEmptyEl = document.getElementById('camera-view-empty');
 const radioNameInput = document.getElementById('radio-name-input');
 const radioUrlInput = document.getElementById('radio-url-input');
 const radioAddBtn = document.getElementById('radio-add-btn');
+const radioRefreshLogosBtn = document.getElementById('radio-refresh-logos-btn');
+const radioLogoStatusEl = document.getElementById('radio-logo-status');
 const radioSearchInput = document.getElementById('radio-search-input');
 const radioStationListEl = document.getElementById('radio-station-list');
 const radioEmptyEl = document.getElementById('radio-empty');
@@ -1809,6 +1811,19 @@ radioAddBtn.addEventListener('click', () => {
   socket.emit('radio:addStation', { name, url });
   radioNameInput.value = '';
   radioUrlInput.value = '';
+});
+
+radioRefreshLogosBtn.addEventListener('click', () => {
+  socket.emit('admin:refreshRadioLogos');
+});
+
+socket.on('radioLogoRefreshStatus', (status) => {
+  radioLogoStatusEl.textContent = status.message;
+  radioLogoStatusEl.classList.remove('hidden');
+  radioRefreshLogosBtn.disabled = status.running;
+  if (!status.running) {
+    setTimeout(() => radioLogoStatusEl.classList.add('hidden'), 6000);
+  }
 });
 
 radioSearchInput.addEventListener('input', () => {

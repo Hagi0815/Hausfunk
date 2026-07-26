@@ -2586,3 +2586,8 @@ html, body {
 }
 #camera-view-empty { color: var(--text-dim); font-size: 13px; }
 #camera-view-empty.hidden { display: none; }
+.radio-logo-status {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.radio-logo-status.hidden { display: none; }

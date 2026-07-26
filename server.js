@@ -602,20 +602,30 @@ function fetchRadioLogo(stationName) {
 // Beim Start: fuer alle Sender ohne Logo (auch aeltere, schon gespeicherte)
 // im Hintergrund eins nachladen -- mit kleiner Pause zwischen den Anfragen,
 // um den externen Dienst nicht zu ueberlasten. Blockiert den Start nicht.
+let radioLogoBackfillRunning = false;
 async function backfillRadioLogos(io) {
-  const missing = radioStations.filter((s) => !s.logoUrl);
-  // eslint-disable-next-line no-restricted-syntax
-  for (const station of missing) {
-    // eslint-disable-next-line no-await-in-loop
-    const logoUrl = await fetchRadioLogo(station.name);
-    if (logoUrl) {
-      station.logoUrl = logoUrl;
-      saveRadioStations();
-      io.emit('radioStations', radioStations);
+  if (radioLogoBackfillRunning) return 0;
+  radioLogoBackfillRunning = true;
+  let foundCount = 0;
+  try {
+    const missing = radioStations.filter((s) => !s.logoUrl);
+    // eslint-disable-next-line no-restricted-syntax
+    for (const station of missing) {
+      // eslint-disable-next-line no-await-in-loop
+      const logoUrl = await fetchRadioLogo(station.name);
+      if (logoUrl) {
+        station.logoUrl = logoUrl;
+        saveRadioStations();
+        io.emit('radioStations', radioStations);
+        foundCount += 1;
+      }
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise((resolve) => { setTimeout(resolve, 400); });
     }
-    // eslint-disable-next-line no-await-in-loop
-    await new Promise((resolve) => { setTimeout(resolve, 400); });
+  } finally {
+    radioLogoBackfillRunning = false;
   }
+  return foundCount;
 }
 
 // --- Geteilte Musik-Playlist (echte Synchronisierung: Position/Play-Status
@@ -1899,6 +1909,22 @@ async function main() {
       if (radioStations.length === before) return;
       saveRadioStations();
       io.emit('radioStations', radioStations);
+    });
+
+    socket.on('admin:refreshRadioLogos', async () => {
+      if (socket.data.role !== 'admin') return;
+      if (radioLogoBackfillRunning) {
+        socket.emit('radioLogoRefreshStatus', { running: true, message: 'Logo-Suche läuft bereits …' });
+        return;
+      }
+      const missingCount = radioStations.filter((s) => !s.logoUrl).length;
+      if (missingCount === 0) {
+        socket.emit('radioLogoRefreshStatus', { running: false, message: 'Alle Sender haben bereits ein Logo (oder keins gefunden).' });
+        return;
+      }
+      socket.emit('radioLogoRefreshStatus', { running: true, message: `Suche Logos für ${missingCount} Sender …` });
+      const foundCount = await backfillRadioLogos(io);
+      socket.emit('radioLogoRefreshStatus', { running: false, message: `Fertig: ${foundCount} von ${missingCount} Logo(s) gefunden.` });
     });
 
     // --- Netzwerkkameras verwalten (nur DOM) -------------------------------------

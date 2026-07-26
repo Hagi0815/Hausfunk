@@ -468,7 +468,9 @@ kostenlose Radiosender-Datenbank) nach einem passenden Logo – wird eins
 gefunden, erscheint es in der Kachel; ansonsten (oder solange die Suche
 noch läuft) zeigt die Kachel ein farbiges Monogramm aus den
 Sender-Initialen. Bereits vorhandene Sender ohne Logo werden beim
-nächsten Serverstart automatisch nachträglich vervollständigt.
+nächsten Serverstart automatisch nachträglich vervollständigt – DOM kann
+das über „🔄 Logos suchen" (im Internetradio-Bereich) jederzeit auch
+manuell anstoßen, mit kurzer Rückmeldung, wie viele gefunden wurden.
 
 Läuft gerade ein Sender oder Playlist-Titel, erscheint oben im Header eine
 kleine „Jetzt läuft"-Anzeige (🎵 + Name/Titel) – sichtbar egal in welchem
