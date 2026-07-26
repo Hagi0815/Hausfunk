@@ -1728,6 +1728,16 @@ function renderRadioStations() {
     avatar.className = 'radio-tile-avatar';
     avatar.style.background = colorForStationName(station.name);
     avatar.textContent = monogramForStationName(station.name);
+    if (station.logoUrl) {
+      const img = document.createElement('img');
+      img.src = station.logoUrl;
+      img.alt = '';
+      img.className = 'radio-tile-logo';
+      // Falls das Logo nicht laedt (kaputte URL, Dienst nicht erreichbar),
+      // einfach das Monogramm sichtbar lassen statt eines kaputten Bildes.
+      img.addEventListener('error', () => img.remove());
+      avatar.appendChild(img);
+    }
     li.appendChild(avatar);
 
     const eq = document.createElement('div');

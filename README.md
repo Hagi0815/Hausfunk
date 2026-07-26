@@ -459,10 +459,16 @@ Karten nebeneinander (auf schmalen Bildschirmen untereinander). Läuft
 gerade etwas, zeigt eine kleine Equalizer-Animation neben dem Titel an,
 dass Ton kommt.
 
-Sender werden als farbiges Kachel-Raster mit Monogramm dargestellt (wie
-Senderplätze an einem Radio) statt als Text-Dropdown-Liste – immer
-sichtbar, per Suche filterbar, der laufende Sender ist deutlich
-hervorgehoben.
+Sender werden als Kachel-Raster dargestellt (wie Senderplätze an einem
+Radio) statt als Text-Dropdown-Liste – immer sichtbar, per Suche
+filterbar, der laufende Sender ist deutlich hervorgehoben. Beim
+Hinzufügen eines Senders sucht Hausfunk automatisch im Hintergrund bei
+[radio-browser.info](https://www.radio-browser.info/) (offene,
+kostenlose Radiosender-Datenbank) nach einem passenden Logo – wird eins
+gefunden, erscheint es in der Kachel; ansonsten (oder solange die Suche
+noch läuft) zeigt die Kachel ein farbiges Monogramm aus den
+Sender-Initialen. Bereits vorhandene Sender ohne Logo werden beim
+nächsten Serverstart automatisch nachträglich vervollständigt.
 
 Läuft gerade ein Sender oder Playlist-Titel, erscheint oben im Header eine
 kleine „Jetzt läuft"-Anzeige (🎵 + Name/Titel) – sichtbar egal in welchem

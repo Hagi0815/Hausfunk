@@ -1,5 +1,6 @@
 const express = require('express');
 const http = require('http');
+const https = require('https');
 const httpProxy = require('http-proxy');
 const path = require('path');
 const fs = require('fs');
@@ -567,7 +568,55 @@ function loadRadioStations() {
 function saveRadioStations() {
   fs.writeFileSync(RADIO_STATIONS_FILE, JSON.stringify(radioStations, null, 2));
 }
-let radioStations = loadRadioStations(); // { id, name, url, addedBy }
+let radioStations = loadRadioStations(); // { id, name, url, addedBy, logoUrl }
+
+// Sender-Logo bei radio-browser.info suchen (offene, kostenlose
+// Radiosender-Datenbank) -- liefert null, wenn nichts Passendes gefunden
+// wird oder der Dienst nicht erreichbar ist; UI faellt dann auf ein
+// farbiges Monogramm zurueck.
+function fetchRadioLogo(stationName) {
+  return new Promise((resolve) => {
+    const req = https.get({
+      hostname: 'de1.api.radio-browser.info',
+      path: `/json/stations/search?name=${encodeURIComponent(stationName)}&limit=5&hidebroken=true`,
+      headers: { 'User-Agent': 'Hausfunk/1.0' },
+      timeout: 6000,
+    }, (res) => {
+      let body = '';
+      res.on('data', (chunk) => { body += chunk; });
+      res.on('end', () => {
+        try {
+          const results = JSON.parse(body);
+          const match = Array.isArray(results) ? results.find((s) => s.favicon && s.favicon.trim()) : null;
+          resolve(match ? match.favicon.trim() : null);
+        } catch (err) {
+          resolve(null);
+        }
+      });
+    });
+    req.on('timeout', () => req.destroy());
+    req.on('error', () => resolve(null));
+  });
+}
+
+// Beim Start: fuer alle Sender ohne Logo (auch aeltere, schon gespeicherte)
+// im Hintergrund eins nachladen -- mit kleiner Pause zwischen den Anfragen,
+// um den externen Dienst nicht zu ueberlasten. Blockiert den Start nicht.
+async function backfillRadioLogos(io) {
+  const missing = radioStations.filter((s) => !s.logoUrl);
+  // eslint-disable-next-line no-restricted-syntax
+  for (const station of missing) {
+    // eslint-disable-next-line no-await-in-loop
+    const logoUrl = await fetchRadioLogo(station.name);
+    if (logoUrl) {
+      station.logoUrl = logoUrl;
+      saveRadioStations();
+      io.emit('radioStations', radioStations);
+    }
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise((resolve) => { setTimeout(resolve, 400); });
+  }
+}
 
 // --- Geteilte Musik-Playlist (echte Synchronisierung: Position/Play-Status
 //     fuer alle gleich) -------------------------------------------------------
@@ -1826,11 +1875,21 @@ async function main() {
       const name = (payload.name || '').toString().slice(0, 60).trim();
       const url = (payload.url || '').toString().slice(0, 500).trim();
       if (!name || !url || !/^https?:\/\//i.test(url)) return;
-      radioStations.push({
-        id: makeId(), name, url, addedBy: socket.data.name,
-      });
+      const newStation = {
+        id: makeId(), name, url, addedBy: socket.data.name, logoUrl: null,
+      };
+      radioStations.push(newStation);
       saveRadioStations();
       io.emit('radioStations', radioStations);
+      // Logo im Hintergrund suchen, damit das Hinzufuegen nicht auf den
+      // externen Dienst warten muss -- Sender erscheint sofort mit
+      // Monogramm, Logo kommt nach, sobald gefunden.
+      fetchRadioLogo(name).then((logoUrl) => {
+        if (!logoUrl) return;
+        newStation.logoUrl = logoUrl;
+        saveRadioStations();
+        io.emit('radioStations', radioStations);
+      }).catch(() => {});
     });
 
     socket.on('radio:removeStation', (payload) => {
@@ -2190,6 +2249,9 @@ async function main() {
       console.log('Hinweis: HAUSFUNK_ADMIN_PASSWORD ist nicht gesetzt -- der Admin-Zugang (Name "DOM") ist deaktiviert.');
     }
   });
+
+  // Fehlende Sender-Logos im Hintergrund nachladen (blockiert den Start nicht).
+  backfillRadioLogos(io).catch(() => {});
 }
 
 main().catch((err) => {
