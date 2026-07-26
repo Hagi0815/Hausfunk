@@ -36,6 +36,15 @@
   @keyframes bounce { 0%{transform:scale(1)} 30%{transform:scale(1.25) rotate(-8deg)} 60%{transform:scale(0.95) rotate(6deg)} 100%{transform:scale(1)} }
   @keyframes spinBounce { 0%{transform:scale(1) rotate(0)} 50%{transform:scale(1.4) rotate(180deg)} 100%{transform:scale(1) rotate(360deg)} }
 
+  #fullscreenBtn {
+    position:fixed; top:14px; right:14px; width:52px; height:52px; border-radius:50%;
+    background:rgba(255,255,255,0.7); border:none; display:flex; align-items:center; justify-content:center;
+    cursor:pointer; box-shadow:0 4px 10px var(--tile-shadow); z-index:20; padding:0;
+  }
+  #fullscreenBtn.hidden { display:none; }
+  #fullscreenBtn:focus-visible { outline:3px solid var(--ring); outline-offset:2px; }
+  #fullscreenBtn svg { width:26px; height:26px; }
+
   #board {
     display:grid;
     gap:clamp(10px, 2vw, 22px);
@@ -142,6 +151,14 @@
   <path id="mouthNormal" d="M40 62 Q50 68 60 62" stroke="#2E3A46" stroke-width="4" fill="none" stroke-linecap="round"/>
   <path id="mouthExcited" d="M36 60 Q50 78 64 60 Q50 74 36 60 Z" fill="#2E3A46" style="display:none"/>
 </svg>
+<button id="fullscreenBtn" aria-label="Vollbild an">
+  <svg viewBox="0 0 24 24" fill="none" stroke="#2E3A46" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 9V5a1 1 0 0 1 1-1h4"/>
+    <path d="M20 9V5a1 1 0 0 0-1-1h-4"/>
+    <path d="M4 15v4a1 1 0 0 0 1 1h4"/>
+    <path d="M20 15v4a1 1 0 0 1-1 1h-4"/>
+  </svg>
+</button>
 
 <div id="board" role="group" aria-label="Spielfeld"></div>
 
@@ -214,6 +231,7 @@
   const celebration = document.getElementById('celebration');
   const playAgainBtn = document.getElementById('playAgainBtn');
   const nameInput = document.getElementById('nameInput');
+  const fullscreenBtn = document.getElementById('fullscreenBtn');
 
   let audioCtx = null;
   function ensureAudio(){ if(!audioCtx){ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); } }
@@ -392,13 +410,25 @@
     }
   }
 
+  function isFullscreenActive(){
+    return !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
+  }
+  function updateFullscreenBtn(){
+    fullscreenBtn.classList.toggle('hidden', isFullscreenActive());
+  }
   function requestFullscreenSafe(){
     const el = document.documentElement;
     const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
-    if(req && !document.fullscreenElement){
+    if(req && !isFullscreenActive()){
       try { req.call(el); } catch(err) { /* ignore - needs a user gesture on some browsers */ }
     }
   }
+  ['fullscreenchange','webkitfullscreenchange','mozfullscreenchange','MSFullscreenChange'].forEach(function(evt){
+    document.addEventListener(evt, updateFullscreenBtn);
+  });
+  updateFullscreenBtn();
+  fullscreenBtn.addEventListener('click', requestFullscreenSafe);
+
   // Vollbild lässt sich in den meisten Browsern nur nach einer Nutzerinteraktion aktivieren,
   // daher hier bei der ersten Berührung/Klick irgendwo auf der Seite auslösen.
   function firstInteractionHandler(){
