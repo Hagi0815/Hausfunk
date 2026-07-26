@@ -26,7 +26,9 @@ const calendarGridEl = document.getElementById('calendar-grid');
 const radioNavBtn = document.getElementById('radio-nav-btn');
 const radioPanelEl = document.getElementById('radio-panel');
 const cameraNavBtn = document.getElementById('camera-nav-btn');
+const sonnenspielNavBtn = document.getElementById('sonnenspiel-nav-btn');
 const cameraPanelEl = document.getElementById('camera-panel');
+const sonnenspielPanelEl = document.getElementById('sonnenspiel-panel');
 const cameraAdminForm = document.getElementById('camera-admin-form');
 const cameraNameInput = document.getElementById('camera-name-input');
 const cameraUrlInput = document.getElementById('camera-url-input');
@@ -1424,6 +1426,7 @@ function renderRoomList() {
   calendarNavBtn.classList.toggle('active', viewMode === 'calendar');
   radioNavBtn.classList.toggle('active', viewMode === 'radio');
   cameraNavBtn.classList.toggle('active', viewMode === 'camera');
+  sonnenspielNavBtn.classList.toggle('active', viewMode === 'sonnenspiel');
 }
 
 socket.on('rooms', (list) => {
@@ -1482,12 +1485,14 @@ function updateViewModeUI() {
   const isCalendar = viewMode === 'calendar';
   const isRadio = viewMode === 'radio';
   const isCamera = viewMode === 'camera';
-  const isChat = !isShopping && !isCalendar && !isRadio && !isCamera;
+  const isSonnenspiel = viewMode === 'sonnenspiel';
+  const isChat = !isShopping && !isCalendar && !isRadio && !isCamera && !isSonnenspiel;
   chatColumnEl.classList.toggle('hidden', !isChat);
   checklistPanelEl.classList.toggle('hidden', !isShopping);
   calendarPanelEl.classList.toggle('hidden', !isCalendar);
   radioPanelEl.classList.toggle('hidden', !isRadio);
   cameraPanelEl.classList.toggle('hidden', !isCamera);
+  sonnenspielPanelEl.classList.toggle('hidden', !isSonnenspiel);
   if (isShopping) {
     roomTitleEl.textContent = '🛒 Einkaufsliste';
   } else if (isCalendar) {
@@ -1496,6 +1501,8 @@ function updateViewModeUI() {
     roomTitleEl.textContent = '📻 Radio & Musik';
   } else if (isCamera) {
     roomTitleEl.textContent = '📹 Kameras';
+  } else if (isSonnenspiel) {
+    roomTitleEl.textContent = '🎮 Sonnenspiel';
   } else {
     const room = rooms.find((r) => r.id === currentRoom);
     roomTitleEl.innerHTML = '';
@@ -1523,6 +1530,13 @@ radioNavBtn.addEventListener('click', () => {
 
 cameraNavBtn.addEventListener('click', () => {
   viewMode = 'camera';
+  renderRoomList();
+  updateViewModeUI();
+  sidebar.classList.remove('open');
+});
+
+sonnenspielNavBtn.addEventListener('click', () => {
+  viewMode = 'sonnenspiel';
   renderRoomList();
   updateViewModeUI();
   sidebar.classList.remove('open');
