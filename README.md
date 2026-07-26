@@ -459,6 +459,11 @@ Karten nebeneinander (auf schmalen Bildschirmen untereinander). Läuft
 gerade etwas, zeigt eine kleine Equalizer-Animation neben dem Titel an,
 dass Ton kommt.
 
+Sender werden als farbiges Kachel-Raster mit Monogramm dargestellt (wie
+Senderplätze an einem Radio) statt als Text-Dropdown-Liste – immer
+sichtbar, per Suche filterbar, der laufende Sender ist deutlich
+hervorgehoben.
+
 Läuft gerade ein Sender oder Playlist-Titel, erscheint oben im Header eine
 kleine „Jetzt läuft"-Anzeige (🎵 + Name/Titel) – sichtbar egal in welchem
 Kanal oder Bereich man sich gerade befindet. Ein Klick darauf springt

@@ -1684,6 +1684,23 @@ nowPlayingWidgetEl.addEventListener('click', () => radioNavBtn.click());
 
 let radioSearchTerm = '';
 
+// Feste, zueinander passende Farbpalette -- jeder Sender bekommt anhand
+// seines Namens immer dieselbe Farbe (kein Zufall bei jedem Rendern).
+const RADIO_TILE_COLORS = ['#e8a33d', '#5b8dee', '#4caf82', '#c96a9e', '#4fb8c4', '#d97757', '#8b7fd1', '#c9a227'];
+function colorForStationName(name) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i += 1) {
+    hash = (hash * 31 + name.charCodeAt(i)) | 0;
+  }
+  return RADIO_TILE_COLORS[Math.abs(hash) % RADIO_TILE_COLORS.length];
+}
+function monogramForStationName(name) {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return '?';
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
+
 function renderRadioStations() {
   radioStationListEl.innerHTML = '';
   const filtered = radioSearchTerm
@@ -1700,37 +1717,47 @@ function renderRadioStations() {
   }
 
   filtered.forEach((station) => {
-    const li = document.createElement('li');
+    const isActive = station.id === currentRadioStationId;
 
-    const row = document.createElement('div');
-    row.className = 'radio-station-row';
+    const li = document.createElement('li');
+    li.className = 'radio-tile';
+    if (isActive) li.classList.add('active');
+    li.title = station.name;
+
+    const avatar = document.createElement('div');
+    avatar.className = 'radio-tile-avatar';
+    avatar.style.background = colorForStationName(station.name);
+    avatar.textContent = monogramForStationName(station.name);
+    li.appendChild(avatar);
+
+    const eq = document.createElement('div');
+    eq.className = 'now-playing-eq radio-tile-eq';
+    if (isActive) eq.classList.add('is-playing');
+    eq.innerHTML = '<span></span><span></span><span></span><span></span>';
+    avatar.appendChild(eq);
 
     const nameSpan = document.createElement('span');
+    nameSpan.className = 'radio-tile-name';
     nameSpan.textContent = station.name;
-    row.appendChild(nameSpan);
+    li.appendChild(nameSpan);
 
-    const playBtn = document.createElement('button');
-    playBtn.type = 'button';
-    playBtn.className = 'radio-play-btn';
-    const isActive = station.id === currentRadioStationId;
-    if (isActive) playBtn.classList.add('active');
-    playBtn.textContent = isActive ? '⏸' : '▶';
-    playBtn.addEventListener('click', () => {
+    li.addEventListener('click', () => {
       if (isActive) {
         radioStopBtn.click();
       } else {
         playRadioStation(station);
       }
     });
-    row.appendChild(playBtn);
-
-    li.appendChild(row);
 
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
-    removeBtn.className = 'unban-btn';
+    removeBtn.className = 'radio-tile-remove';
     removeBtn.textContent = '✕';
-    removeBtn.addEventListener('click', () => socket.emit('radio:removeStation', { id: station.id }));
+    removeBtn.title = 'Sender entfernen';
+    removeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      socket.emit('radio:removeStation', { id: station.id });
+    });
     li.appendChild(removeBtn);
 
     radioStationListEl.appendChild(li);
@@ -1745,9 +1772,6 @@ function playRadioStation(station) {
   radioNowPlayingNameEl.textContent = station.name;
   radioNowPlayingEl.classList.remove('hidden');
   if (radioEqEl) radioEqEl.classList.add('is-playing');
-  radioSearchTerm = '';
-  radioSearchInput.value = '';
-  radioStationListEl.classList.add('hidden');
   renderRadioStations();
   updateNowPlayingWidget();
 }
@@ -1780,19 +1804,12 @@ radioAddBtn.addEventListener('click', () => {
 radioSearchInput.addEventListener('input', () => {
   radioSearchTerm = radioSearchInput.value.trim().toLowerCase();
   renderRadioStations();
-  radioStationListEl.classList.remove('hidden');
-});
-radioSearchInput.addEventListener('focus', () => {
-  radioStationListEl.classList.remove('hidden');
-});
-document.addEventListener('click', (e) => {
-  if (!radioSearchInput.contains(e.target) && !radioStationListEl.contains(e.target)) {
-    radioStationListEl.classList.add('hidden');
-  }
 });
 radioSearchInput.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
-    radioStationListEl.classList.add('hidden');
+    radioSearchInput.value = '';
+    radioSearchTerm = '';
+    renderRadioStations();
     radioSearchInput.blur();
   }
 });
