@@ -46,6 +46,7 @@ const radioEmptyEl = document.getElementById('radio-empty');
 const radioAudioEl = document.getElementById('radio-audio');
 const radioNowPlayingEl = document.getElementById('radio-now-playing');
 const radioNowPlayingNameEl = document.getElementById('radio-now-playing-name');
+const radioEqEl = radioNowPlayingEl ? radioNowPlayingEl.querySelector('.now-playing-eq') : null;
 const radioVolumeInput = document.getElementById('radio-volume');
 const radioStopBtn = document.getElementById('radio-stop-btn');
 const playlistTitleInput = document.getElementById('playlist-title-input');
@@ -59,6 +60,7 @@ const playlistPrevBtn = document.getElementById('playlist-prev-btn');
 const playlistPlayPauseBtn = document.getElementById('playlist-playpause-btn');
 const playlistNextBtn = document.getElementById('playlist-next-btn');
 const playlistNowPlayingEl = document.getElementById('playlist-now-playing');
+const playlistEqEl = document.getElementById('playlist-eq');
 const checklistGroupsEl = document.getElementById('checklist-groups');
 const checklistCountEl = document.getElementById('checklist-count');
 const checklistClearDoneBtn = document.getElementById('checklist-clear-done');
@@ -1742,6 +1744,7 @@ function playRadioStation(station) {
   radioAudioEl.play().catch(() => { /* Autoplay evtl. blockiert, bis Nutzer erneut klickt */ });
   radioNowPlayingNameEl.textContent = station.name;
   radioNowPlayingEl.classList.remove('hidden');
+  if (radioEqEl) radioEqEl.classList.add('is-playing');
   radioSearchTerm = '';
   radioSearchInput.value = '';
   radioStationListEl.classList.add('hidden');
@@ -1755,6 +1758,7 @@ radioStopBtn.addEventListener('click', () => {
   radioAudioEl.load();
   currentRadioStationId = null;
   radioNowPlayingEl.classList.add('hidden');
+  if (radioEqEl) radioEqEl.classList.remove('is-playing');
   renderRadioStations();
   updateNowPlayingWidget();
 });
@@ -1898,6 +1902,7 @@ function applyPlayerState(state) {
     delete playlistAudioEl.dataset.trackId;
     playlistNowPlayingEl.textContent = '';
     playlistPlayPauseBtn.textContent = '▶';
+    if (playlistEqEl) playlistEqEl.classList.remove('is-playing');
     renderPlaylist();
     updateNowPlayingWidget();
     return;
@@ -1923,6 +1928,7 @@ function applyPlayerState(state) {
     playlistAudioEl.pause();
     playlistPlayPauseBtn.textContent = '▶';
   }
+  if (playlistEqEl) playlistEqEl.classList.toggle('is-playing', state.isPlaying);
   playlistNowPlayingEl.textContent = track.title;
   renderPlaylist();
   updateNowPlayingWidget();

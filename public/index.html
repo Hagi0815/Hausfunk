@@ -212,47 +212,61 @@
           <div id="calendar-grid" class="calendar-grid"></div>
         </aside>
 
-        <aside id="radio-panel" class="checklist-panel hidden">
+        <aside id="radio-panel" class="checklist-panel radio-panel hidden">
           <div class="checklist-panel-header">
             <span>📻 Radio &amp; Musik</span>
           </div>
 
-          <div class="radio-section">
-            <div class="online-label">INTERNETRADIO</div>
-            <div class="radio-add-form">
-              <input id="radio-name-input" type="text" placeholder="Sendername" maxlength="60" />
-              <input id="radio-url-input" type="text" placeholder="Stream-URL (https://...)" />
-              <button id="radio-add-btn" class="unban-btn" type="button">+ Sender</button>
+          <div class="radio-music-grid">
+            <div class="radio-card">
+              <div class="radio-card-header">
+                <span class="radio-card-title">Internetradio</span>
+              </div>
+              <div class="radio-add-form">
+                <input id="radio-name-input" type="text" placeholder="Sendername" maxlength="60" />
+                <input id="radio-url-input" type="text" placeholder="Stream-URL (https://...)" />
+                <button id="radio-add-btn" class="unban-btn" type="button">+ Sender</button>
+              </div>
+              <div class="radio-search-wrap">
+                <input id="radio-search-input" type="text" class="radio-search-input" placeholder="🔍 Sender suchen oder auswählen…" autocomplete="off" />
+                <ul id="radio-station-list" class="banned-list radio-dropdown hidden"></ul>
+              </div>
+              <div id="radio-empty" class="gallery-empty hidden">Noch keine Sender eingetragen.</div>
+              <audio id="radio-audio" preload="none"></audio>
+              <div id="radio-now-playing" class="now-playing-card hidden">
+                <div class="now-playing-eq" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+                <div class="now-playing-info">
+                  <span class="now-playing-label">JETZT LÄUFT</span>
+                  <span id="radio-now-playing-name" class="now-playing-name"></span>
+                </div>
+                <input id="radio-volume" type="range" min="0" max="100" value="80" class="now-playing-volume" />
+                <button id="radio-stop-btn" class="now-playing-stop-btn" type="button" title="Stopp" aria-label="Stopp">■</button>
+              </div>
             </div>
-            <div class="radio-search-wrap">
-              <input id="radio-search-input" type="text" class="radio-search-input" placeholder="🔍 Sender suchen oder auswählen…" autocomplete="off" />
-              <ul id="radio-station-list" class="banned-list radio-dropdown hidden"></ul>
-            </div>
-            <div id="radio-empty" class="gallery-empty hidden">Noch keine Sender eingetragen.</div>
-            <audio id="radio-audio" preload="none"></audio>
-            <div id="radio-now-playing" class="radio-now-playing hidden">
-              <span id="radio-now-playing-name"></span>
-              <input id="radio-volume" type="range" min="0" max="100" value="80" />
-              <button id="radio-stop-btn" class="unban-btn" type="button">■ Stopp</button>
-            </div>
-          </div>
 
-          <div class="radio-section">
-            <div class="online-label">GETEILTE PLAYLIST (für alle synchron)</div>
-            <div class="playlist-add-form">
-              <input id="playlist-title-input" type="text" placeholder="Titel" maxlength="150" />
-              <button id="playlist-upload-btn" class="unban-btn" type="button">📁 Datei hochladen</button>
-              <input id="playlist-file-input" type="file" accept="audio/*" class="visually-hidden-file-input" />
-            </div>
-            <div id="playlist-error" class="join-error hidden"></div>
-            <ul id="playlist-track-list" class="banned-list"></ul>
-            <div id="playlist-empty" class="gallery-empty hidden">Noch keine Titel in der Playlist.</div>
-            <audio id="playlist-audio" preload="none"></audio>
-            <div class="playlist-controls">
-              <button id="playlist-prev-btn" class="unban-btn" type="button">⏮</button>
-              <button id="playlist-playpause-btn" class="unban-btn" type="button">▶</button>
-              <button id="playlist-next-btn" class="unban-btn" type="button">⏭</button>
-              <span id="playlist-now-playing" class="playlist-now-playing"></span>
+            <div class="radio-card">
+              <div class="radio-card-header">
+                <span class="radio-card-title">Geteilte Playlist</span>
+                <span class="radio-card-subtitle">für alle synchron</span>
+              </div>
+              <div class="playlist-add-form">
+                <input id="playlist-title-input" type="text" placeholder="Titel" maxlength="150" />
+                <button id="playlist-upload-btn" class="unban-btn" type="button">📁 Datei hochladen</button>
+                <input id="playlist-file-input" type="file" accept="audio/*" class="visually-hidden-file-input" />
+              </div>
+              <div id="playlist-error" class="join-error hidden"></div>
+              <ul id="playlist-track-list" class="banned-list playlist-track-list"></ul>
+              <div id="playlist-empty" class="gallery-empty hidden">Noch keine Titel in der Playlist.</div>
+              <audio id="playlist-audio" preload="none"></audio>
+              <div class="playlist-controls-bar">
+                <div id="playlist-eq" class="now-playing-eq" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+                <span id="playlist-now-playing" class="playlist-now-playing"></span>
+                <div class="playlist-transport">
+                  <button id="playlist-prev-btn" class="transport-btn" type="button" title="Vorheriger Titel" aria-label="Vorheriger Titel">⏮</button>
+                  <button id="playlist-playpause-btn" class="transport-btn transport-btn-main" type="button" title="Abspielen/Pause" aria-label="Abspielen/Pause">▶</button>
+                  <button id="playlist-next-btn" class="transport-btn" type="button" title="Nächster Titel" aria-label="Nächster Titel">⏭</button>
+                </div>
+              </div>
             </div>
           </div>
         </aside>

@@ -453,7 +453,11 @@ Hausfunk-Datenverkehr durchleitet.
 ## Radio & Musik
 
 „📻 Radio & Musik" steht als eigener Bereich in der Sidebar, genauso wie
-Einkaufsliste/Kalender unabhängig von Kanälen.
+Einkaufsliste/Kalender unabhängig von Kanälen. Das Panel nutzt jetzt die
+volle Breite (bis 1200px) und zeigt Internetradio und Playlist als zwei
+Karten nebeneinander (auf schmalen Bildschirmen untereinander). Läuft
+gerade etwas, zeigt eine kleine Equalizer-Animation neben dem Titel an,
+dass Ton kommt.
 
 Läuft gerade ein Sender oder Playlist-Titel, erscheint oben im Header eine
 kleine „Jetzt läuft"-Anzeige (🎵 + Name/Titel) – sichtbar egal in welchem

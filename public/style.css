@@ -1650,6 +1650,7 @@ html, body {
   #mic-btn.recording { animation: none; }
   .confetti-container { display: none; }
   .led-ticker { display: none !important; }
+  .now-playing-eq span { animation: none !important; height: 60% !important; }
 }
 
 .confetti-container {
@@ -2092,15 +2093,42 @@ html, body {
 .led-message-form input:focus { border-color: var(--accent); }
 
 /* --- Radio & Musik ------------------------------------------------------------ */
-.radio-section {
+.radio-panel { max-width: 1200px; }
+
+.radio-music-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 18px;
+  align-items: start;
+}
+
+.radio-card {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 4px;
+  gap: 10px;
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px;
 }
-.radio-section:last-child { border-bottom: none; margin-bottom: 0; }
+.radio-card-header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.radio-card-title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+.radio-card-subtitle {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
 .radio-add-form, .playlist-add-form {
   display: flex;
   gap: 6px;
@@ -2109,7 +2137,7 @@ html, body {
 .radio-add-form input, .playlist-add-form input[type="text"] {
   flex: 1;
   min-width: 100px;
-  background: var(--panel-alt);
+  background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--text);
@@ -2122,7 +2150,7 @@ html, body {
 .radio-search-input {
   display: block;
   width: 100%;
-  background: var(--panel-alt);
+  background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--text);
@@ -2196,6 +2224,10 @@ html, body {
   border-color: var(--accent);
   color: #1a1204;
 }
+.playlist-track-list {
+  max-height: 340px;
+  overflow-y: auto;
+}
 .playlist-group {
   display: flex;
   flex-direction: column;
@@ -2207,7 +2239,7 @@ html, body {
   display: block;
   width: 100%;
   text-align: left;
-  background: var(--panel-alt);
+  background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--text);
@@ -2232,27 +2264,99 @@ html, body {
   justify-content: space-between;
   gap: 8px;
   padding: 6px 10px;
-  background: var(--panel-alt);
+  background: var(--panel);
   border-radius: 8px;
   font-size: 13px;
 }
 
-.radio-now-playing {
+/* "Jetzt läuft"-Karte -- hebt sich bewusst vom Rest der Karte ab (die eine
+   bewusst gesetzte Akzentflaeche der Ansicht) und zeigt eine kleine
+   Equalizer-Animation, die an die LED-Optik der App anknuepft. */
+.now-playing-card {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   margin-top: 4px;
-  font-size: 13px;
-  color: var(--text);
+  padding: 10px 12px;
+  background: linear-gradient(135deg, rgba(232, 163, 61, 0.16), rgba(232, 163, 61, 0.04));
+  border: 1px solid rgba(232, 163, 61, 0.35);
+  border-radius: 10px;
 }
-.radio-now-playing.hidden { display: none; }
-#radio-now-playing-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#radio-volume { flex: 0 0 90px; accent-color: var(--accent); }
-.playlist-controls {
+.now-playing-card.hidden { display: none; }
+.now-playing-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.now-playing-label {
+  font-family: var(--font-display);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+.now-playing-name {
+  font-size: 14px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.now-playing-volume { flex: 0 0 84px; accent-color: var(--accent); }
+.now-playing-stop-btn {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: none;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 12px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+}
+.now-playing-stop-btn:hover { background: var(--accent); color: #1a1204; }
+
+/* Equalizer-Balken: laufen nur, wenn tatsaechlich etwas abgespielt wird
+   (Klasse "is-playing"), sonst stehen sie ruhig auf niedriger Hoehe. */
+.now-playing-eq {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  width: 22px;
+  height: 20px;
+}
+.now-playing-eq span {
+  width: 3px;
+  background: var(--accent);
+  border-radius: 2px;
+  height: 25%;
+  animation: eq-bounce 0.9s ease-in-out infinite;
+  animation-play-state: paused;
+}
+.now-playing-eq span:nth-child(1) { animation-delay: 0s; }
+.now-playing-eq span:nth-child(2) { animation-delay: 0.15s; }
+.now-playing-eq span:nth-child(3) { animation-delay: 0.3s; }
+.now-playing-eq span:nth-child(4) { animation-delay: 0.45s; }
+.now-playing-eq.is-playing span { animation-play-state: running; }
+@keyframes eq-bounce {
+  0%, 100% { height: 25%; }
+  50% { height: 100%; }
+}
+
+.playlist-controls-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin-top: 6px;
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
 }
 .playlist-now-playing {
   flex: 1;
@@ -2261,9 +2365,42 @@ html, body {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 13px;
-  color: var(--text-dim);
+  color: var(--text);
 }
-#playlist-playpause-btn { font-size: 16px; min-width: 40px; }
+.playlist-transport {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+.transport-btn {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.transport-btn:hover { border-color: var(--accent); color: var(--accent); }
+.transport-btn-main {
+  width: 40px;
+  height: 40px;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #1a1204;
+  font-size: 16px;
+}
+.transport-btn-main:hover { background: var(--accent); color: #1a1204; opacity: 0.9; }
+
+@media (max-width: 760px) {
+  .radio-music-grid { grid-template-columns: 1fr; }
+}
 
 /* --- Kameras -------------------------------------------------------------- */
 .camera-panel { max-width: 1100px; }
