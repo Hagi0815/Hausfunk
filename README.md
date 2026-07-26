@@ -290,6 +290,11 @@ darauf ersetzt die Chat-Ansicht durch die Liste; ein Klick auf einen Kanal
 bringt wieder zurück zum Chat. Die Liste ist überall gleich – sie hängt an
 keinem bestimmten Kanal und wird nirgends im Chatverlauf mit angezeigt.
 
+Das Panel nutzt jetzt die volle Breite (bis 1200px): Rubriken erscheinen als
+Karten-Raster nebeneinander statt einer langen Liste untereinander, und oben
+zeigt ein kleiner Fortschrittsbalken auf einen Blick, wie viel schon erledigt
+ist.
+
 - Einträge werden über ein eigenes kleines Formular hinzugefügt (Rubrik +
   Menge + Einheit + Artikel + „+")
 - **Menge und Einheit sind optional** – z. B. „2" + „kg" + „Bananen" ergibt

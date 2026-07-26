@@ -65,6 +65,8 @@ const playlistNowPlayingEl = document.getElementById('playlist-now-playing');
 const playlistEqEl = document.getElementById('playlist-eq');
 const checklistGroupsEl = document.getElementById('checklist-groups');
 const checklistCountEl = document.getElementById('checklist-count');
+const checklistProgressWrapEl = document.getElementById('checklist-progress-wrap');
+const checklistProgressFillEl = document.getElementById('checklist-progress-fill');
 const checklistClearDoneBtn = document.getElementById('checklist-clear-done');
 const checklistCategoryInput = document.getElementById('checklist-category-input');
 const checklistCategoryOptions = document.getElementById('checklist-category-options');
@@ -2340,6 +2342,10 @@ function renderChecklist(items, categories) {
   checklistCountEl.textContent = items.length
     ? `${items.length - doneCount} offen · ${doneCount} erledigt`
     : 'Noch keine Einträge';
+  checklistProgressWrapEl.classList.toggle('hidden', items.length === 0);
+  checklistProgressFillEl.style.width = items.length
+    ? `${Math.round((doneCount / items.length) * 100)}%`
+    : '0%';
 }
 
 socket.on('shoppingListUpdate', ({ items, categories }) => {

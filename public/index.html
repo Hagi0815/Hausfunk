@@ -159,39 +159,44 @@
           </div>
         </div>
 
-        <aside id="checklist-panel" class="checklist-panel hidden">
+        <aside id="checklist-panel" class="checklist-panel shopping-panel hidden">
           <div class="checklist-panel-header">
             <span>🛒 Einkaufsliste</span>
+          </div>
+          <div id="checklist-progress-wrap" class="shopping-progress-wrap hidden">
+            <div class="shopping-progress-bar"><div id="checklist-progress-fill" class="shopping-progress-fill"></div></div>
             <span id="checklist-count" class="checklist-count"></span>
           </div>
-          <div class="checklist-add-form">
-            <div class="checklist-category-row">
-              <input id="checklist-category-input" list="checklist-category-options" placeholder="Rubrik (z. B. Obst)" maxlength="60" />
-              <datalist id="checklist-category-options"></datalist>
-              <button id="checklist-add-category-btn" type="button" title="Nur Rubrik anlegen">+ Rubrik</button>
+          <div class="shopping-add-card">
+            <div class="checklist-add-form">
+              <div class="checklist-category-row">
+                <input id="checklist-category-input" list="checklist-category-options" placeholder="Rubrik (z. B. Obst)" maxlength="60" />
+                <datalist id="checklist-category-options"></datalist>
+                <button id="checklist-add-category-btn" type="button" title="Nur Rubrik anlegen">+ Rubrik</button>
+              </div>
+              <div class="checklist-add-row">
+                <input id="checklist-amount-input" type="text" placeholder="Menge" maxlength="20" class="checklist-amount-input" />
+                <input id="checklist-unit-input" list="checklist-unit-options" placeholder="Einheit" maxlength="20" class="checklist-unit-input" />
+                <datalist id="checklist-unit-options">
+                  <option value="Stk"></option>
+                  <option value="kg"></option>
+                  <option value="g"></option>
+                  <option value="l"></option>
+                  <option value="ml"></option>
+                  <option value="Packung"></option>
+                  <option value="Dose"></option>
+                  <option value="Flasche"></option>
+                  <option value="Bund"></option>
+                  <option value="Becher"></option>
+                </datalist>
+              </div>
+              <div class="checklist-add-row">
+                <input id="checklist-item-input" type="text" placeholder="Artikel hinzufügen..." maxlength="200" />
+                <button id="checklist-add-btn" type="button">+</button>
+              </div>
             </div>
-            <div class="checklist-add-row">
-              <input id="checklist-amount-input" type="text" placeholder="Menge" maxlength="20" class="checklist-amount-input" />
-              <input id="checklist-unit-input" list="checklist-unit-options" placeholder="Einheit" maxlength="20" class="checklist-unit-input" />
-              <datalist id="checklist-unit-options">
-                <option value="Stk"></option>
-                <option value="kg"></option>
-                <option value="g"></option>
-                <option value="l"></option>
-                <option value="ml"></option>
-                <option value="Packung"></option>
-                <option value="Dose"></option>
-                <option value="Flasche"></option>
-                <option value="Bund"></option>
-                <option value="Becher"></option>
-              </datalist>
-            </div>
-            <div class="checklist-add-row">
-              <input id="checklist-item-input" type="text" placeholder="Artikel hinzufügen..." maxlength="200" />
-              <button id="checklist-add-btn" type="button">+</button>
-            </div>
+            <button id="checklist-clear-done" class="unban-btn checklist-clear-btn">Erledigte löschen</button>
           </div>
-          <button id="checklist-clear-done" class="unban-btn checklist-clear-btn">Erledigte löschen</button>
           <div id="checklist-groups" class="checklist-groups"></div>
         </aside>
 
