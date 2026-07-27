@@ -227,7 +227,8 @@ let audioCtx = null;
 const soundToggleBtn = document.getElementById('sound-toggle');
 
 function updateSoundToggleLabel() {
-  soundToggleBtn.textContent = soundEnabled ? '🔊 Ton an' : '🔇 Ton aus';
+  soundToggleBtn.textContent = soundEnabled ? '🔊' : '🔇';
+  soundToggleBtn.title = soundEnabled ? 'Ton an (klicken zum Ausschalten)' : 'Ton aus (klicken zum Einschalten)';
 }
 updateSoundToggleLabel();
 
@@ -507,7 +508,8 @@ let currentTheme = localStorage.getItem(THEME_KEY) || 'dark';
 
 function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
-  themeToggleBtn.textContent = theme === 'light' ? '🌙 Dunkel' : '☀️ Hell';
+  themeToggleBtn.textContent = theme === 'light' ? '🌙' : '☀️';
+  themeToggleBtn.title = theme === 'light' ? 'Dunkles Design' : 'Helles Design';
 }
 applyTheme(currentTheme);
 

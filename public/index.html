@@ -72,9 +72,11 @@
       <div class="online-label">ONLINE &middot; <span id="online-count">0</span></div>
       <ul id="user-list"></ul>
       <div class="sidebar-footer">
-        <button id="theme-toggle" class="sound-toggle" type="button"></button>
-        <button id="sound-toggle" class="sound-toggle" type="button"></button>
-        <button id="logout-btn" class="sound-toggle" type="button">🚪 Abmelden</button>
+        <div class="sidebar-icon-row">
+          <button id="theme-toggle" class="sidebar-icon-btn" type="button" aria-label="Hell/Dunkel umschalten"></button>
+          <button id="sound-toggle" class="sidebar-icon-btn" type="button" aria-label="Ton umschalten"></button>
+          <button id="logout-btn" class="sidebar-icon-btn" type="button" title="Abmelden" aria-label="Abmelden">🚪</button>
+        </div>
         <div id="notif-status" class="notif-status"></div>
       </div>
     </aside>
