@@ -914,7 +914,32 @@ async function main() {
     Object.keys(pushSubs).forEach((nameKey) => {
       sendPushToName(nameKey, { title, body: 'Kamera hat eine Bewegung/ein Klingeln gemeldet.' });
     });
-    io.emit('system', `📹 Bewegung an „${cameraLabel}" erkannt`);
+
+    // Zusaetzlich als echte, dauerhafte Nachricht im Familie-Kanal ablegen --
+    // nicht nur ein fluechtiger Hinweis, der nur sichtbar ist, wenn man genau
+    // in diesem Moment im Chat schaut. So sieht man es auch nachtraeglich
+    // beim Durchscrollen, und der Ungelesen-Zaehler greift ebenfalls.
+    const alertRoomId = 'familie';
+    const alertState = roomState.get(alertRoomId);
+    if (alertState) {
+      const msg = {
+        id: makeId(),
+        type: 'text',
+        sender: '📹 Kamera',
+        color: '#e8a33d',
+        avatar: null,
+        photo: null,
+        role: 'system',
+        text: `Bewegung an „${cameraLabel}" erkannt`,
+        ts: Date.now(),
+        reactions: {},
+        replyTo: null,
+      };
+      alertState.messages.push(msg);
+      saveRoomMessages(alertRoomId);
+      io.to(alertRoomId).emit('message', msg);
+      io.except(alertRoomId).emit('roomActivity', { roomId: alertRoomId });
+    }
 
     return res.status(200).send('OK');
   }
