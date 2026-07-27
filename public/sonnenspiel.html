@@ -91,9 +91,9 @@
     font-size:22px; font-weight:700; cursor:pointer;
   }
   .stepper output { font-size:20px; min-width:28px; text-align:center; }
-  .theme-btns, .toggle-btns { display:flex; gap:10px; }
+  .theme-btns, .toggle-btns { display:flex; gap:10px; flex-wrap:wrap; }
   .theme-btns button, .toggle-btns button {
-    flex:1; padding:10px 6px; border-radius:14px; border:3px solid transparent; background:white;
+    flex:1 1 26%; padding:10px 6px; border-radius:14px; border:3px solid transparent; background:white;
     font-size:22px; cursor:pointer;
   }
   .theme-btns button.active, .toggle-btns button.active { border-color:var(--ring); background:#EAF9EC; }
@@ -179,6 +179,8 @@
         <button data-theme="colors" class="active">🔴</button>
         <button data-theme="animals">🐶</button>
         <button data-theme="fruits">🍎</button>
+        <button data-theme="vehicles">🚗</button>
+        <button data-theme="numbers">🔢</button>
       </div>
     </div>
     <div class="row">
@@ -211,11 +213,25 @@
 <script>
 (function(){
   const THEMES = {
-    colors: { kind:'color', values:['#FF6B6B','#4D96FF','#6BCB77','#FFD93D','#B983FF','#FF9F45','#FF8FAB','#38C9C9'] },
-    animals: { kind:'emoji', values:['🐶','🐱','🐰','🦁','🐸','🐻','🐵','🐹'] },
-    fruits: { kind:'emoji', values:['🍎','🍌','🍇','🍓','🍉','🍊','🍒','🍑'] }
+    colors: { kind:'color', values:['#FF6B6B','#4D96FF','#6BCB77','#FFD93D','#B983FF','#FF9F45','#FF8FAB','#38C9C9','#A0724D','#78909C'] },
+    animals: { kind:'emoji', values:['🐶','🐱','🐰','🦁','🐸','🐻','🐵','🐹','🐷','🐮','🐔','🐧','🦋','🐢','🐳','🦒'] },
+    fruits: { kind:'emoji', values:['🍎','🍌','🍇','🍓','🍉','🍊','🍒','🍑','🍍','🥝','🍋','🍐','🥭','🍈'] },
+    vehicles: { kind:'emoji', values:['🚗','🚌','🚑','🚒','🚜','🚲','🏍️','✈️','🚀','🚁','🚂','🚢','⛵','🛴'] },
+    numbers: { kind:'emoji', values:['1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟'] }
   };
   const COLS_LOOKUP = {4:2,6:3,8:4,10:5,12:4,14:5,16:4};
+
+  // Zufaellig N verschiedene Symbole aus dem Motiv-Vorrat auswaehlen (statt
+  // immer dieselben ersten N) -- damit bei jedem neuen Spiel (auch nach einem
+  // Sieg) andere Symbole drankommen und es nicht langweilig wird.
+  function pickRandomSymbols(values, count){
+    const pool = values.slice();
+    for(let i=pool.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      const tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
+    }
+    return pool.slice(0, count);
+  }
 
   const state = { pairs:3, theme:'colors', sound:true, voice:true, name:'Mausi', board:[], selected:[], matchedCount:0, lock:false };
 
@@ -296,7 +312,7 @@
   function buildBoard(){
     const total = state.pairs*2;
     const theme = THEMES[state.theme];
-    const symbols = theme.values.slice(0, state.pairs);
+    const symbols = pickRandomSymbols(theme.values, state.pairs);
     const deck = symbols.concat(symbols).map((v,i)=>({ id:i, value:v, matched:false }));
     for(let i=deck.length-1;i>0;i--){
       const j = Math.floor(Math.random()*(i+1));
