@@ -1001,6 +1001,15 @@ function renderMessage(msg) {
     bubble.appendChild(buildPollBlock(msg));
   }
 
+  if (msg.cameraLinkId) {
+    const cameraLinkBtn = document.createElement('button');
+    cameraLinkBtn.type = 'button';
+    cameraLinkBtn.className = 'camera-alert-link-btn';
+    cameraLinkBtn.textContent = '📹 Kamera ansehen';
+    cameraLinkBtn.addEventListener('click', () => openCameraFromAlert(msg.cameraLinkId));
+    bubble.appendChild(cameraLinkBtn);
+  }
+
   wrap.appendChild(bubble);
 
   if (msg.deleted) {
@@ -1610,6 +1619,23 @@ function toggleCamera(camera) {
     selectedCameraIds.add(camera.id);
   }
   renderCameraGrid();
+  renderCameraSwitchRow();
+}
+
+// Klick auf "📹 Kamera ansehen" in einer Bewegungs-Alarm-Nachricht -- wechselt
+// zur Kamera-Ansicht und zeigt direkt die auslösende Kamera (fuegt sie der
+// Auswahl hinzu, falls sie nicht schon sichtbar ist).
+function openCameraFromAlert(cameraId) {
+  const camera = cameras.find((c) => c.id === cameraId);
+  if (!camera) return;
+  viewMode = 'camera';
+  renderRoomList();
+  updateViewModeUI();
+  sidebar.classList.remove('open');
+  if (!selectedCameraIds.has(camera.id)) {
+    selectedCameraIds.add(camera.id);
+    renderCameraGrid();
+  }
   renderCameraSwitchRow();
 }
 

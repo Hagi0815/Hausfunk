@@ -934,6 +934,7 @@ async function main() {
         ts: Date.now(),
         reactions: {},
         replyTo: null,
+        cameraLinkId: camera ? camera.id : null,
       };
       alertState.messages.push(msg);
       saveRoomMessages(alertRoomId);

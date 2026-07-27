@@ -2671,3 +2671,17 @@ html, body {
   color: var(--text-dim);
 }
 .radio-logo-status.hidden { display: none; }
+
+.camera-alert-link-btn {
+  display: block;
+  margin-top: 8px;
+  background: var(--accent);
+  border: none;
+  border-radius: 8px;
+  color: #1a1204;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.camera-alert-link-btn:hover { filter: brightness(1.08); }
