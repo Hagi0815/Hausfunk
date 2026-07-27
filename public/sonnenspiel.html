@@ -21,7 +21,10 @@
     --panel-shadow:rgba(46,58,70,0.25);
   }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html,body { height:100%; margin:0; overflow:hidden; touch-action:manipulation; }
+  html,body {
+    height:100%; height:100dvh;
+    margin:0; overflow:hidden; touch-action:manipulation;
+  }
   body {
     font-family:'Nunito', system-ui, sans-serif;
     background:linear-gradient(180deg,var(--sky-top) 0%, var(--sky-bottom) 100%);
@@ -417,21 +420,37 @@
   // an die Hoehe, damit das Spielfeld bei vielen Paaren auf schmalen/hohen
   // Bildschirmen (z.B. Tablet im Hochformat) nicht abgeschnitten wird.
   function fitBoardToViewport(cols, rows){
+    // window.visualViewport liefert auf Handys die tatsaechlich sichtbare
+    // Flaeche zuverlaessiger als window.innerWidth/Height (die je nach
+    // Browser die ein-/ausblendende Adressleiste falsch mit einrechnen).
+    const vv = window.visualViewport;
+    const viewportWidth = vv ? vv.width : window.innerWidth;
+    const viewportHeight = vv ? vv.height : window.innerHeight;
     const gap = 16;
     const horizontalPadding = 40;
     const verticalReserve = 110; // Platz oben fuer Maskottchen/Vollbild-Button
-    const availableWidth = window.innerWidth - horizontalPadding;
-    const availableHeight = window.innerHeight - verticalReserve;
+    const availableWidth = viewportWidth - horizontalPadding;
+    const availableHeight = viewportHeight - verticalReserve;
     const tileFromWidth = (availableWidth - gap*(cols-1)) / cols;
     const tileFromHeight = (availableHeight - gap*(rows-1)) / rows;
-    const size = Math.max(48, Math.min(140, tileFromWidth, tileFromHeight));
+    const size = Math.max(40, Math.min(140, tileFromWidth, tileFromHeight));
     document.documentElement.style.setProperty('--tile-size', size + 'px');
   }
-  window.addEventListener('resize', function(){
+  function refitCurrentBoard(){
     if(state.currentCols && state.currentRows){
       fitBoardToViewport(state.currentCols, state.currentRows);
     }
+  }
+  window.addEventListener('resize', refitCurrentBoard);
+  window.addEventListener('orientationchange', function(){
+    // Nach einer Drehung braucht der Browser manchmal einen Moment, bis
+    // innerWidth/Height bzw. visualViewport den neuen Wert melden.
+    setTimeout(refitCurrentBoard, 50);
+    setTimeout(refitCurrentBoard, 300);
   });
+  if(window.visualViewport){
+    window.visualViewport.addEventListener('resize', refitCurrentBoard);
+  }
 
   function buildBoard(){
     const total = state.pairs*2;
