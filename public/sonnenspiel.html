@@ -53,13 +53,13 @@
     align-content:center;
   }
   .tile {
-    width:clamp(64px, 16vw, 140px);
-    height:clamp(64px, 16vw, 140px);
+    width:var(--tile-size, clamp(64px, 16vw, 140px));
+    height:var(--tile-size, clamp(64px, 16vw, 140px));
     background:var(--tile-bg);
     border-radius:22px;
     box-shadow:0 6px 0 var(--tile-shadow);
     display:flex; align-items:center; justify-content:center;
-    font-size:clamp(30px, 7vw, 62px);
+    font-size:calc(var(--tile-size, clamp(64px, 16vw, 140px)) * 0.45);
     cursor:pointer;
     border:4px solid transparent;
     transition:transform .15s ease, opacity .3s ease, border-color .15s ease;
@@ -86,11 +86,13 @@
   .row { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; }
   .row.hidden { display:none; }
   .tap-tile {
+    width:var(--tile-size, clamp(64px, 16vw, 140px));
+    height:var(--tile-size, clamp(64px, 16vw, 140px));
     background:var(--tile-bg);
     border-radius:26px;
     box-shadow:0 6px 0 var(--tile-shadow);
     display:flex; align-items:center; justify-content:center;
-    font-size:clamp(30px, 7vw, 62px);
+    font-size:calc(var(--tile-size, clamp(64px, 16vw, 140px)) * 0.45);
     cursor:pointer;
     border:4px solid transparent;
     transition:transform .1s ease;
@@ -410,6 +412,27 @@
     speak(t(state.name || 'Mausi'));
   }
 
+  // Kachelgroesse dynamisch an die tatsaechliche Bildschirmgroesse anpassen --
+  // nicht nur an die Breite (wie zuvor per CSS clamp() allein), sondern auch
+  // an die Hoehe, damit das Spielfeld bei vielen Paaren auf schmalen/hohen
+  // Bildschirmen (z.B. Tablet im Hochformat) nicht abgeschnitten wird.
+  function fitBoardToViewport(cols, rows){
+    const gap = 16;
+    const horizontalPadding = 40;
+    const verticalReserve = 110; // Platz oben fuer Maskottchen/Vollbild-Button
+    const availableWidth = window.innerWidth - horizontalPadding;
+    const availableHeight = window.innerHeight - verticalReserve;
+    const tileFromWidth = (availableWidth - gap*(cols-1)) / cols;
+    const tileFromHeight = (availableHeight - gap*(rows-1)) / rows;
+    const size = Math.max(48, Math.min(140, tileFromWidth, tileFromHeight));
+    document.documentElement.style.setProperty('--tile-size', size + 'px');
+  }
+  window.addEventListener('resize', function(){
+    if(state.currentCols && state.currentRows){
+      fitBoardToViewport(state.currentCols, state.currentRows);
+    }
+  });
+
   function buildBoard(){
     const total = state.pairs*2;
     const theme = THEMES[state.theme];
@@ -424,6 +447,10 @@
     state.matchedCount = 0;
     state.lock = false;
     const cols = COLS_LOOKUP[total] || Math.ceil(Math.sqrt(total));
+    const rows = Math.ceil(total / cols);
+    state.currentCols = cols;
+    state.currentRows = rows;
+    fitBoardToViewport(cols, rows);
     boardEl.style.gridTemplateColumns = 'repeat(' + cols + ', auto)';
     renderBoard();
     celebration.classList.remove('show');
@@ -454,6 +481,10 @@
     const count = Math.min(theme.values.length, 9);
     const symbols = pickRandomSymbols(theme.values, count);
     const cols = Math.ceil(Math.sqrt(count));
+    const rows = Math.ceil(count / cols);
+    state.currentCols = cols;
+    state.currentRows = rows;
+    fitBoardToViewport(cols, rows);
     boardEl.style.gridTemplateColumns = 'repeat(' + cols + ', auto)';
     boardEl.innerHTML = '';
     symbols.forEach(function(value){
