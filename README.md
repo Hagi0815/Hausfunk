@@ -455,6 +455,40 @@ Hausfunk-Datenverkehr durchleitet.
 - Funktioniert über `/go2rtc/…` auch von unterwegs über deine Domain, nicht
   nur im Heimnetz
 
+### Push-Benachrichtigung bei Bewegung/Klingeln
+
+Hausfunk kann eine Push-Benachrichtigung an alle verschicken (plus einen
+kurzen Hinweis im Chat), wenn eine Kamera ein Ereignis meldet. Viele
+IP-Kameras (u. a. Hikvision-kompatible, wie deine anhand der
+`/Streaming/Channels/...`-Adresse) können selbst bei Bewegung/Klingeln
+eine HTTP-Adresse aufrufen ("Alarm-Server"/"HTTP Listening") – genau dafür
+ist diese Route gedacht.
+
+**1. Geheimnis festlegen** – auf dem Server als Umgebungsvariable setzen
+(z. B. in der PM2-Startkonfiguration oder `.env`, analog zu
+`HAUSFUNK_ADMIN_PASSWORD`):
+```bash
+HAUSFUNK_CAMERA_ALERT_SECRET=irgendein-langes-zufaelliges-wort
+```
+Ohne gesetztes Geheimnis ist die Route deaktiviert (liefert 503).
+
+**2. Die Adresse in der Kamera eintragen** – bei Hikvision-kompatiblen
+Kameras meist unter „Konfiguration → Netzwerk → Erweiterte Einstellungen →
+HTTP Listening" oder „Ereignis → Benachrichtigung → HTTP":
+```
+https://hausfunk.christian-hagedorn.de/api/camera-alert?camera=Haustuer&secret=irgendein-langes-zufaelliges-wort
+```
+- `camera=` muss dem **Namen** entsprechen, den du der Kamera in Hausfunk
+  gegeben hast (Groß-/Kleinschreibung egal)
+- Bei abweichendem Kameramodell/-menü: die genauen Schrittnamen können
+  anders heißen, das Prinzip (eine HTTP-Adresse bei einem Ereignis
+  aufrufen) ist bei den meisten Marken-IP-Kameras aber vorhanden
+
+**3. Fertig** – bei einem Ereignis bekommen alle mit aktivierten
+Push-Benachrichtigungen eine Meldung, zusätzlich erscheint ein kurzer
+Hinweis im Chat. Damit es bei anhaltender Bewegung nicht spammt, wird pro
+Kamera höchstens alle 2 Minuten eine neue Meldung verschickt.
+
 ## Radio & Musik
 
 „📻 Radio & Musik" steht als eigener Bereich in der Sidebar, genauso wie

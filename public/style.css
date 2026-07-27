@@ -352,12 +352,26 @@ html, body {
 }
 .forgot-password-btn:hover { color: var(--accent); }
 
+.admin-panel { max-width: 1200px; }
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
 .admin-section {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
 }
+.admin-section-wide { grid-column: 1 / -1; }
 .admin-section .online-label { margin-top: 4px; }
+
+.admin-section .banned-list li { background: var(--panel); }
 
 .admin-rename-row {
   display: flex;
@@ -365,7 +379,7 @@ html, body {
   justify-content: space-between;
   gap: 8px;
   padding: 6px 10px;
-  background: var(--panel-alt);
+  background: var(--panel);
   border-radius: 8px;
   font-size: 13px;
 }
@@ -1872,10 +1886,10 @@ html, body {
   border-bottom: 1px solid var(--border);
   margin-bottom: 6px;
 }
-#calendar-url-input {
+.admin-input {
   flex: 1;
   min-width: 0;
-  background: var(--panel-alt);
+  background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--text);
@@ -1884,7 +1898,7 @@ html, body {
   outline: none;
   box-sizing: border-box;
 }
-#calendar-url-input:focus { border-color: var(--accent); }
+.admin-input:focus { border-color: var(--accent); }
 
 .calendar-panel { max-width: 960px; }
 .calendar-month-nav {
@@ -2075,11 +2089,11 @@ html, body {
 .network-music-rescan-btn { margin-top: 6px; }
 .server-status-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: 6px;
 }
 .server-status-tile {
-  background: var(--panel-alt);
+  background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 8px 10px;

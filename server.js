@@ -63,6 +63,7 @@ const LOGIN_LOCKOUT_MS = 5 * 60 * 1000; // 5 Minuten Sperre nach zu vielen Fehlv
 // Der Admin-NAME selbst ist aenderbar (siehe admin-config.json) -- "DOM" ist
 // nur der Ausgangspunkt, der Admin kann sich im Panel umbenennen.
 const ADMIN_PASSWORD = process.env.HAUSFUNK_ADMIN_PASSWORD || null;
+const CAMERA_ALERT_SECRET = process.env.HAUSFUNK_CAMERA_ALERT_SECRET || null;
 const DEFAULT_ADMIN_NAME = 'DOM';
 
 function hashPassword(password) {
@@ -875,6 +876,50 @@ async function main() {
     req.url = req.originalUrl;
     go2rtcProxy.web(req, res);
   });
+
+  // --- Kamera-Alarm (Bewegung/Klingeln) -> Push-Benachrichtigung --------------
+  // Viele IP-Kameras (u.a. Hikvision-kompatible) koennen bei einem Ereignis
+  // selbst eine HTTP-Anfrage an eine konfigurierbare Adresse schicken ("HTTP
+  // Listening"/Alarm-Server). Diese Route ist bewusst einfach gehalten (GET
+  // oder POST, Antwortkoerper der Kamera wird ignoriert), damit sie mit
+  // moeglichst vielen Kamera-/NVR-Modellen kompatibel ist.
+  const lastCameraAlertAt = new Map(); // Kamera-ID -> Zeitstempel (Ratenbegrenzung)
+  const CAMERA_ALERT_COOLDOWN_MS = 2 * 60 * 1000; // 2 Minuten zwischen Meldungen je Kamera
+  function handleCameraAlert(req, res) {
+    if (!CAMERA_ALERT_SECRET) {
+      return res.status(503).send('HAUSFUNK_CAMERA_ALERT_SECRET ist auf dem Server nicht gesetzt.');
+    }
+    const providedSecret = (req.query.secret || '').toString();
+    if (providedSecret !== CAMERA_ALERT_SECRET) {
+      return res.status(403).send('Ungueltiges Geheimnis.');
+    }
+    const cameraQuery = (req.query.camera || '').toString().trim();
+    if (!cameraQuery) {
+      return res.status(400).send('Fehlender Parameter "camera".');
+    }
+    const camera = cameras.find(
+      (c) => c.id === cameraQuery || c.url === cameraQuery || c.name.toLowerCase() === cameraQuery.toLowerCase(),
+    );
+    const cameraLabel = camera ? camera.name : cameraQuery;
+    const cameraKey = camera ? camera.id : cameraQuery;
+
+    const now = Date.now();
+    const last = lastCameraAlertAt.get(cameraKey) || 0;
+    if (now - last < CAMERA_ALERT_COOLDOWN_MS) {
+      return res.status(200).send('OK (innerhalb der Ruhezeit, keine erneute Meldung)');
+    }
+    lastCameraAlertAt.set(cameraKey, now);
+
+    const title = `📹 Bewegung erkannt · ${cameraLabel}`;
+    Object.keys(pushSubs).forEach((nameKey) => {
+      sendPushToName(nameKey, { title, body: 'Kamera hat eine Bewegung/ein Klingeln gemeldet.' });
+    });
+    io.emit('system', `📹 Bewegung an „${cameraLabel}" erkannt`);
+
+    return res.status(200).send('OK');
+  }
+  app.get('/api/camera-alert', handleCameraAlert);
+  app.post('/api/camera-alert', handleCameraAlert);
 
   // --- Bild-Upload -----------------------------------------------------------
   const storage = multer.diskStorage({

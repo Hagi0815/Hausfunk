@@ -388,76 +388,78 @@
   </div>
 
   <div id="admin-overlay" class="gallery-overlay hidden">
-    <div class="gallery-panel">
+    <div class="gallery-panel admin-panel">
       <div class="gallery-header">
         <span>🛡 Admin</span>
         <button id="admin-overlay-close" aria-label="Schließen">✕</button>
       </div>
 
-      <div class="admin-section">
-        <div class="online-label">DEIN ADMIN-NAME</div>
-        <div class="admin-rename-row">
-          <span id="admin-current-name">DOM</span>
-          <button id="admin-rename-btn" class="unban-btn">Ändern</button>
+      <div class="admin-grid">
+        <div class="admin-section">
+          <div class="online-label">DEIN ADMIN-NAME</div>
+          <div class="admin-rename-row">
+            <span id="admin-current-name">DOM</span>
+            <button id="admin-rename-btn" class="unban-btn">Ändern</button>
+          </div>
         </div>
-      </div>
 
-      <div class="admin-section">
-        <div class="online-label">KALENDER (ICAL-ADRESSE)</div>
-        <div class="room-customize-row">
-          <input id="calendar-url-input" type="text" placeholder="https://.../kalender.ics" />
-          <button id="calendar-url-save-btn" class="unban-btn" type="button">Speichern</button>
+        <div class="admin-section">
+          <div class="online-label">KALENDER (ICAL-ADRESSE)</div>
+          <div class="room-customize-row">
+            <input id="calendar-url-input" type="text" class="admin-input" placeholder="https://.../kalender.ics" />
+            <button id="calendar-url-save-btn" class="unban-btn" type="button">Speichern</button>
+          </div>
         </div>
-      </div>
 
-      <div class="admin-section">
-        <div class="online-label">MUSIK-NETZWERKORDNER (SERVERPFAD)</div>
-        <div class="room-customize-row">
-          <input id="network-music-path-input" type="text" placeholder="/mnt/musik" />
-          <button id="network-music-save-btn" class="unban-btn" type="button">Speichern</button>
+        <div class="admin-section">
+          <div class="online-label">MUSIK-NETZWERKORDNER (SERVERPFAD)</div>
+          <div class="room-customize-row">
+            <input id="network-music-path-input" type="text" class="admin-input" placeholder="/mnt/musik" />
+            <button id="network-music-save-btn" class="unban-btn" type="button">Speichern</button>
+          </div>
+          <button id="network-music-rescan-btn" class="unban-btn network-music-rescan-btn" type="button">🔄 Neu einlesen</button>
+          <div id="network-music-error" class="join-error hidden"></div>
         </div>
-        <button id="network-music-rescan-btn" class="unban-btn network-music-rescan-btn" type="button">🔄 Neu einlesen</button>
-        <div id="network-music-error" class="join-error hidden"></div>
-      </div>
 
-      <div class="admin-section">
-        <div class="online-label">AUSSTEHENDE KONTO-ANFRAGEN</div>
-        <ul id="pending-list" class="banned-list"></ul>
-        <div id="pending-empty" class="gallery-empty hidden">Keine offenen Anfragen.</div>
-      </div>
-
-      <div class="admin-section">
-        <div class="online-label">PASSWORT-RESET-ANFRAGEN</div>
-        <ul id="pending-resets-list" class="banned-list"></ul>
-        <div id="pending-resets-empty" class="gallery-empty hidden">Keine offenen Reset-Anfragen.</div>
-      </div>
-
-      <div class="admin-section">
-        <div class="online-label">GESCHÜTZTE KONTEN</div>
-        <ul id="approved-list" class="banned-list"></ul>
-        <div id="approved-empty" class="gallery-empty hidden">Noch keine geschützten Konten.</div>
-      </div>
-
-      <div class="admin-section">
-        <div class="online-label">GESPERRTE NUTZER</div>
-        <ul id="banned-list" class="banned-list"></ul>
-        <div id="banned-empty" class="gallery-empty hidden">Niemand gesperrt.</div>
-      </div>
-
-      <div class="admin-section">
-        <div class="online-label">ONLINE-VERLAUF</div>
-        <ul id="presence-log-list" class="banned-list presence-log-list"></ul>
-        <div id="presence-log-empty" class="gallery-empty hidden">Noch keine Einträge.</div>
-      </div>
-
-      <div class="admin-section">
-        <div class="server-status-header">
-          <div class="online-label">SERVER-STATUS</div>
-          <button id="server-status-refresh-btn" class="unban-btn" type="button">Aktualisieren</button>
+        <div class="admin-section">
+          <div class="online-label">AUSSTEHENDE KONTO-ANFRAGEN</div>
+          <ul id="pending-list" class="banned-list"></ul>
+          <div id="pending-empty" class="gallery-empty hidden">Keine offenen Anfragen.</div>
         </div>
-        <div id="server-status-grid" class="server-status-grid"></div>
-        <div class="online-label server-status-activity-label">LEERLAUFZEIT PRO PERSON</div>
-        <ul id="server-status-activity" class="banned-list"></ul>
+
+        <div class="admin-section">
+          <div class="online-label">PASSWORT-RESET-ANFRAGEN</div>
+          <ul id="pending-resets-list" class="banned-list"></ul>
+          <div id="pending-resets-empty" class="gallery-empty hidden">Keine offenen Reset-Anfragen.</div>
+        </div>
+
+        <div class="admin-section">
+          <div class="online-label">GESCHÜTZTE KONTEN</div>
+          <ul id="approved-list" class="banned-list"></ul>
+          <div id="approved-empty" class="gallery-empty hidden">Noch keine geschützten Konten.</div>
+        </div>
+
+        <div class="admin-section">
+          <div class="online-label">GESPERRTE NUTZER</div>
+          <ul id="banned-list" class="banned-list"></ul>
+          <div id="banned-empty" class="gallery-empty hidden">Niemand gesperrt.</div>
+        </div>
+
+        <div class="admin-section">
+          <div class="online-label">ONLINE-VERLAUF</div>
+          <ul id="presence-log-list" class="banned-list presence-log-list"></ul>
+          <div id="presence-log-empty" class="gallery-empty hidden">Noch keine Einträge.</div>
+        </div>
+
+        <div class="admin-section admin-section-wide">
+          <div class="server-status-header">
+            <div class="online-label">SERVER-STATUS</div>
+            <button id="server-status-refresh-btn" class="unban-btn" type="button">Aktualisieren</button>
+          </div>
+          <div id="server-status-grid" class="server-status-grid"></div>
+          <div class="online-label server-status-activity-label">LEERLAUFZEIT PRO PERSON</div>
+          <ul id="server-status-activity" class="banned-list"></ul>
+        </div>
       </div>
     </div>
   </div>
