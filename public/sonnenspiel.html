@@ -201,6 +201,13 @@
         <button data-voice="off">🤫</button>
       </div>
     </div>
+    <div class="row">
+      <span class="label">Motiv nach Sieg</span>
+      <div class="toggle-btns" id="autoSwitchBtns">
+        <button data-autoswitch="on" class="active" title="Wechselt automatisch zu einem anderen Motiv">🔀</button>
+        <button data-autoswitch="off" title="Bleibt beim gewählten Motiv">📌</button>
+      </div>
+    </div>
     <button id="startBtn">Spiel starten</button>
   </div>
 </div>
@@ -233,7 +240,13 @@
     return pool.slice(0, count);
   }
 
-  const state = { pairs:3, theme:'colors', sound:true, voice:true, name:'Mausi', board:[], selected:[], matchedCount:0, lock:false };
+  const THEME_KEYS = Object.keys(THEMES);
+  function pickDifferentTheme(currentTheme){
+    const others = THEME_KEYS.filter(function(k){ return k !== currentTheme; });
+    return others[Math.floor(Math.random()*others.length)];
+  }
+
+  const state = { pairs:3, theme:'colors', sound:true, voice:true, autoSwitchTheme:true, name:'Mausi', board:[], selected:[], matchedCount:0, lock:false };
 
   const boardEl = document.getElementById('board');
   const mascot = document.getElementById('mascot');
@@ -495,6 +508,14 @@
       state.voice = btn.dataset.voice === 'on';
     });
   });
+  const autoSwitchBtns = document.querySelectorAll('[data-autoswitch]');
+  autoSwitchBtns.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      autoSwitchBtns.forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      state.autoSwitchTheme = btn.dataset.autoswitch === 'on';
+    });
+  });
   nameInput.addEventListener('input', function(){
     state.name = nameInput.value.trim() || 'Mausi';
   });
@@ -507,6 +528,12 @@
 
   playAgainBtn.addEventListener('click', function(){
     mouthNormal.style.display='block'; mouthExcited.style.display='none';
+    if(state.autoSwitchTheme){
+      state.theme = pickDifferentTheme(state.theme);
+      // Die (versteckten) Einstellungen mit dem neuen Motiv synchron halten,
+      // damit sie beim naechsten Oeffnen (Strg+Umschalt+E) den aktuellen Stand zeigen.
+      themeBtns.forEach(function(b){ b.classList.toggle('active', b.dataset.theme === state.theme); });
+    }
     buildBoard();
   });
 
