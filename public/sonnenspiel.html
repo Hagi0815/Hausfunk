@@ -103,6 +103,17 @@
     background:white; text-align:center;
   }
   .name-input:focus-visible { outline:3px solid var(--ring); outline-offset:1px; }
+  .stats-box {
+    background:white; border-radius:14px; padding:12px 14px; margin-bottom:14px;
+    font-family:'Fredoka', sans-serif; color:var(--ink);
+  }
+  .stats-heading { font-size:15px; font-weight:700; margin-bottom:8px; }
+  .stats-row { display:flex; justify-content:space-between; font-size:13px; margin-bottom:4px; color:#5B6670; }
+  .stats-row span:last-child { color:var(--ink); font-weight:600; }
+  #statsResetBtn {
+    margin-top:6px; width:100%; padding:7px; border:none; border-radius:10px;
+    background:#F1EEE6; color:#8A8378; font-family:'Fredoka'; font-size:12px; cursor:pointer;
+  }
   #startBtn {
     width:100%; padding:14px; margin-top:8px; border:none; border-radius:18px;
     background:var(--sun-body); font-family:'Fredoka'; font-weight:700; font-size:19px;
@@ -208,6 +219,12 @@
         <button data-autoswitch="off" title="Bleibt beim gewählten Motiv">📌</button>
       </div>
     </div>
+    <div class="stats-box">
+      <div class="stats-heading">📊 Statistik</div>
+      <div class="stats-row"><span>Diese Runde</span><span id="statsSession">0 Erfolge · 0 Fehler</span></div>
+      <div class="stats-row"><span>Insgesamt</span><span id="statsTotal">0 Erfolge · 0 Fehler · 0 Spiele</span></div>
+      <button id="statsResetBtn" type="button">Statistik zurücksetzen</button>
+    </div>
     <button id="startBtn">Spiel starten</button>
   </div>
 </div>
@@ -246,6 +263,49 @@
     return others[Math.floor(Math.random()*others.length)];
   }
 
+  // Statistik: Erfolge/Fehler laufen im Hintergrund mit, unsichtbar fuers Kind
+  // (nur in den versteckten Einstellungen sichtbar, fuer Eltern/Betreuer).
+  // "Insgesamt" bleibt geraeteweise ueber Neustarts hinweg erhalten,
+  // "Diese Runde" zaehlt nur seit dem Oeffnen der Seite.
+  const STATS_KEY = 'sonnenspiel-stats-total';
+  function loadTotalStats(){
+    try {
+      const saved = JSON.parse(localStorage.getItem(STATS_KEY));
+      if(saved && typeof saved === 'object'){
+        return { matches: saved.matches||0, errors: saved.errors||0, games: saved.games||0 };
+      }
+    } catch(err) { /* ignorieren, mit leerem Stand weitermachen */ }
+    return { matches:0, errors:0, games:0 };
+  }
+  const stats = {
+    session: { matches:0, errors:0 },
+    total: loadTotalStats(),
+  };
+  function saveTotalStats(){
+    try { localStorage.setItem(STATS_KEY, JSON.stringify(stats.total)); } catch(err) { /* ignorieren */ }
+  }
+  function renderStats(){
+    statsSessionEl.textContent = stats.session.matches + ' Erfolge · ' + stats.session.errors + ' Fehler';
+    statsTotalEl.textContent = stats.total.matches + ' Erfolge · ' + stats.total.errors + ' Fehler · ' + stats.total.games + ' Spiele';
+  }
+  function recordMatch(){
+    stats.session.matches += 1;
+    stats.total.matches += 1;
+    saveTotalStats();
+    renderStats();
+  }
+  function recordError(){
+    stats.session.errors += 1;
+    stats.total.errors += 1;
+    saveTotalStats();
+    renderStats();
+  }
+  function recordGameCompleted(){
+    stats.total.games += 1;
+    saveTotalStats();
+    renderStats();
+  }
+
   const state = { pairs:3, theme:'colors', sound:true, voice:true, autoSwitchTheme:true, name:'Mausi', board:[], selected:[], matchedCount:0, lock:false };
 
   const boardEl = document.getElementById('board');
@@ -261,6 +321,9 @@
   const playAgainBtn = document.getElementById('playAgainBtn');
   const nameInput = document.getElementById('nameInput');
   const fullscreenBtn = document.getElementById('fullscreenBtn');
+  const statsSessionEl = document.getElementById('statsSession');
+  const statsTotalEl = document.getElementById('statsTotal');
+  const statsResetBtn = document.getElementById('statsResetBtn');
 
   let audioCtx = null;
   function ensureAudio(){ if(!audioCtx){ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); } }
@@ -385,6 +448,7 @@
           boardEl.children[a].classList.remove('selected');
           boardEl.children[b].classList.remove('selected');
           state.matchedCount += 2;
+          recordMatch();
           playMatch();
           bounceMascot();
           setTimeout(function(){ speakRandom(SUCCESS_PHRASES); }, 150);
@@ -395,6 +459,7 @@
           }
         }, 280);
       } else {
+        recordError();
         playSoft();
         setTimeout(function(){ speakRandom(TRY_AGAIN_PHRASES); }, 150);
         boardEl.children[a].classList.add('wrong');
@@ -418,6 +483,7 @@
     mascot.classList.add('win');
     mouthNormal.style.display = 'none';
     mouthExcited.style.display = 'block';
+    recordGameCompleted();
     playWin();
     celebration.classList.add('show');
     spawnConfetti();
@@ -537,6 +603,15 @@
     buildBoard();
   });
 
+  statsResetBtn.addEventListener('click', function(){
+    if(!window.confirm('Statistik wirklich zuruecksetzen?')) return;
+    stats.session.matches = 0; stats.session.errors = 0;
+    stats.total.matches = 0; stats.total.errors = 0; stats.total.games = 0;
+    saveTotalStats();
+    renderStats();
+  });
+
+  renderStats();
   buildBoard();
 })();
 </script>
