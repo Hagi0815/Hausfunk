@@ -84,6 +84,21 @@
   }
   #settingsPanel h2 { margin:0 0 18px; font-size:22px; }
   .row { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; }
+  .row.hidden { display:none; }
+  .tap-tile {
+    background:var(--tile-bg);
+    border-radius:26px;
+    box-shadow:0 6px 0 var(--tile-shadow);
+    display:flex; align-items:center; justify-content:center;
+    font-size:clamp(30px, 7vw, 62px);
+    cursor:pointer;
+    border:4px solid transparent;
+    transition:transform .1s ease;
+  }
+  .tap-tile:active { transform:scale(0.92); }
+  .tap-tile.pop { animation:tapPop .4s ease; }
+  @keyframes tapPop { 0%{transform:scale(1)} 40%{transform:scale(1.18) rotate(-4deg)} 100%{transform:scale(1)} }
+  .tap-tile .swatch { width:70%; height:70%; border-radius:50%; box-shadow:inset 0 -6px 10px rgba(0,0,0,0.15), 0 3px 0 rgba(0,0,0,0.08); }
   .row span.label { font-size:17px; }
   .stepper { display:flex; align-items:center; gap:10px; }
   .stepper button {
@@ -137,6 +152,7 @@
 
   @media (prefers-reduced-motion: reduce) {
     #mascot.bounce, #mascot.win, .tile.wrong { animation:none !important; }
+    .tap-tile.pop { animation:none !important; }
     .confetti-piece { animation:none !important; display:none; }
   }
 </style>
@@ -176,7 +192,14 @@
 <div id="settingsOverlay">
   <div id="settingsPanel">
     <h2>Einstellungen</h2>
-    <div class="row">
+    <div class="row" style="flex-direction:column; align-items:stretch; gap:10px;">
+      <span class="label">Spielmodus</span>
+      <div class="theme-btns" id="modeBtns">
+        <button data-mode="match" class="active">🧩 Zuordnen</button>
+        <button data-mode="tap">👆 Tippen</button>
+      </div>
+    </div>
+    <div class="row" id="pairsRow">
       <span class="label">Anzahl der Paare</span>
       <div class="stepper">
         <button id="pairsMinus" aria-label="Weniger Paare">–</button>
@@ -186,7 +209,7 @@
     </div>
     <div class="row" style="flex-direction:column; align-items:stretch; gap:10px;">
       <span class="label">Motiv</span>
-      <div class="theme-btns">
+      <div class="theme-btns" id="themeBtnsRow">
         <button data-theme="colors" class="active">🔴</button>
         <button data-theme="animals">🐶</button>
         <button data-theme="fruits">🍎</button>
@@ -306,7 +329,7 @@
     renderStats();
   }
 
-  const state = { pairs:3, theme:'colors', sound:true, voice:true, autoSwitchTheme:true, name:'Mausi', board:[], selected:[], matchedCount:0, lock:false };
+  const state = { mode:'match', pairs:3, theme:'colors', sound:true, voice:true, autoSwitchTheme:true, name:'Mausi', board:[], selected:[], matchedCount:0, lock:false };
 
   const boardEl = document.getElementById('board');
   const mascot = document.getElementById('mascot');
@@ -324,6 +347,8 @@
   const statsSessionEl = document.getElementById('statsSession');
   const statsTotalEl = document.getElementById('statsTotal');
   const statsResetBtn = document.getElementById('statsResetBtn');
+  const pairsRow = document.getElementById('pairsRow');
+  const modeBtns = document.querySelectorAll('#modeBtns button');
 
   let audioCtx = null;
   function ensureAudio(){ if(!audioCtx){ audioCtx = new (window.AudioContext||window.webkitAudioContext)(); } }
@@ -402,6 +427,61 @@
     boardEl.style.gridTemplateColumns = 'repeat(' + cols + ', auto)';
     renderBoard();
     celebration.classList.remove('show');
+  }
+
+  // Zweiter, einfacherer Spielmodus: nur antippen, sofortige positive Reaktion
+  // (Ton + Animation, gelegentlich Konfetti), kein Zuordnen, kein Sieg/Ende --
+  // gedacht als niedrigschwellige Alternative fuer Ursache-Wirkung-Uebung.
+  const TAP_SOUNDS = [
+    function(){ tone(523.25,0,0.16); },
+    function(){ tone(659.25,0,0.16); },
+    function(){ tone(783.99,0,0.16); },
+    function(){ tone(440,0,0.12); tone(554.37,0.1,0.16); },
+    function(){ tone(349.23,0,0.16); },
+    function(){ tone(880,0,0.14); }
+  ];
+  function handleTapTile(tile){
+    tile.classList.remove('pop'); void tile.offsetWidth;
+    tile.classList.add('pop');
+    const playSound = TAP_SOUNDS[Math.floor(Math.random()*TAP_SOUNDS.length)];
+    playSound();
+    bounceMascot();
+    if(Math.random() < 0.2){ spawnConfetti(); }
+  }
+
+  function buildTapMode(){
+    const theme = THEMES[state.theme];
+    const count = Math.min(theme.values.length, 9);
+    const symbols = pickRandomSymbols(theme.values, count);
+    const cols = Math.ceil(Math.sqrt(count));
+    boardEl.style.gridTemplateColumns = 'repeat(' + cols + ', auto)';
+    boardEl.innerHTML = '';
+    symbols.forEach(function(value){
+      const tile = document.createElement('div');
+      tile.className = 'tap-tile';
+      tile.tabIndex = 0;
+      tile.setAttribute('role','button');
+      if(theme.kind === 'color'){
+        const sw = document.createElement('div');
+        sw.className = 'swatch';
+        sw.style.background = value;
+        tile.appendChild(sw);
+      } else {
+        tile.textContent = value;
+      }
+      tile.addEventListener('click', function(){ handleTapTile(tile); });
+      tile.addEventListener('keydown', function(e){ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); handleTapTile(tile); } });
+      boardEl.appendChild(tile);
+    });
+    celebration.classList.remove('show');
+  }
+
+  function startRound(){
+    if(state.mode === 'tap'){
+      buildTapMode();
+    } else {
+      buildBoard();
+    }
   }
 
   function renderBoard(){
@@ -547,10 +627,19 @@
     }
   });
 
+  modeBtns.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      modeBtns.forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      state.mode = btn.dataset.mode;
+      pairsRow.classList.toggle('hidden', state.mode !== 'match');
+    });
+  });
+
   pairsMinus.addEventListener('click', function(){ state.pairs = Math.max(2, state.pairs-1); pairsValue.textContent = state.pairs; });
   pairsPlus.addEventListener('click', function(){ state.pairs = Math.min(8, state.pairs+1); pairsValue.textContent = state.pairs; });
 
-  const themeBtns = document.querySelectorAll('.theme-btns button');
+  const themeBtns = document.querySelectorAll('#themeBtnsRow button');
   themeBtns.forEach(function(btn){
     btn.addEventListener('click', function(){
       themeBtns.forEach(function(b){ b.classList.remove('active'); });
@@ -589,7 +678,7 @@
   startBtn.addEventListener('click', function(){
     settingsOverlay.classList.remove('open');
     mouthNormal.style.display='block'; mouthExcited.style.display='none';
-    buildBoard();
+    startRound();
   });
 
   playAgainBtn.addEventListener('click', function(){
@@ -612,7 +701,7 @@
   });
 
   renderStats();
-  buildBoard();
+  startRound();
 })();
 </script>
 </body>
