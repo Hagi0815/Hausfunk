@@ -927,11 +927,20 @@ async function main() {
       start = nextStart;
     }
     return parts.map((partBuf) => {
-      const headerEndIdx = partBuf.indexOf('\r\n\r\n');
+      // Manche Kameras halten sich nicht streng an den eigentlich ueblichen
+      // \r\n\r\n-Trenner zwischen Kopfzeilen und Inhalt -- vorsichtshalber
+      // beide Varianten (\r\n\r\n und blankes \n\n) unterstuetzen.
+      let headerEndIdx = partBuf.indexOf('\r\n\r\n');
+      let sepLen = 4;
+      if (headerEndIdx === -1) {
+        headerEndIdx = partBuf.indexOf('\n\n');
+        sepLen = 2;
+      }
       if (headerEndIdx === -1) return null;
       const headerStr = partBuf.slice(0, headerEndIdx).toString('utf-8');
-      let content = partBuf.slice(headerEndIdx + 4);
+      let content = partBuf.slice(headerEndIdx + sepLen);
       if (content.slice(-2).toString('latin1') === '\r\n') content = content.slice(0, -2);
+      else if (content.slice(-1).toString('latin1') === '\n') content = content.slice(0, -1);
       const typeMatch = headerStr.match(/Content-Type:\s*([^\r\n;]+)/i);
       return { contentType: typeMatch ? typeMatch[1].trim().toLowerCase() : '', content };
     }).filter(Boolean);
@@ -1005,7 +1014,15 @@ async function main() {
       const parts = parseMultipartBody(rawBodyBuffer, contentTypeHeader) || [];
       const xmlPart = parts.find((p) => p.contentType.includes('xml') || p.contentType.includes('text'));
       const imagePart = parts.find((p) => p.contentType.includes('image'));
-      if (xmlPart) rawBodyText = xmlPart.content.toString('utf-8');
+      if (xmlPart) {
+        rawBodyText = xmlPart.content.toString('utf-8');
+      } else {
+        // Zerlegung hat keinen passenden Teil gefunden (z.B. weil diese
+        // Kamera ein abweichendes Format nutzt) -- als Rueckfall einfach im
+        // kompletten Rohtext nach dem Ereignistyp suchen, statt komplett
+        // leer auszugehen.
+        rawBodyText = rawBodyBuffer.toString('utf-8');
+      }
       if (imagePart && imagePart.content.length > 0) imageBuffer = imagePart.content;
     } else {
       rawBodyText = rawBodyBuffer.toString('utf-8');
