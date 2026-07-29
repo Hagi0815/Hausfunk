@@ -885,7 +885,44 @@ async function main() {
   // moeglichst vielen Kamera-/NVR-Modellen kompatibel ist.
   const lastCameraAlertAt = new Map(); // Kamera-ID -> Zeitstempel (Ratenbegrenzung)
   const CAMERA_ALERT_COOLDOWN_MS = 2 * 60 * 1000; // 2 Minuten zwischen Meldungen je Kamera
-  function handleCameraAlert(req, res) {
+  // Rohen Anfragekoerper einlesen (kein Body-Parser-Middleware noetig) --
+  // Hikvision-Kameras schicken bei einem Ereignis meist XML-Metadaten
+  // (teils in multipart/form-data verpackt, ggf. mit angehaengtem Bild).
+  // Ein einfacher Regex reicht, um den Ereignistyp darin zu finden, egal
+  // ob als reines XML oder innerhalb von multipart-Grenzen.
+  function readRawBody(req) {
+    return new Promise((resolve) => {
+      let body = '';
+      let received = 0;
+      const MAX_BODY = 200 * 1024; // 200 KB reichen fuer die Metadaten, Bilder werden verworfen
+      req.on('data', (chunk) => {
+        received += chunk.length;
+        if (received <= MAX_BODY) body += chunk.toString('utf-8');
+      });
+      req.on('end', () => resolve(body));
+      req.on('error', () => resolve(body));
+    });
+  }
+  const CAMERA_EVENT_LABELS = {
+    vmd: 'Bewegung erkannt',
+    linedetection: 'Linie überschritten',
+    fielddetection: 'Bereich betreten',
+    shelteralarm: 'Sabotage/Verdeckung erkannt',
+    videoloss: 'Videosignal verloren',
+    facedetection: 'Gesicht erkannt',
+    regionentrance: 'Bereich betreten',
+    regionexiting: 'Bereich verlassen',
+    io: 'Klingel/Kontakt ausgelöst',
+  };
+  function describeCameraEvent(explicitEvent, rawBody) {
+    if (explicitEvent) return explicitEvent;
+    const match = rawBody.match(/<eventType>\s*([^<\s]+)\s*<\/eventType>/i);
+    if (!match) return null;
+    const code = match[1].toLowerCase();
+    return CAMERA_EVENT_LABELS[code] || code;
+  }
+
+  async function handleCameraAlert(req, res) {
     if (!CAMERA_ALERT_SECRET) {
       return res.status(503).send('HAUSFUNK_CAMERA_ALERT_SECRET ist auf dem Server nicht gesetzt.');
     }
@@ -910,9 +947,17 @@ async function main() {
     }
     lastCameraAlertAt.set(cameraKey, now);
 
-    const title = `📹 Bewegung erkannt · ${cameraLabel}`;
+    // Explizites "event="-Feld hat Vorrang (falls die Kamera mehrere
+    // Alarmserver-Eintraege pro Ereignistyp mit eigener URL unterstuetzt);
+    // sonst Bestes-Verhalten-Versuch, den Typ aus dem Anfragekoerper zu lesen.
+    const explicitEvent = (req.query.event || '').toString().trim();
+    const rawBody = await readRawBody(req);
+    const eventDescription = describeCameraEvent(explicitEvent, rawBody);
+    const eventLabel = eventDescription || 'Bewegung erkannt';
+
+    const title = `📹 ${eventLabel} · ${cameraLabel}`;
     Object.keys(pushSubs).forEach((nameKey) => {
-      sendPushToName(nameKey, { title, body: 'Kamera hat eine Bewegung/ein Klingeln gemeldet.' });
+      sendPushToName(nameKey, { title, body: 'Kamera hat ein Ereignis gemeldet.' });
     });
 
     // Zusaetzlich als echte, dauerhafte Nachricht im Familie-Kanal ablegen --
@@ -930,7 +975,7 @@ async function main() {
         avatar: null,
         photo: null,
         role: 'system',
-        text: `Bewegung an „${cameraLabel}" erkannt`,
+        text: `${eventLabel} an „${cameraLabel}"`,
         ts: Date.now(),
         reactions: {},
         replyTo: null,
