@@ -988,6 +988,14 @@ async function main() {
     const rawBodyBuffer = await readRawBodyBuffer(req);
     const contentTypeHeader = req.headers['content-type'] || '';
 
+    // Vorruebergehende Diagnose-Ausgabe: zeigt in "pm2 logs hausfunk", was die
+    // Kamera tatsaechlich an Kopfzeilen/Koerper mitschickt -- hilft, die
+    // Verarbeitung an das reale Format der jeweiligen Kamera anzupassen.
+    console.log(
+      `[Kamera-Alarm] Content-Type="${contentTypeHeader}" Koerperlaenge=${rawBodyBuffer.length} `
+      + `Methode=${req.method} Anfang="${rawBodyBuffer.slice(0, 300).toString('utf-8').replace(/\s+/g, ' ')}"`,
+    );
+
     // Bei multipart (XML-Metadaten + JPEG-Schnappschuss getrennt) beide Teile
     // auseinanderhalten; sonst den kompletten Koerper als Text behandeln
     // (kein Bild vorhanden, z.B. bei einer einfachen Test-Anfrage per curl).
