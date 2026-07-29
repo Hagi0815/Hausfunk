@@ -485,9 +485,24 @@ https://hausfunk.christian-hagedorn.de/api/camera-alert?camera=Haustuer&secret=i
   aufrufen) ist bei den meisten Marken-IP-Kameras aber vorhanden
 
 **3. Fertig** – bei einem Ereignis bekommen alle mit aktivierten
-Push-Benachrichtigungen eine Meldung, zusätzlich erscheint ein kurzer
-Hinweis im Chat. Damit es bei anhaltender Bewegung nicht spammt, wird pro
-Kamera höchstens alle 2 Minuten eine neue Meldung verschickt.
+Push-Benachrichtigungen eine Meldung, zusätzlich erscheint eine dauerhafte
+Nachricht im Chat (mit Button „📹 Kamera ansehen", der direkt zur
+auslösenden Kamera springt). Damit es bei anhaltender Bewegung nicht
+spammt, wird pro Kamera höchstens alle 2 Minuten eine neue Meldung
+verschickt.
+
+**Welches Ereignis genau ausgelöst hat** (Bewegung, Linie überschritten,
+Sabotage, Klingel, ...) wird automatisch erkannt, falls die Kamera das im
+Anfragekörper mitschickt (bei Hikvision-Kameras normalerweise der Fall).
+Alternativ lässt sich das auch **manuell festlegen** – falls deine Kamera
+mehrere Alarmserver-Einträge unterstützt (einen pro Ereignistyp), einfach
+`&event=Klingel` (oder einen beliebigen anderen Text) an die jeweilige
+URL anhängen:
+```
+https://hausfunk.../api/camera-alert?camera=Haustuer&secret=...&event=Klingel
+```
+Ohne erkennbaren oder angegebenen Ereignistyp erscheint als Rückfall
+„Bewegung erkannt".
 
 ## Radio & Musik
 
