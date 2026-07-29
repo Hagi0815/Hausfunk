@@ -942,12 +942,21 @@ async function main() {
       if (content.slice(-2).toString('latin1') === '\r\n') content = content.slice(0, -2);
       else if (content.slice(-1).toString('latin1') === '\n') content = content.slice(0, -1);
       const typeMatch = headerStr.match(/Content-Type:\s*([^\r\n;]+)/i);
-      return { contentType: typeMatch ? typeMatch[1].trim().toLowerCase() : '', content };
+      // Hikvision benennt die XML-Datei oft selbst nach dem Ereignistyp
+      // (z.B. "MoveDetection.xml"), auch wenn im Inhalt kein <eventType>
+      // steht -- daher den Datei-/Feldnamen ebenfalls mit ausgeben.
+      const nameMatch = headerStr.match(/name="([^"]+)"/i) || headerStr.match(/filename="([^"]+)"/i);
+      return {
+        contentType: typeMatch ? typeMatch[1].trim().toLowerCase() : '',
+        partName: nameMatch ? nameMatch[1].trim() : '',
+        content,
+      };
     }).filter(Boolean);
   }
 
   const CAMERA_EVENT_LABELS = {
     vmd: 'Bewegung erkannt',
+    movedetection: 'Bewegung erkannt',
     linedetection: 'Linie überschritten',
     fielddetection: 'Bereich betreten',
     shelteralarm: 'Sabotage/Verdeckung erkannt',
@@ -957,12 +966,22 @@ async function main() {
     regionexiting: 'Bereich verlassen',
     io: 'Klingel/Kontakt ausgelöst',
   };
-  function describeCameraEvent(explicitEvent, rawBody) {
+  function labelForEventCode(code) {
+    const key = code.toLowerCase();
+    return CAMERA_EVENT_LABELS[key] || code;
+  }
+  function describeCameraEvent(explicitEvent, rawBody, partName) {
     if (explicitEvent) return explicitEvent;
     const match = rawBody.match(/<eventType>\s*([^<\s]+)\s*<\/eventType>/i);
-    if (!match) return null;
-    const code = match[1].toLowerCase();
-    return CAMERA_EVENT_LABELS[code] || code;
+    if (match) return labelForEventCode(match[1]);
+    // Manche Kameras (u.a. Hikvision) benennen die XML-Datei selbst nach dem
+    // Ereignistyp (z.B. "MoveDetection.xml"), auch ohne eigenes <eventType>
+    // im Inhalt -- als Rueckfall den Datei-/Feldnamen dafuer verwenden.
+    if (partName) {
+      const cleanName = partName.replace(/\.xml$/i, '');
+      if (cleanName) return labelForEventCode(cleanName);
+    }
+    return null;
   }
 
   async function handleCameraAlert(req, res) {
@@ -1009,6 +1028,7 @@ async function main() {
     // auseinanderhalten; sonst den kompletten Koerper als Text behandeln
     // (kein Bild vorhanden, z.B. bei einer einfachen Test-Anfrage per curl).
     let rawBodyText = '';
+    let xmlPartName = '';
     let imageBuffer = null;
     if (contentTypeHeader.toLowerCase().includes('multipart')) {
       const parts = parseMultipartBody(rawBodyBuffer, contentTypeHeader) || [];
@@ -1020,6 +1040,7 @@ async function main() {
       );
       if (xmlPart) {
         rawBodyText = xmlPart.content.toString('utf-8');
+        xmlPartName = xmlPart.partName;
       } else {
         // Zerlegung hat keinen passenden Teil gefunden (z.B. weil diese
         // Kamera ein abweichendes Format nutzt) -- als Rueckfall einfach im
@@ -1032,7 +1053,7 @@ async function main() {
       rawBodyText = rawBodyBuffer.toString('utf-8');
     }
 
-    const eventDescription = describeCameraEvent(explicitEvent, rawBodyText);
+    const eventDescription = describeCameraEvent(explicitEvent, rawBodyText, xmlPartName);
     const eventLabel = eventDescription || 'Bewegung erkannt';
 
     // Mitgeschicktes Alarmbild speichern (wie ein normaler Bild-Upload) --
