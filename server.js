@@ -1002,7 +1002,7 @@ async function main() {
     // Verarbeitung an das reale Format der jeweiligen Kamera anzupassen.
     console.log(
       `[Kamera-Alarm] Content-Type="${contentTypeHeader}" Koerperlaenge=${rawBodyBuffer.length} `
-      + `Methode=${req.method} Anfang="${rawBodyBuffer.slice(0, 300).toString('utf-8').replace(/\s+/g, ' ')}"`,
+      + `Methode=${req.method} Anfang(genau)=${JSON.stringify(rawBodyBuffer.slice(0, 300).toString('utf-8'))}`,
     );
 
     // Bei multipart (XML-Metadaten + JPEG-Schnappschuss getrennt) beide Teile
@@ -1014,6 +1014,10 @@ async function main() {
       const parts = parseMultipartBody(rawBodyBuffer, contentTypeHeader) || [];
       const xmlPart = parts.find((p) => p.contentType.includes('xml') || p.contentType.includes('text'));
       const imagePart = parts.find((p) => p.contentType.includes('image'));
+      console.log(
+        `[Kamera-Alarm] Zerlegung: ${parts.length} Teil(e) gefunden, Typen=[${parts.map((p) => p.contentType).join(', ')}], `
+        + `xmlPart=${xmlPart ? 'gefunden' : 'NICHT gefunden'}, imagePart=${imagePart ? 'gefunden' : 'NICHT gefunden'}`,
+      );
       if (xmlPart) {
         rawBodyText = xmlPart.content.toString('utf-8');
       } else {
