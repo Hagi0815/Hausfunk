@@ -504,6 +504,12 @@ https://hausfunk.../api/camera-alert?camera=Haustuer&secret=...&event=Klingel
 Ohne erkennbaren oder angegebenen Ereignistyp erscheint als Rückfall
 „Bewegung erkannt".
 
+**Alarmbild**: schickt die Kamera zusätzlich zu den Ereignisdaten ein
+Schnappschuss-Bild mit (bei Hikvision normalerweise der Fall, sofern in
+der Kamera nicht explizit deaktiviert), speichert Hausfunk es automatisch
+und zeigt es zusammen mit dem Ereignistext direkt in der Chat-Nachricht
+an – wie ein ganz normales geteiltes Bild.
+
 ## Radio & Musik
 
 „📻 Radio & Musik" steht als eigener Bereich in der Sidebar, genauso wie

@@ -1564,6 +1564,11 @@ html, body {
   display: block;
   cursor: zoom-in;
 }
+.chat-image-caption {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--text);
+}
 
 .voice-audio {
   width: 220px;

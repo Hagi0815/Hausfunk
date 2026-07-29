@@ -890,19 +890,53 @@ async function main() {
   // (teils in multipart/form-data verpackt, ggf. mit angehaengtem Bild).
   // Ein einfacher Regex reicht, um den Ereignistyp darin zu finden, egal
   // ob als reines XML oder innerhalb von multipart-Grenzen.
-  function readRawBody(req) {
+  // Binaersicher als Buffer einlesen (nicht direkt in einen String wandeln --
+  // das wuerde ein mitgeschicktes JPEG-Bild unwiderruflich kaputt machen).
+  function readRawBodyBuffer(req) {
     return new Promise((resolve) => {
-      let body = '';
+      const chunks = [];
       let received = 0;
-      const MAX_BODY = 200 * 1024; // 200 KB reichen fuer die Metadaten, Bilder werden verworfen
+      const MAX_BODY = 3 * 1024 * 1024; // 3 MB reichen fuer XML-Metadaten + ein Alarmbild
       req.on('data', (chunk) => {
         received += chunk.length;
-        if (received <= MAX_BODY) body += chunk.toString('utf-8');
+        if (received <= MAX_BODY) chunks.push(chunk);
       });
-      req.on('end', () => resolve(body));
-      req.on('error', () => resolve(body));
+      req.on('end', () => resolve(Buffer.concat(chunks)));
+      req.on('error', () => resolve(Buffer.concat(chunks)));
     });
   }
+
+  // Kameras (u.a. Hikvision) schicken bei einem Ereignis oft ein
+  // "multipart"-Paket: ein Teil mit den XML-Metadaten, ein weiterer Teil mit
+  // einem JPEG-Schnappschuss. Diese Funktion zerlegt beide Teile anhand der
+  // im Content-Type-Header angegebenen Grenze ("boundary"), ohne dabei die
+  // Bilddaten durch eine Text-Umwandlung zu beschaedigen.
+  function parseMultipartBody(buffer, contentTypeHeader) {
+    const boundaryMatch = (contentTypeHeader || '').match(/boundary=(?:"([^"]+)"|([^;]+))/i);
+    if (!boundaryMatch) return null;
+    const boundary = (boundaryMatch[1] || boundaryMatch[2]).trim();
+    const boundaryBuf = Buffer.from(`--${boundary}`);
+    const parts = [];
+    let searchFrom = 0;
+    let start = buffer.indexOf(boundaryBuf, searchFrom);
+    while (start !== -1) {
+      const nextStart = buffer.indexOf(boundaryBuf, start + boundaryBuf.length);
+      if (nextStart === -1) break;
+      parts.push(buffer.slice(start + boundaryBuf.length, nextStart));
+      searchFrom = nextStart;
+      start = nextStart;
+    }
+    return parts.map((partBuf) => {
+      const headerEndIdx = partBuf.indexOf('\r\n\r\n');
+      if (headerEndIdx === -1) return null;
+      const headerStr = partBuf.slice(0, headerEndIdx).toString('utf-8');
+      let content = partBuf.slice(headerEndIdx + 4);
+      if (content.slice(-2).toString('latin1') === '\r\n') content = content.slice(0, -2);
+      const typeMatch = headerStr.match(/Content-Type:\s*([^\r\n;]+)/i);
+      return { contentType: typeMatch ? typeMatch[1].trim().toLowerCase() : '', content };
+    }).filter(Boolean);
+  }
+
   const CAMERA_EVENT_LABELS = {
     vmd: 'Bewegung erkannt',
     linedetection: 'Linie überschritten',
@@ -951,9 +985,39 @@ async function main() {
     // Alarmserver-Eintraege pro Ereignistyp mit eigener URL unterstuetzt);
     // sonst Bestes-Verhalten-Versuch, den Typ aus dem Anfragekoerper zu lesen.
     const explicitEvent = (req.query.event || '').toString().trim();
-    const rawBody = await readRawBody(req);
-    const eventDescription = describeCameraEvent(explicitEvent, rawBody);
+    const rawBodyBuffer = await readRawBodyBuffer(req);
+    const contentTypeHeader = req.headers['content-type'] || '';
+
+    // Bei multipart (XML-Metadaten + JPEG-Schnappschuss getrennt) beide Teile
+    // auseinanderhalten; sonst den kompletten Koerper als Text behandeln
+    // (kein Bild vorhanden, z.B. bei einer einfachen Test-Anfrage per curl).
+    let rawBodyText = '';
+    let imageBuffer = null;
+    if (contentTypeHeader.toLowerCase().includes('multipart')) {
+      const parts = parseMultipartBody(rawBodyBuffer, contentTypeHeader) || [];
+      const xmlPart = parts.find((p) => p.contentType.includes('xml') || p.contentType.includes('text'));
+      const imagePart = parts.find((p) => p.contentType.includes('image'));
+      if (xmlPart) rawBodyText = xmlPart.content.toString('utf-8');
+      if (imagePart && imagePart.content.length > 0) imageBuffer = imagePart.content;
+    } else {
+      rawBodyText = rawBodyBuffer.toString('utf-8');
+    }
+
+    const eventDescription = describeCameraEvent(explicitEvent, rawBodyText);
     const eventLabel = eventDescription || 'Bewegung erkannt';
+
+    // Mitgeschicktes Alarmbild speichern (wie ein normaler Bild-Upload) --
+    // faellt beim Speichern etwas aus, wird einfach ohne Bild weitergemacht.
+    let imageUrl = null;
+    if (imageBuffer) {
+      try {
+        const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+        fs.writeFileSync(path.join(UPLOAD_DIR, filename), imageBuffer);
+        imageUrl = `/uploads/${filename}`;
+      } catch (err) {
+        imageUrl = null;
+      }
+    }
 
     const title = `📹 ${eventLabel} · ${cameraLabel}`;
     Object.keys(pushSubs).forEach((nameKey) => {
@@ -967,20 +1031,25 @@ async function main() {
     const alertRoomId = 'familie';
     const alertState = roomState.get(alertRoomId);
     if (alertState) {
+      const alertText = `${eventLabel} an „${cameraLabel}"`;
       const msg = {
         id: makeId(),
-        type: 'text',
+        type: imageUrl ? 'image' : 'text',
         sender: '📹 Kamera',
         color: '#e8a33d',
         avatar: null,
         photo: null,
         role: 'system',
-        text: `${eventLabel} an „${cameraLabel}"`,
+        text: alertText,
         ts: Date.now(),
         reactions: {},
         replyTo: null,
         cameraLinkId: camera ? camera.id : null,
       };
+      if (imageUrl) {
+        msg.url = imageUrl;
+        msg.caption = alertText;
+      }
       alertState.messages.push(msg);
       saveRoomMessages(alertRoomId);
       io.to(alertRoomId).emit('message', msg);

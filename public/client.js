@@ -487,7 +487,7 @@ async function setupPushSubscription() {
 
 function notifyNewMessage(msg) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
-  const body = msg.type === 'image' ? '📷 Bild gesendet' : msg.type === 'audio' ? '🎙️ Sprachnachricht' : msg.text;
+  const body = msg.type === 'image' ? (msg.caption || '📷 Bild gesendet') : msg.type === 'audio' ? '🎙️ Sprachnachricht' : msg.text;
   const notif = new Notification(`${msg.sender} · Hausfunk`, { body });
   notif.onclick = () => {
     window.focus();
@@ -806,7 +806,7 @@ function renderSystem(text) {
 
 // --- Antworten (Reply) -------------------------------------------------------
 function startReply(msg) {
-  const preview = msg.type === 'image' ? '📷 Bild' : msg.type === 'audio' ? '🎙️ Sprachnachricht' : msg.text;
+  const preview = msg.type === 'image' ? (msg.caption || '📷 Bild') : msg.type === 'audio' ? '🎙️ Sprachnachricht' : msg.text;
   replyingTo = { id: msg.id, sender: msg.sender, preview: preview.slice(0, 80) };
   replyPreviewSender.textContent = msg.sender;
   replyPreviewText.textContent = preview.slice(0, 80);
@@ -985,6 +985,12 @@ function renderMessage(msg) {
     img.alt = `Bild von ${msg.sender}`;
     img.addEventListener('click', () => window.open(msg.url, '_blank'));
     bubble.appendChild(img);
+    if (msg.caption) {
+      const captionEl = document.createElement('div');
+      captionEl.className = 'chat-image-caption';
+      captionEl.textContent = msg.caption;
+      bubble.appendChild(captionEl);
+    }
   } else if (msg.type === 'audio') {
     const audio = document.createElement('audio');
     audio.controls = true;
