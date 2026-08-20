@@ -695,6 +695,33 @@ function go2rtcApiRequest(method, apiPath) {
   });
 }
 
+// Live-Schnappschuss von go2rtc holen (binaersicher) -- Rueckfall fuers
+// Alarmbild, falls die Kamera selbst keins mitschickt. go2rtc kann direkt
+// aus dem laufenden Stream ein aktuelles JPEG liefern.
+function fetchGo2rtcSnapshot(streamName) {
+  return new Promise((resolve) => {
+    const req = http.request({
+      hostname: 'localhost',
+      port: Number(process.env.HAUSFUNK_GO2RTC_PORT) || 1984,
+      path: `/go2rtc/api/frame.jpeg?src=${encodeURIComponent(streamName)}`,
+      method: 'GET',
+      timeout: 6000,
+    }, (res) => {
+      if (res.statusCode !== 200) {
+        res.resume();
+        resolve(null);
+        return;
+      }
+      const chunks = [];
+      res.on('data', (chunk) => chunks.push(chunk));
+      res.on('end', () => resolve(Buffer.concat(chunks)));
+    });
+    req.on('timeout', () => { req.destroy(); resolve(null); });
+    req.on('error', () => resolve(null));
+    req.end();
+  });
+}
+
 function getCurrentPosition() {
   if (!playerState.isPlaying) return playerState.positionSeconds;
   return playerState.positionSeconds + (Date.now() - playerState.lastUpdateTs) / 1000;
@@ -1058,6 +1085,13 @@ async function main() {
 
     // Mitgeschicktes Alarmbild speichern (wie ein normaler Bild-Upload) --
     // faellt beim Speichern etwas aus, wird einfach ohne Bild weitergemacht.
+    // Falls die Kamera selbst kein Bild mitgeschickt hat, ersatzweise einen
+    // aktuellen Schnappschuss direkt von go2rtc holen (funktioniert, sobald
+    // die Kamera dort als Stream eingerichtet ist).
+    if (!imageBuffer && camera && camera.url) {
+      imageBuffer = await fetchGo2rtcSnapshot(camera.url);
+    }
+
     let imageUrl = null;
     if (imageBuffer) {
       try {
@@ -1074,11 +1108,14 @@ async function main() {
       sendPushToName(nameKey, { title, body: 'Kamera hat ein Ereignis gemeldet.' });
     });
 
-    // Zusaetzlich als echte, dauerhafte Nachricht im Familie-Kanal ablegen --
-    // nicht nur ein fluechtiger Hinweis, der nur sichtbar ist, wenn man genau
-    // in diesem Moment im Chat schaut. So sieht man es auch nachtraeglich
-    // beim Durchscrollen, und der Ungelesen-Zaehler greift ebenfalls.
-    const alertRoomId = 'familie';
+    // Zusaetzlich als echte, dauerhafte Nachricht in einem eigenen Kanal
+    // ablegen -- nicht nur ein fluechtiger Hinweis, der nur sichtbar ist, wenn
+    // man genau in diesem Moment im Chat schaut. So sieht man es auch
+    // nachtraeglich beim Durchscrollen, und der Ungelesen-Zaehler greift
+    // ebenfalls. Faellt auf "familie" zurueck, falls der "cams"-Kanal noch
+    // nicht angelegt wurde (z.B. direkt nach dem Update, bevor DOM ihn
+    // erstellt hat), damit die Meldung nicht komplett verloren geht.
+    const alertRoomId = roomState.has('cams') ? 'cams' : 'familie';
     const alertState = roomState.get(alertRoomId);
     if (alertState) {
       const alertText = `${eventLabel} an „${cameraLabel}"`;

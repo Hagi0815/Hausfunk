@@ -491,11 +491,19 @@ auslösenden Kamera springt). Damit es bei anhaltender Bewegung nicht
 spammt, wird pro Kamera höchstens alle 2 Minuten eine neue Meldung
 verschickt.
 
+**Eigener Kanal**: legt DOM in Hausfunk einen Kanal namens **„Cams"** an
+(über das normale „Kanal erstellen" im Admin-Bereich), landen alle
+Kamera-Meldungen automatisch dort statt im „Familie"-Kanal. Ohne diesen
+Kanal (z. B. direkt nach dem ersten Einrichten) fallen die Meldungen
+weiterhin auf „Familie" zurück, damit nichts verloren geht.
+
 **Welches Ereignis genau ausgelöst hat** (Bewegung, Linie überschritten,
-Sabotage, Klingel, ...) wird automatisch erkannt, falls die Kamera das im
-Anfragekörper mitschickt (bei Hikvision-Kameras normalerweise der Fall).
-Alternativ lässt sich das auch **manuell festlegen** – falls deine Kamera
-mehrere Alarmserver-Einträge unterstützt (einen pro Ereignistyp), einfach
+Sabotage, Klingel, ...) wird automatisch erkannt – entweder aus den
+XML-Daten, die die Kamera mitschickt, oder (falls dort kein passendes
+Feld existiert) aus dem Datei-/Feldnamen, den manche Kameras selbst
+verwenden (z. B. „MoveDetection.xml" → „Bewegung erkannt"). Alternativ
+lässt sich das auch **manuell festlegen** – falls deine Kamera mehrere
+Alarmserver-Einträge unterstützt (einen pro Ereignistyp), einfach
 `&event=Klingel` (oder einen beliebigen anderen Text) an die jeweilige
 URL anhängen:
 ```
@@ -505,10 +513,13 @@ Ohne erkennbaren oder angegebenen Ereignistyp erscheint als Rückfall
 „Bewegung erkannt".
 
 **Alarmbild**: schickt die Kamera zusätzlich zu den Ereignisdaten ein
-Schnappschuss-Bild mit (bei Hikvision normalerweise der Fall, sofern in
-der Kamera nicht explizit deaktiviert), speichert Hausfunk es automatisch
-und zeigt es zusammen mit dem Ereignistext direkt in der Chat-Nachricht
-an – wie ein ganz normales geteiltes Bild.
+Schnappschuss-Bild mit, speichert Hausfunk es automatisch und zeigt es
+zusammen mit dem Ereignistext direkt in der Chat-Nachricht an – wie ein
+ganz normales geteiltes Bild. Schickt die Kamera selbst **kein** Bild mit
+(kommt vor, z. B. bei reinen Bewegungsmeldungen ohne Foto-Funktion),
+holt Hausfunk ersatzweise automatisch einen aktuellen Schnappschuss
+direkt von go2rtc – vorausgesetzt, die Kamera ist dort bereits als Stream
+eingerichtet (siehe oben).
 
 ## Radio & Musik
 
