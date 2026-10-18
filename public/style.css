@@ -66,6 +66,9 @@ body.theme-fun {
 
 .admin-only { display: none; }
 .is-admin .admin-only { display: inline-flex; }
+/* Kamera-Bereich: nur fuer den Admin sichtbar (Nav-Button hat volle Breite) */
+.camera-admin-nav { display: none; }
+.is-admin .camera-admin-nav { display: block; }
 
 .role-badge {
   background: var(--accent);

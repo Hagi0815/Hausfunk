@@ -303,6 +303,7 @@ soundToggleBtn.addEventListener('click', () => {
 logoutBtn.addEventListener('click', () => {
   if (!confirm('Wirklich abmelden? Auf diesem Gerät wird dann erneut Name + Passwort benötigt.')) return;
   socket.emit('logout');
+  setCameraAccessCookie('');
   localStorage.removeItem('hausfunk-session-token');
   localStorage.removeItem('hausfunk-session-name');
   window.location.reload();
@@ -708,14 +709,31 @@ socket.on('connect', () => {
   }
 });
 
+// Cookie fuer den Kamera-Stream-Zugriff: nur Admin-Sitzungen bekommen es, der
+// Server prueft es bei jeder /go2rtc-Anfrage (HTTP + WebSocket) gegen die Sitzung.
+function setCameraAccessCookie(token) {
+  try {
+    const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+    if (token) {
+      document.cookie = `hausfunk_cam=${encodeURIComponent(token)}; path=/go2rtc; max-age=2592000; SameSite=Strict${secure}`;
+    } else {
+      document.cookie = `hausfunk_cam=; path=/go2rtc; max-age=0; SameSite=Strict${secure}`;
+    }
+  } catch (err) {
+    // ohne Cookie bleibt der Kamerabereich einfach gesperrt
+  }
+}
+
 socket.on('sessionToken', (token) => {
   sessionToken = token;
+  setCameraAccessCookie(myRole === 'admin' ? token : '');
   localStorage.setItem('hausfunk-session-token', token);
   localStorage.setItem('hausfunk-session-name', myName);
 });
 
 socket.on('resumeFailed', () => {
   sessionToken = '';
+  setCameraAccessCookie('');
   localStorage.removeItem('hausfunk-session-token');
   localStorage.removeItem('hausfunk-session-name');
 });
@@ -1007,7 +1025,7 @@ function renderMessage(msg) {
     bubble.appendChild(buildPollBlock(msg));
   }
 
-  if (msg.cameraLinkId) {
+  if (msg.cameraLinkId && myRole === 'admin') {
     const cameraLinkBtn = document.createElement('button');
     cameraLinkBtn.type = 'button';
     cameraLinkBtn.className = 'camera-alert-link-btn';
@@ -1498,6 +1516,8 @@ socket.on('roomChanged', (roomId) => {
 });
 
 function updateViewModeUI() {
+  // Kameras sind nur fuer den Admin -- alle anderen landen im Chat.
+  if (viewMode === 'camera' && myRole !== 'admin') viewMode = 'chat';
   const isShopping = viewMode === 'shopping';
   const isCalendar = viewMode === 'calendar';
   const isRadio = viewMode === 'radio';

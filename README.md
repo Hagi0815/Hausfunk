@@ -484,18 +484,17 @@ https://hausfunk.christian-hagedorn.de/api/camera-alert?camera=Haustuer&secret=i
   anders heißen, das Prinzip (eine HTTP-Adresse bei einem Ereignis
   aufrufen) ist bei den meisten Marken-IP-Kameras aber vorhanden
 
-**3. Fertig** – bei einem Ereignis bekommen alle mit aktivierten
-Push-Benachrichtigungen eine Meldung, zusätzlich erscheint eine dauerhafte
-Nachricht im Chat (mit Button „📹 Kamera ansehen", der direkt zur
+**3. Fertig** – bei einem Ereignis bekommt der Admin (mit aktivierten
+Push-Benachrichtigungen) eine Meldung, zusätzlich erscheint eine dauerhafte
+Nachricht im Kanal „Cams" (mit Button „📹 Kamera ansehen", der direkt zur
 auslösenden Kamera springt). Damit es bei anhaltender Bewegung nicht
 spammt, wird pro Kamera höchstens alle 2 Minuten eine neue Meldung
 verschickt.
 
 **Eigener Kanal**: legt DOM in Hausfunk einen Kanal namens **„Cams"** an
 (über das normale „Kanal erstellen" im Admin-Bereich), landen alle
-Kamera-Meldungen automatisch dort statt im „Familie"-Kanal. Ohne diesen
-Kanal (z. B. direkt nach dem ersten Einrichten) fallen die Meldungen
-weiterhin auf „Familie" zurück, damit nichts verloren geht.
+Kamera-Meldungen automatisch dort. Dieser Kanal ist nur für den Admin
+sichtbar (siehe unten).
 
 **Welches Ereignis genau ausgelöst hat** (Bewegung, Linie überschritten,
 Sabotage, Klingel, ...) wird automatisch erkannt – entweder aus den
@@ -512,14 +511,26 @@ https://hausfunk.../api/camera-alert?camera=Haustuer&secret=...&event=Klingel
 Ohne erkennbaren oder angegebenen Ereignistyp erscheint als Rückfall
 „Bewegung erkannt".
 
-**Alarmbild**: schickt die Kamera zusätzlich zu den Ereignisdaten ein
-Schnappschuss-Bild mit, speichert Hausfunk es automatisch und zeigt es
-zusammen mit dem Ereignistext direkt in der Chat-Nachricht an – wie ein
-ganz normales geteiltes Bild. Schickt die Kamera selbst **kein** Bild mit
-(kommt vor, z. B. bei reinen Bewegungsmeldungen ohne Foto-Funktion),
-holt Hausfunk ersatzweise automatisch einen aktuellen Schnappschuss
-direkt von go2rtc – vorausgesetzt, die Kamera ist dort bereits als Stream
-eingerichtet (siehe oben).
+**Keine Alarmbilder im Chat**: Kamera-Meldungen erscheinen nur noch als
+Text („Bewegung erkannt an „Haustuer""), es wird kein Bild gespeichert oder
+angezeigt – auch dann nicht, wenn die Kamera selbst eines mitschickt.
+
+**Kameras sind nur für den Admin (DOM) sichtbar**:
+- Der Button „📹 Kameras" und der ganze Kamera-Bereich erscheinen nur nach
+  Admin-Anmeldung; die Kameraliste wird nur an Admin-Verbindungen gesendet.
+- Auch die Streams selbst sind serverseitig gesperrt: der Pfad `/go2rtc/…`
+  (Seiten, API, WebSocket) antwortet ohne gültige Admin-Sitzung mit 403.
+  Dazu setzt der Browser des Admins nach der Anmeldung ein Cookie
+  (`hausfunk_cam`, nur für `/go2rtc`), das der Server gegen die Sitzung prüft.
+  Wer die URL kennt, kommt also ohne Admin-Anmeldung nicht an die Streams.
+- Der Kanal **„Cams"** (Kamera-Meldungen) ist ebenfalls nur für den Admin
+  sichtbar und für andere Personen nicht erreichbar; der Button
+  „📹 Kamera ansehen" erscheint nur für den Admin.
+- Push-Benachrichtigungen bei Bewegung gehen nur noch an den Admin.
+- Hinweis: Ohne einen Kanal „Cams" wird keine Chat-Nachricht mehr erzeugt
+  (nicht mehr ersatzweise im „Familie"-Kanal) – nur Push an den Admin.
+- Port 1984 von go2rtc selbst sollte nicht aus dem Netz erreichbar sein
+  (Firewall), da er die Hausfunk-Prüfung umgeht.
 
 ## Radio & Musik
 

@@ -186,6 +186,17 @@ function saveRoomsConfig() {
 let ROOMS = loadRoomsConfig();
 const DEFAULT_ROOM = ROOMS[0].id;
 
+// Der Kanal "cams" (Kamera-Meldungen) ist nur fuer den Admin sichtbar.
+const ADMIN_ONLY_ROOM_IDS = ['cams'];
+ROOMS.forEach((r) => { if (ADMIN_ONLY_ROOM_IDS.includes(r.id)) r.adminOnly = true; });
+function roomsForRole(role) {
+  return ROOMS.filter((r) => !r.adminOnly || role === 'admin');
+}
+function canAccessRoom(role, roomId) {
+  const room = ROOMS.find((r) => r.id === roomId);
+  return !!room && (!room.adminOnly || role === 'admin');
+}
+
 // --- Ordnergroesse rekursiv berechnen (fuer den Server-Status im Admin-Panel) ---
 function getDirSize(dirPath) {
   let total = 0;
@@ -695,32 +706,6 @@ function go2rtcApiRequest(method, apiPath) {
   });
 }
 
-// Live-Schnappschuss von go2rtc holen (binaersicher) -- Rueckfall fuers
-// Alarmbild, falls die Kamera selbst keins mitschickt. go2rtc kann direkt
-// aus dem laufenden Stream ein aktuelles JPEG liefern.
-function fetchGo2rtcSnapshot(streamName) {
-  return new Promise((resolve) => {
-    const req = http.request({
-      hostname: 'localhost',
-      port: Number(process.env.HAUSFUNK_GO2RTC_PORT) || 1984,
-      path: `/go2rtc/api/frame.jpeg?src=${encodeURIComponent(streamName)}`,
-      method: 'GET',
-      timeout: 6000,
-    }, (res) => {
-      if (res.statusCode !== 200) {
-        res.resume();
-        resolve(null);
-        return;
-      }
-      const chunks = [];
-      res.on('data', (chunk) => chunks.push(chunk));
-      res.on('end', () => resolve(Buffer.concat(chunks)));
-    });
-    req.on('timeout', () => { req.destroy(); resolve(null); });
-    req.on('error', () => resolve(null));
-    req.end();
-  });
-}
 
 function getCurrentPosition() {
   if (!playerState.isPlaying) return playerState.positionSeconds;
@@ -860,8 +845,26 @@ async function main() {
       res.end();
     }
   });
+  // Kamera-Streams duerfen nur vom Admin abgerufen werden. Der Browser schickt
+  // beim iframe/WebSocket keine eigenen Kopfzeilen mit, daher prueft der Server
+  // ein Cookie ("hausfunk_cam"), das der Client nach der Admin-Anmeldung mit
+  // seinem Sitzungs-Token setzt und das hier gegen die gespeicherten Sitzungen
+  // (Rolle "admin", nicht abgelaufen) abgeglichen wird.
+  function isAdminRequest(req) {
+    const header = req.headers.cookie || '';
+    const match = header.split(';').map((c) => c.trim()).find((c) => c.startsWith('hausfunk_cam='));
+    if (!match) return false;
+    const token = decodeURIComponent(match.slice('hausfunk_cam='.length));
+    const session = sessions[token];
+    return !!(session && session.role === 'admin' && session.expiresAt > Date.now());
+  }
   server.on('upgrade', (req, socket, head) => {
     if (!req.url.startsWith('/go2rtc/')) return; // Socket.IO uebernimmt den Rest
+    if (!isAdminRequest(req)) {
+      socket.write('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
+      socket.destroy();
+      return;
+    }
     go2rtcProxy.ws(req, socket, head);
   });
 
@@ -896,6 +899,7 @@ async function main() {
   // reicht Hausfunk das hier intern durch -- dadurch muss an Caddy ueberhaupt
   // nichts geaendert werden, alles laeuft ueber die bestehende Hausfunk-Domain.
   app.use('/go2rtc', (req, res) => {
+    if (!isAdminRequest(req)) return res.status(403).send('Nur fuer den Admin.');
     // Express entfernt bei app.use('/go2rtc', ...) den Praefix bereits aus
     // req.url, bevor der Handler laeuft -- http-proxy nutzt aber req.url
     // (nicht req.originalUrl) zum Aufbau des weitergeleiteten Pfads. Praefix
@@ -1056,14 +1060,12 @@ async function main() {
     // (kein Bild vorhanden, z.B. bei einer einfachen Test-Anfrage per curl).
     let rawBodyText = '';
     let xmlPartName = '';
-    let imageBuffer = null;
     if (contentTypeHeader.toLowerCase().includes('multipart')) {
       const parts = parseMultipartBody(rawBodyBuffer, contentTypeHeader) || [];
       const xmlPart = parts.find((p) => p.contentType.includes('xml') || p.contentType.includes('text'));
-      const imagePart = parts.find((p) => p.contentType.includes('image'));
       console.log(
         `[Kamera-Alarm] Zerlegung: ${parts.length} Teil(e) gefunden, Typen=[${parts.map((p) => p.contentType).join(', ')}], `
-        + `xmlPart=${xmlPart ? 'gefunden' : 'NICHT gefunden'}, imagePart=${imagePart ? 'gefunden' : 'NICHT gefunden'}`,
+        + `xmlPart=${xmlPart ? 'gefunden' : 'NICHT gefunden'}`,
       );
       if (xmlPart) {
         rawBodyText = xmlPart.content.toString('utf-8');
@@ -1075,7 +1077,6 @@ async function main() {
         // leer auszugehen.
         rawBodyText = rawBodyBuffer.toString('utf-8');
       }
-      if (imagePart && imagePart.content.length > 0) imageBuffer = imagePart.content;
     } else {
       rawBodyText = rawBodyBuffer.toString('utf-8');
     }
@@ -1083,28 +1084,11 @@ async function main() {
     const eventDescription = describeCameraEvent(explicitEvent, rawBodyText, xmlPartName);
     const eventLabel = eventDescription || 'Bewegung erkannt';
 
-    // Mitgeschicktes Alarmbild speichern (wie ein normaler Bild-Upload) --
-    // faellt beim Speichern etwas aus, wird einfach ohne Bild weitergemacht.
-    // Falls die Kamera selbst kein Bild mitgeschickt hat, ersatzweise einen
-    // aktuellen Schnappschuss direkt von go2rtc holen (funktioniert, sobald
-    // die Kamera dort als Stream eingerichtet ist).
-    if (!imageBuffer && camera && camera.url) {
-      imageBuffer = await fetchGo2rtcSnapshot(camera.url);
-    }
-
-    let imageUrl = null;
-    if (imageBuffer) {
-      try {
-        const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
-        fs.writeFileSync(path.join(UPLOAD_DIR, filename), imageBuffer);
-        imageUrl = `/uploads/${filename}`;
-      } catch (err) {
-        imageUrl = null;
-      }
-    }
-
     const title = `📹 ${eventLabel} · ${cameraLabel}`;
+    // Kameras sind nur fuer den Admin sichtbar -- Push daher nur an ihn.
+    const adminKey = adminDisplayName.toLowerCase();
     Object.keys(pushSubs).forEach((nameKey) => {
+      if (nameKey !== adminKey) return;
       sendPushToName(nameKey, { title, body: 'Kamera hat ein Ereignis gemeldet.' });
     });
 
@@ -1114,14 +1098,16 @@ async function main() {
     // nachtraeglich beim Durchscrollen, und der Ungelesen-Zaehler greift
     // ebenfalls. Faellt auf "familie" zurueck, falls der "cams"-Kanal noch
     // nicht angelegt wurde (z.B. direkt nach dem Update, bevor DOM ihn
-    // erstellt hat), damit die Meldung nicht komplett verloren geht.
-    const alertRoomId = roomState.has('cams') ? 'cams' : 'familie';
+    // erstellt hat). Der Kanal ist nur fuer den Admin sichtbar; gibt es ihn
+    // nicht, wird bewusst keine Chat-Nachricht erzeugt (nie in einem Kanal
+    // posten, den alle sehen koennen). Es wird nie ein Bild mitgeschickt.
+    const alertRoomId = 'cams';
     const alertState = roomState.get(alertRoomId);
     if (alertState) {
       const alertText = `${eventLabel} an „${cameraLabel}"`;
       const msg = {
         id: makeId(),
-        type: imageUrl ? 'image' : 'text',
+        type: 'text',
         sender: '📹 Kamera',
         color: '#e8a33d',
         avatar: null,
@@ -1133,14 +1119,10 @@ async function main() {
         replyTo: null,
         cameraLinkId: camera ? camera.id : null,
       };
-      if (imageUrl) {
-        msg.url = imageUrl;
-        msg.caption = alertText;
-      }
       alertState.messages.push(msg);
       saveRoomMessages(alertRoomId);
       io.to(alertRoomId).emit('message', msg);
-      io.except(alertRoomId).emit('roomActivity', { roomId: alertRoomId });
+      emitToAdminsExceptRoom(alertRoomId, 'roomActivity', { roomId: alertRoomId });
     }
 
     return res.status(200).send('OK');
@@ -1446,6 +1428,7 @@ async function main() {
 
     const state = roomState.get(roomId);
     socket.emit('yourRole', role);
+    socket.emit('rooms', roomsForRole(role));
     socket.emit('roomChanged', roomId);
     socket.emit('history', state.messages.slice(-MAX_SEND));
     socket.emit('pinnedUpdate', state.pinned);
@@ -1458,6 +1441,7 @@ async function main() {
       socket.emit('presenceLog', presenceLog);
       socket.emit('calendarUrl', calendarUrl);
       socket.emit('networkMusicFolder', networkMusicFolder);
+      socket.emit('camerasUpdate', cameras);
     }
     broadcastRoomUsers(roomId);
     broadcastGlobalUsers();
@@ -1469,10 +1453,22 @@ async function main() {
     socket.emit('sessionToken', token);
   }
 
+  function broadcastRooms() {
+    io.sockets.sockets.forEach((s) => s.emit('rooms', roomsForRole(s.data.role)));
+  }
+  function emitToAdmins(event, payload) {
+    io.sockets.sockets.forEach((s) => { if (s.data.role === 'admin') s.emit(event, payload); });
+  }
+  function emitToAdminsExceptRoom(roomId, event, payload) {
+    io.sockets.sockets.forEach((s) => {
+      if (s.data.role === 'admin' && s.data.room !== roomId) s.emit(event, payload);
+    });
+  }
+
   io.on('connection', (socket) => {
     // Sofort Kanalliste + globale Online-Uebersicht schicken, auch wenn noch
     // nicht beigetreten (damit die Startseite bereits zeigen kann, wer aktiv ist).
-    socket.emit('rooms', ROOMS);
+    socket.emit('rooms', roomsForRole(socket.data.role));
     socket.emit('globalUsers', [...onlineUsers.values()]);
     socket.emit('avatarMap', avatarsByName);
     socket.emit('protectedNames', getProtectedNamesPublic());
@@ -1482,7 +1478,6 @@ async function main() {
     socket.emit('radioStations', radioStations);
     socket.emit('playlistUpdate', getFullPlaylist());
     socket.emit('playerState', playerStatePayload());
-    socket.emit('camerasUpdate', cameras);
 
     socket.on('join', (payload) => {
       const raw = typeof payload === 'string' ? { name: payload } : (payload || {});
@@ -1630,7 +1625,7 @@ async function main() {
     socket.on('switchRoom', (payload) => {
       if (!socket.data.name || !payload) return;
       const roomId = payload.roomId;
-      if (!ROOMS.some((r) => r.id === roomId)) return;
+      if (!canAccessRoom(socket.data.role, roomId)) return;
       const oldRoom = socket.data.room;
       if (oldRoom === roomId) return;
 
@@ -1839,10 +1834,10 @@ async function main() {
       const label = (payload.label || '').toString().trim().slice(0, 40);
       if (!label) return;
       const id = slugifyRoomId(label);
-      ROOMS.push({ id, label });
+      ROOMS.push(ADMIN_ONLY_ROOM_IDS.includes(id) ? { id, label, adminOnly: true } : { id, label });
       saveRoomsConfig();
       roomState.set(id, loadRoom(id));
-      io.emit('rooms', ROOMS);
+      broadcastRooms();
     });
 
     socket.on('admin:renameRoom', (payload) => {
@@ -1853,7 +1848,7 @@ async function main() {
       if (!label) return;
       room.label = label;
       saveRoomsConfig();
-      io.emit('rooms', ROOMS);
+      broadcastRooms();
     });
 
     socket.on('admin:setRoomIcon', (payload) => {
@@ -1863,7 +1858,7 @@ async function main() {
       const icon = (payload.icon || '').toString().trim().slice(0, 8);
       room.icon = icon || null;
       saveRoomsConfig();
-      io.emit('rooms', ROOMS);
+      broadcastRooms();
     });
 
     // --- Eigenes Profilbild aendern (nur die eigene Sitzung, nach dem Login) ---
@@ -1925,7 +1920,7 @@ async function main() {
       fs.writeFileSync(path.join(ROOM_ICON_DIR, filename), buffer);
       room.iconImage = `/uploads/room-icons/${filename}`;
       saveRoomsConfig();
-      io.emit('rooms', ROOMS);
+      broadcastRooms();
     });
 
     socket.on('admin:removeRoomIcon', (payload) => {
@@ -1934,7 +1929,7 @@ async function main() {
       if (!room) return;
       room.iconImage = null;
       saveRoomsConfig();
-      io.emit('rooms', ROOMS);
+      broadcastRooms();
     });
 
     socket.on('admin:uploadRoomBackground', (payload) => {
@@ -1957,7 +1952,7 @@ async function main() {
       fs.writeFileSync(path.join(ROOM_BG_DIR, filename), buffer);
       room.background = `/uploads/room-backgrounds/${filename}`;
       saveRoomsConfig();
-      io.emit('rooms', ROOMS);
+      broadcastRooms();
     });
 
     socket.on('admin:removeRoomBackground', (payload) => {
@@ -1966,7 +1961,7 @@ async function main() {
       if (!room) return;
       room.background = null;
       saveRoomsConfig();
-      io.emit('rooms', ROOMS);
+      broadcastRooms();
     });
 
     socket.on('admin:deleteRoom', (payload) => {
@@ -1995,7 +1990,7 @@ async function main() {
       }
       broadcastRoomUsers(fallbackRoom);
       broadcastGlobalUsers();
-      io.emit('rooms', ROOMS);
+      broadcastRooms();
     });
 
     // --- Einkaufsliste (eigenstaendig, an keinen Kanal gebunden) ----------------
@@ -2248,7 +2243,7 @@ async function main() {
         id: makeId(), name, url: streamName, addedBy: socket.data.name,
       });
       saveCameras();
-      io.emit('camerasUpdate', cameras);
+      emitToAdmins('camerasUpdate', cameras);
     });
 
     socket.on('camera:remove', async (payload) => {
@@ -2257,7 +2252,7 @@ async function main() {
       if (!camera) return;
       cameras = cameras.filter((c) => c.id !== payload.id);
       saveCameras();
-      io.emit('camerasUpdate', cameras);
+      emitToAdmins('camerasUpdate', cameras);
       // Den zugehoerigen go2rtc-Sender ebenfalls entfernen (bestmoeglich --
       // falls go2rtc gerade nicht erreichbar ist, bleibt die Hausfunk-Liste
       // trotzdem bereinigt, das darf das Entfernen nicht blockieren).
