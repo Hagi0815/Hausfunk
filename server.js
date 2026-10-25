@@ -30,6 +30,9 @@ const RADIO_STATIONS_FILE = path.join(DATA_DIR, 'radio-stations.json');
 const CAMERAS_FILE = path.join(DATA_DIR, 'cameras.json');
 const PLAYLIST_FILE = path.join(DATA_DIR, 'playlist.json');
 const MUSIC_DIR = path.join(UPLOAD_DIR, 'music');
+// Alarmbilder der Kameras: bewusst NICHT unter /uploads (oeffentlich), sondern
+// in einem eigenen Ordner, der nur mit Admin-Sitzung ausgeliefert wird.
+const CAM_ALERT_DIR = path.join(DATA_DIR, 'cam-alerts');
 const NETWORK_MUSIC_CONFIG_FILE = path.join(DATA_DIR, 'network-music-folder.json');
 const AUDIO_FILE_EXTENSIONS = new Set(['.mp3', '.m4a', '.ogg', '.wav', '.flac', '.aac']);
 const CALENDAR_REFRESH_MS = 30 * 60 * 1000; // alle 30 Minuten neu abrufen
@@ -80,7 +83,7 @@ const DEFAULT_ROOMS = [
 ];
 
 // --- Ordner sicherstellen ----------------------------------------------------
-[DATA_DIR, ROOMS_DIR, UPLOAD_DIR, AVATAR_DIR, ROOM_BG_DIR, ROOM_ICON_DIR, MUSIC_DIR].forEach((dir) => {
+[DATA_DIR, ROOMS_DIR, CAM_ALERT_DIR, UPLOAD_DIR, AVATAR_DIR, ROOM_BG_DIR, ROOM_ICON_DIR, MUSIC_DIR].forEach((dir) => {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 });
 if (!fs.existsSync(AVATARS_FILE)) fs.writeFileSync(AVATARS_FILE, '{}');
@@ -707,6 +710,33 @@ function go2rtcApiRequest(method, apiPath) {
 }
 
 
+// Live-Schnappschuss von go2rtc holen (binaersicher) -- Rueckfall fuers
+// Alarmbild, falls die Kamera selbst keins mitschickt. go2rtc kann direkt
+// aus dem laufenden Stream ein aktuelles JPEG liefern.
+function fetchGo2rtcSnapshot(streamName) {
+  return new Promise((resolve) => {
+    const req = http.request({
+      hostname: 'localhost',
+      port: Number(process.env.HAUSFUNK_GO2RTC_PORT) || 1984,
+      path: `/go2rtc/api/frame.jpeg?src=${encodeURIComponent(streamName)}`,
+      method: 'GET',
+      timeout: 6000,
+    }, (res) => {
+      if (res.statusCode !== 200) {
+        res.resume();
+        resolve(null);
+        return;
+      }
+      const chunks = [];
+      res.on('data', (chunk) => chunks.push(chunk));
+      res.on('end', () => resolve(Buffer.concat(chunks)));
+    });
+    req.on('timeout', () => { req.destroy(); resolve(null); });
+    req.on('error', () => resolve(null));
+    req.end();
+  });
+}
+
 function getCurrentPosition() {
   if (!playerState.isPlaying) return playerState.positionSeconds;
   return playerState.positionSeconds + (Date.now() - playerState.lastUpdateTs) / 1000;
@@ -852,11 +882,16 @@ async function main() {
   // (Rolle "admin", nicht abgelaufen) abgeglichen wird.
   function isAdminRequest(req) {
     const header = req.headers.cookie || '';
-    const match = header.split(';').map((c) => c.trim()).find((c) => c.startsWith('hausfunk_cam='));
-    if (!match) return false;
-    const token = decodeURIComponent(match.slice('hausfunk_cam='.length));
-    const session = sessions[token];
-    return !!(session && session.role === 'admin' && session.expiresAt > Date.now());
+    // Falls (z. B. von einer aelteren Version) mehrere Cookies gleichen Namens
+    // mitkommen, reicht ein gueltiges.
+    return header.split(';').map((c) => c.trim())
+      .filter((c) => c.startsWith('hausfunk_cam='))
+      .some((c) => {
+        let token = '';
+        try { token = decodeURIComponent(c.slice('hausfunk_cam='.length)); } catch (err) { return false; }
+        const session = sessions[token];
+        return !!(session && session.role === 'admin' && session.expiresAt > Date.now());
+      });
   }
   server.on('upgrade', (req, socket, head) => {
     if (!req.url.startsWith('/go2rtc/')) return; // Socket.IO uebernimmt den Rest
@@ -870,6 +905,10 @@ async function main() {
 
   app.use(express.static(path.join(__dirname, 'public')));
   app.use('/uploads', express.static(UPLOAD_DIR));
+  app.use('/cam-alert-images', (req, res, next) => {
+    if (!isAdminRequest(req)) return res.status(403).send('Nur fuer den Admin.');
+    return express.static(CAM_ALERT_DIR)(req, res, next);
+  });
 
   // --- Musikdateien aus dem konfigurierten Netzwerkordner ausliefern -----------
   // (dynamisch, da der Ordnerpfad sich zur Laufzeit aendern kann -- daher kein
@@ -1060,12 +1099,14 @@ async function main() {
     // (kein Bild vorhanden, z.B. bei einer einfachen Test-Anfrage per curl).
     let rawBodyText = '';
     let xmlPartName = '';
+    let imageBuffer = null;
     if (contentTypeHeader.toLowerCase().includes('multipart')) {
       const parts = parseMultipartBody(rawBodyBuffer, contentTypeHeader) || [];
+      const imagePart = parts.find((p) => p.contentType.includes('image'));
       const xmlPart = parts.find((p) => p.contentType.includes('xml') || p.contentType.includes('text'));
       console.log(
         `[Kamera-Alarm] Zerlegung: ${parts.length} Teil(e) gefunden, Typen=[${parts.map((p) => p.contentType).join(', ')}], `
-        + `xmlPart=${xmlPart ? 'gefunden' : 'NICHT gefunden'}`,
+        + `xmlPart=${xmlPart ? 'gefunden' : 'NICHT gefunden'}, imagePart=${imagePart ? 'gefunden' : 'NICHT gefunden'}`,
       );
       if (xmlPart) {
         rawBodyText = xmlPart.content.toString('utf-8');
@@ -1077,12 +1118,30 @@ async function main() {
         // leer auszugehen.
         rawBodyText = rawBodyBuffer.toString('utf-8');
       }
+      if (imagePart && imagePart.content.length > 0) imageBuffer = imagePart.content;
     } else {
       rawBodyText = rawBodyBuffer.toString('utf-8');
     }
 
     const eventDescription = describeCameraEvent(explicitEvent, rawBodyText, xmlPartName);
     const eventLabel = eventDescription || 'Bewegung erkannt';
+
+    // Alarmbild: das von der Kamera mitgeschickte, sonst ein aktueller
+    // Schnappschuss von go2rtc. Gespeichert wird es im Admin-Ordner (siehe
+    // /cam-alert-images), nicht oeffentlich -- der Kanal "cams" ist admin-only.
+    if (!imageBuffer && camera && camera.url) {
+      imageBuffer = await fetchGo2rtcSnapshot(camera.url);
+    }
+    let imageUrl = null;
+    if (imageBuffer) {
+      try {
+        const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+        fs.writeFileSync(path.join(CAM_ALERT_DIR, filename), imageBuffer);
+        imageUrl = `/cam-alert-images/${filename}`;
+      } catch (err) {
+        imageUrl = null;
+      }
+    }
 
     const title = `📹 ${eventLabel} · ${cameraLabel}`;
     // Kameras sind nur fuer den Admin sichtbar -- Push daher nur an ihn.
@@ -1107,7 +1166,7 @@ async function main() {
       const alertText = `${eventLabel} an „${cameraLabel}"`;
       const msg = {
         id: makeId(),
-        type: 'text',
+        type: imageUrl ? 'image' : 'text',
         sender: '📹 Kamera',
         color: '#e8a33d',
         avatar: null,
@@ -1119,6 +1178,10 @@ async function main() {
         replyTo: null,
         cameraLinkId: camera ? camera.id : null,
       };
+      if (imageUrl) {
+        msg.url = imageUrl;
+        msg.caption = alertText;
+      }
       alertState.messages.push(msg);
       saveRoomMessages(alertRoomId);
       io.to(alertRoomId).emit('message', msg);

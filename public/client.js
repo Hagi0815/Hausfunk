@@ -714,10 +714,12 @@ socket.on('connect', () => {
 function setCameraAccessCookie(token) {
   try {
     const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+    // altes Cookie (frueher nur fuer /go2rtc) entfernen
+    document.cookie = `hausfunk_cam=; path=/go2rtc; max-age=0; SameSite=Strict${secure}`;
     if (token) {
-      document.cookie = `hausfunk_cam=${encodeURIComponent(token)}; path=/go2rtc; max-age=2592000; SameSite=Strict${secure}`;
+      document.cookie = `hausfunk_cam=${encodeURIComponent(token)}; path=/; max-age=2592000; SameSite=Strict${secure}`;
     } else {
-      document.cookie = `hausfunk_cam=; path=/go2rtc; max-age=0; SameSite=Strict${secure}`;
+      document.cookie = `hausfunk_cam=; path=/; max-age=0; SameSite=Strict${secure}`;
     }
   } catch (err) {
     // ohne Cookie bleibt der Kamerabereich einfach gesperrt

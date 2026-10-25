@@ -511,9 +511,14 @@ https://hausfunk.../api/camera-alert?camera=Haustuer&secret=...&event=Klingel
 Ohne erkennbaren oder angegebenen Ereignistyp erscheint als Rückfall
 „Bewegung erkannt".
 
-**Keine Alarmbilder im Chat**: Kamera-Meldungen erscheinen nur noch als
-Text („Bewegung erkannt an „Haustuer""), es wird kein Bild gespeichert oder
-angezeigt – auch dann nicht, wenn die Kamera selbst eines mitschickt.
+**Alarmbild**: schickt die Kamera zusätzlich zu den Ereignisdaten ein
+Schnappschuss-Bild mit, zeigt Hausfunk es zusammen mit dem Ereignistext in
+der Nachricht im Kanal „Cams" an. Schickt die Kamera selbst **kein** Bild
+mit, holt Hausfunk ersatzweise einen aktuellen Schnappschuss direkt von
+go2rtc (die Kamera muss dort als Stream eingerichtet sein). Da der Kanal
+nur für den Admin sichtbar ist, sind auch die Alarmbilder geschützt: sie
+liegen nicht im öffentlichen `uploads/`-Ordner, sondern in `data/cam-alerts/`
+und werden nur mit gültiger Admin-Sitzung ausgeliefert (sonst 403).
 
 **Kameras sind nur für den Admin (DOM) sichtbar**:
 - Der Button „📹 Kameras" und der ganze Kamera-Bereich erscheinen nur nach
@@ -521,13 +526,13 @@ angezeigt – auch dann nicht, wenn die Kamera selbst eines mitschickt.
 - Auch die Streams selbst sind serverseitig gesperrt: der Pfad `/go2rtc/…`
   (Seiten, API, WebSocket) antwortet ohne gültige Admin-Sitzung mit 403.
   Dazu setzt der Browser des Admins nach der Anmeldung ein Cookie
-  (`hausfunk_cam`, nur für `/go2rtc`), das der Server gegen die Sitzung prüft.
+  (`hausfunk_cam`), das der Server gegen die Sitzung prüft.
   Wer die URL kennt, kommt also ohne Admin-Anmeldung nicht an die Streams.
 - Der Kanal **„Cams"** (Kamera-Meldungen) ist ebenfalls nur für den Admin
   sichtbar und für andere Personen nicht erreichbar; der Button
   „📹 Kamera ansehen" erscheint nur für den Admin.
 - Push-Benachrichtigungen bei Bewegung gehen nur noch an den Admin.
-- Hinweis: Ohne einen Kanal „Cams" wird keine Chat-Nachricht mehr erzeugt
+- Hinweis: Ohne einen Kanal „Cams" wird keine Chat-Nachricht erzeugt
   (nicht mehr ersatzweise im „Familie"-Kanal) – nur Push an den Admin.
 - Port 1984 von go2rtc selbst sollte nicht aus dem Netz erreichbar sein
   (Firewall), da er die Hausfunk-Prüfung umgeht.
